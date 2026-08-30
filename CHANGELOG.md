@@ -26,5 +26,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - OSV matcher: batched `querybatch` queries, concurrent detail fetches, CVSS
   v3 and v2 base-score computation, severity mapping and per-release fixed
   version selection.
+- Terminal report and the `fwscan scan` command, wiring input, cataloging and
+  matching into a working end-to-end scan.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

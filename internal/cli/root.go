@@ -38,6 +38,7 @@ func NewRootCmd(version string) *cobra.Command {
 		SilenceUsage:  true, // usage on a runtime failure is noise, not help
 		SilenceErrors: true, // main prints errors itself, in the agreed format
 	}
+	root.AddCommand(newScanCmd(version))
 	root.AddCommand(newVersionCmd(version))
 	return root
 }

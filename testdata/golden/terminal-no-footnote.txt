@@ -1,0 +1,8 @@
+fwscan v0.1.0
+
+  Target      rootfs.squashfs (squashfs, zstd)
+  Packages    1 (1 high confidence, 0 low)
+  Findings    1   critical: 0  high: 1  medium: 0  low: 0  unknown: 0
+
+SEVERITY  SCORE  PACKAGE  INSTALLED         FIXED             VULN ID        CONF
+high      7.5    openssl  1.1.1k-1+deb11u1  1.1.1k-1+deb11u2  CVE-2022-0778  high

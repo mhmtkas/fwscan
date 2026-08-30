@@ -1,0 +1,97 @@
+package cli
+
+import (
+	"fmt"
+	"io/fs"
+	"slices"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/mhmtkas/fwscan/internal/catalog"
+	"github.com/mhmtkas/fwscan/internal/input"
+	"github.com/mhmtkas/fwscan/internal/match"
+	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/report"
+)
+
+type scanOptions struct {
+	noNetwork bool
+}
+
+func newScanCmd(version string) *cobra.Command {
+	var opts scanOptions
+
+	cmd := &cobra.Command{
+		Use:   "scan <path>",
+		Short: "Scan a firmware rootfs for packages and known vulnerabilities",
+		Long: "Scan an extracted rootfs directory, a rootfs tarball, or a filesystem\n" +
+			"image. The format is detected from the file's contents, not its name.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runScan(cmd, args[0], version, opts)
+		},
+	}
+	cmd.Flags().BoolVar(&opts.noNetwork, "no-network", false,
+		"catalog packages only; skip the CVE lookup")
+	return cmd
+}
+
+func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error {
+	started := time.Now()
+
+	format, compression, err := input.Detect(target)
+	if err != nil {
+		return err
+	}
+
+	rootfs, cleanup, err := input.Open(target)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	comps, err := catalogAll(rootfs)
+	if err != nil {
+		return err
+	}
+	if len(comps) == 0 {
+		// A rootfs with no package database is a legitimate result, but silence
+		// would look like a bug. The warning goes to stderr so stdout stays a
+		// clean report.
+		fmt.Fprintln(cmd.ErrOrStderr(),
+			"fwscan: no package database found; is this a Linux rootfs?")
+	}
+
+	var findings []model.Finding
+	if !opts.noNetwork {
+		findings, err = match.NewOSV().Match(cmd.Context(), comps)
+		if err != nil {
+			return err
+		}
+	}
+
+	info := report.ScanInfo{
+		Target:      target,
+		Format:      format.String(),
+		Compression: compression.String(),
+		StartedAt:   started.UTC(),
+		Duration:    time.Since(started),
+	}
+	return report.Terminal(cmd.OutOrStdout(), version, info, comps, findings, opts.noNetwork)
+}
+
+// catalogAll runs every cataloger over the rootfs and returns the union,
+// sorted by name so the output is stable run to run.
+func catalogAll(rootfs fs.FS) ([]model.Component, error) {
+	var comps []model.Component
+	for _, c := range catalog.All() {
+		found, err := c.Catalog(rootfs)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", c.Name(), err)
+		}
+		comps = append(comps, found...)
+	}
+	slices.SortFunc(comps, model.CompareComponents)
+	return comps, nil
+}

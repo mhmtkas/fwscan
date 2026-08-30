@@ -1,0 +1,9 @@
+fwscan v0.1.0
+
+  Target      rootfs.squashfs (squashfs, zstd)
+  Packages    4 (3 high confidence, 1 low)
+
+Cataloged 4 packages. CVE lookup skipped (--no-network).
+
+1 low-confidence component was identified by filename heuristics and may be false positives.
+Run with --output report.json for full details including aliases and evidence paths.
