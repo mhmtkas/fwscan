@@ -47,6 +47,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y squashfs-tools
           unsquashfs -version | head -1
+
+      - name: Build the squashfs fixture variants
+        run: make fixtures
+
       - run: go test ./... -race -cover
 
       - name: Install cyclonedx-cli

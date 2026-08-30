@@ -66,7 +66,13 @@ func Detect(path string) (Format, Compression, error) {
 
 	compression := detectCompression(header)
 	if compression == CompressionNone {
-		return detectFormat(header), CompressionNone, nil
+		format := detectFormat(header)
+		if format == FormatSquashFS {
+			// squashfs carries its compression inside the image rather than
+			// wrapped around it, so it is read from the superblock.
+			return format, squashfsCompression(header), nil
+		}
+		return format, CompressionNone, nil
 	}
 
 	// Compressed: look through the wrapper to see what is actually inside. A
@@ -76,6 +82,8 @@ func Detect(path string) (Format, Compression, error) {
 	if err != nil {
 		return FormatUnknown, compression, err
 	}
+	// A standalone-compressed image, e.g. rootfs.squashfs.lz4: the outer
+	// compression is what wraps it, and the payload says which handler runs.
 	return detectFormat(inner), compression, nil
 }
 

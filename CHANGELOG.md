@@ -33,5 +33,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - JSON report behind `--output`, written atomically, with the schema and sort
   orders from output-spec section 3.
 - `--no-network` mode, proven by test to make no vulnerability lookup at all.
+- SquashFS input via `unsquashfs`, with the internal compression read from the
+  superblock and an actionable error when the tool is missing.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

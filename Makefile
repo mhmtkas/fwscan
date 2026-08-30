@@ -27,6 +27,23 @@ test-integration: ## Run the tests that hit the real OSV API
 lint: ## Run golangci-lint
 	golangci-lint run
 
+.PHONY: fixtures
+fixtures: ## Rebuild the lz4/zstd/xz squashfs variants from the committed gzip image
+	@command -v unsquashfs >/dev/null 2>&1 && command -v mksquashfs >/dev/null 2>&1 || { \
+		echo "squashfs-tools 4.4 or newer is required."; \
+		echo "  apt install squashfs-tools   /   brew install squashfs"; \
+		exit 1; }
+	@rm -rf bin/fixture-src
+	@mkdir -p bin
+	unsquashfs -no-progress -quiet -d bin/fixture-src testdata/images/mini-rootfs.squashfs
+	@for comp in lz4 zstd xz; do \
+		echo "  building mini-rootfs.$$comp.squashfs"; \
+		rm -f testdata/images/mini-rootfs.$$comp.squashfs; \
+		mksquashfs bin/fixture-src testdata/images/mini-rootfs.$$comp.squashfs \
+			-comp $$comp -noappend -all-root -no-xattrs -quiet -no-progress; \
+	done
+	@rm -rf bin/fixture-src
+
 .PHONY: validate-sbom
 validate-sbom: build ## Generate an SBOM from the fixture and validate it against the CycloneDX 1.6 schema
 	@command -v cyclonedx >/dev/null 2>&1 || { \

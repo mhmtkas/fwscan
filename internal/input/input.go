@@ -62,6 +62,8 @@ func sourceFor(format Format, compression Compression) (Source, error) {
 		return NewDir(), nil
 	case FormatTar:
 		return NewTarball(compression), nil
+	case FormatSquashFS:
+		return NewSquashFS(), nil
 	case FormatUnknown:
 		return nil, fmt.Errorf("unsupported format: %w", ErrUnsupportedFormat)
 	default:
