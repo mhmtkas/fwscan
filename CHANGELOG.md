@@ -14,5 +14,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `spike/NOTES.md`.
 - Repository scaffolding: Go module, package layout, `Makefile`, `golangci-lint`
   configuration, CI workflow, and the `fwscan version` command.
+- Domain model: `Component`, `Finding`, `Confidence` and `Severity`, with the
+  finding and component sort orders from output-spec section 1.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main
