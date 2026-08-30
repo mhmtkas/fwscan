@@ -22,9 +22,39 @@ until their task lands.
   the whole history is treated as future-public: CLAUDE.md rule 10
   (no employer-derived data) applies from this first commit onward.
 
-## T0.1 — Public fixture acquisition — UNRESOLVED
+## T0.1 — Public fixture acquisition — DONE
 
-Sources and provenance for both Debian rootfs samples go here.
+Two rootfs samples, both from the official `library/debian` images on Docker Hub.
+Full provenance — tags, manifest and layer digests, package counts, `status`
+checksums — is in `spike/fixtures/PROVENANCE.md`.
+
+- `spike/fixtures/debian-bookworm-slim/` — Debian 12.15, 88 packages. Supplies the
+  T0.3 **backport true-negative** case; 33 of its packages carry a `+deb12uN`
+  security-update suffix.
+- `spike/fixtures/debian-bullseye-20220125-slim/` — Debian 11.2, 96 packages. Supplies
+  the T0.3 **true-positive** case; oldest dated `bullseye-*-slim` tag still published,
+  so the set of subsequently-fixed CVEs is as large as possible.
+
+Each fixture keeps only `var/lib/dpkg/status`, `usr/lib/os-release` and
+`etc/debian_version`, laid out at their real rootfs-relative paths so a cataloger
+can be pointed straight at the directory. 176 KB total.
+
+Fetched by `spike/fetch-rootfs.sh`, which reads the layer blob from the registry
+API without a Docker daemon and refuses the blob unless its SHA-256 matches the
+digest the registry advertised. Docker Desktop is not running on this machine and
+is not needed.
+
+**Finding that constrains T0.2 and T3:** every stanza in both files is
+`Status: install ok installed`. Real fixtures therefore cannot exercise the
+not-installed filter, and the test for that path must use a synthetic stanza.
+Covered by real data instead: multi-line `Description`, epoch versions
+(`zlib1g 1:1.2.11.dfsg-2`), binNMU suffixes (`bash 5.1-2+b3`), and
+`Architecture: all` mixed with `amd64`.
+
+**Deviation from the task text, for the record:** the task offered
+`debootstrap --variant=minbase` as an alternative source. The registry route was
+used instead because it pins provenance by digest and needs no privileged local
+tooling; `debootstrap` is not installed and would not run natively on macOS.
 
 ## T0.2 — dpkg status parsing PoC — UNRESOLVED
 
