@@ -1,0 +1,27 @@
+Package: installed-pkg
+Status: install ok installed
+Architecture: arm64
+Version: 1.2.3-4
+Description: a normal package
+ continuation line that must not become a field
+ Package: decoy-inside-description
+ Status: install ok installed
+ .
+ still inside the description
+
+Package: removed-pkg
+Status: deinstall ok config-files
+Architecture: amd64
+Version: 9.9.9-1
+Description: must be excluded, not installed
+
+Package: halfinstalled-pkg
+Status: install ok half-installed
+Architecture: amd64
+Version: 8.8.8-1
+
+Package: epoch-pkg
+Status: install ok installed
+Architecture: all
+Version: 1:1.2.11.dfsg-2
+Description: epoch and Architecture: all

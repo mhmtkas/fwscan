@@ -56,9 +56,60 @@ Covered by real data instead: multi-line `Description`, epoch versions
 used instead because it pins provenance by digest and needs no privileged local
 tooling; `debootstrap` is not installed and would not run natively on macOS.
 
-## T0.2 — dpkg status parsing PoC — UNRESOLVED
+## T0.2 — dpkg status parsing PoC — DONE
 
-Parsed counts vs the `dpkg-query --admindir` oracle go here.
+PoC: `spike/dpkgpoc/main.go` (stdlib only, `go run` without a module). Parses
+RFC-822 stanzas, keeps `Status: install ok installed` only, extracts
+Package/Version/Architecture. Throwaway — T3 reimplements it; what carries
+forward is the evidence below and the parsing rules it validates.
+
+### Oracle comparison — both fixtures match byte-for-byte
+
+Oracle exactly as T0.2 specifies:
+`dpkg-query --admindir=<fixture>/var/lib/dpkg -W -f='${Package} ${Version}\n'`,
+both sides `LC_ALL=C sort`ed. dpkg-query 1.23.7 (darwin-arm64).
+
+| Fixture | Oracle lines | PoC lines | diff | SHA-256 of the agreed output |
+|---|---|---|---|---|
+| `debian-bookworm-slim` | 88 | 88 | identical | `92bc3e2ef67fc47b2be0323a97f87cdfaa9ccd6d87deb918d37578f86b64bf59` |
+| `debian-bullseye-20220125-slim` | 96 | 96 | identical | `f9a6b61e647d03bb6fdb5523a316e1354e413b298f7535baaaaf606886f2df62` |
+
+### Finding: the specified oracle does not test the status filter
+
+`dpkg-query -W` lists **every** stanza in the database regardless of `Status`. It
+agreed with the PoC on both fixtures only because those fixtures are 100%
+`install ok installed` (the T0.1 finding). Taken alone, that comparison would
+pass even for a parser with no status filter at all.
+
+The filter is therefore validated separately, against a synthetic database at
+`spike/fixtures/synthetic/status-edge-cases` and a status-aware oracle
+(`-f='${db:Status-Abbrev} ...'`, keeping `ii`):
+
+| Stanza | `Status` | Oracle | PoC | Agree |
+|---|---|---|---|---|
+| `installed-pkg` | `install ok installed` | kept | kept | yes |
+| `removed-pkg` | `deinstall ok config-files` | dropped | dropped | yes |
+| `halfinstalled-pkg` | `install ok half-installed` | dropped | dropped | yes |
+| `epoch-pkg` | `install ok installed` | kept | kept | yes |
+
+**Carry into T3:** assert on a synthetic not-installed stanza, and use the
+status-aware oracle form if a fixture is ever regenerated. The plain
+`-W -f='${Package} ${Version}'` oracle is necessary but not sufficient.
+
+### Parsing rules the evidence establishes
+
+- **Continuation lines** (leading space or tab) belong to the previous field. The
+  synthetic `Description` embeds `Package:` and `Status:` decoy lines indented by
+  one space; the PoC emitted 0 decoy packages, so continuations neither open a
+  field nor break the stanza.
+- **Stanza boundary** is a blank line, and the last stanza need not be followed by
+  one — flush on EOF.
+- **Epoch versions** pass through verbatim (`1:1.2.11.dfsg-2`); no normalisation.
+- **`Architecture: all`** appears alongside `amd64` and needs no special case at
+  parse time. Whether `all` belongs in the purl `?arch=` qualifier is a T0.3
+  question, not a parsing one.
+- **Malformed lines** (no colon) are skipped rather than treated as fatal — a
+  hostile image must not be able to abort the scan.
 
 ## T0.3 — OSV backport-awareness validation — UNRESOLVED
 
