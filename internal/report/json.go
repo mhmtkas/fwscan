@@ -128,6 +128,10 @@ func BuildJSON(version string, info ScanInfo, comps []model.Component, findings 
 			DurationMS:  info.Duration.Milliseconds(),
 		},
 		Summary: jsonSummary{
+			// Written out field by field rather than converted from
+			// PackageCounts: the wire schema is fixed by the output spec and
+			// must stay free to diverge from the internal counting type.
+			//nolint:staticcheck // S1016: the coupling is deliberate
 			Packages: jsonPackageSummary{
 				Total:          packages.Total,
 				HighConfidence: packages.HighConfidence,
