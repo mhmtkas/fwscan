@@ -33,7 +33,9 @@ func NewRootCmd(version string) *cobra.Command {
 		Use:   "fwscan",
 		Short: "Firmware SBOM & CVE scanner",
 		Long: "fwscan scans a Linux-based firmware rootfs, emits a CycloneDX SBOM,\n" +
-			"and reports known vulnerabilities via OSV.dev.",
+			"and reports known vulnerabilities via OSV.dev.\n\n" +
+			"Results are release-aware: a Debian or Alpine package patched by a\n" +
+			"security backport is reported as fixed, not as vulnerable.",
 		Version:       version,
 		SilenceUsage:  true, // usage on a runtime failure is noise, not help
 		SilenceErrors: true, // main prints errors itself, in the agreed format

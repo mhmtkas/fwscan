@@ -42,7 +42,7 @@ func (Apk) Catalog(root fs.FS) ([]model.Component, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("apk: open %s: %w", ApkInstalledPath, err)
+		return nil, fmt.Errorf("reading the package database: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -50,7 +50,7 @@ func (Apk) Catalog(root fs.FS) ([]model.Component, error) {
 
 	comps, err := parseApkInstalled(f, release)
 	if err != nil {
-		return nil, fmt.Errorf("apk: parse %s: %w", ApkInstalledPath, err)
+		return nil, fmt.Errorf("parsing %s: %w", ApkInstalledPath, err)
 	}
 	return comps, nil
 }

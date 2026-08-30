@@ -44,8 +44,18 @@ func fwscanBinary(t *testing.T) string {
 
 func runFwscan(t *testing.T, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
+	return runFwscanWithPath(t, "", args...)
+}
+
+// runFwscanWithPath runs the binary with PATH replaced, so a test can hide an
+// external tool without touching the machine's own environment.
+func runFwscanWithPath(t *testing.T, path string, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
 	cmd := exec.Command(fwscanBinary(t), args...)
 	cmd.Dir = filepath.Join("..", "..")
+	if path != "" {
+		cmd.Env = append(os.Environ(), "PATH="+path)
+	}
 	var out, errBuf strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf

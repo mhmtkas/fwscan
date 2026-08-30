@@ -384,12 +384,17 @@ func (o *OSV) do(req *http.Request, out any) error {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("osv: %s unreachable: %w", req.URL.Host, err)
+		// Whatever the transport said, the actionable part is the same: the
+		// lookup needs the network, and there is a flag to skip it.
+		return fmt.Errorf("cannot reach %s for the vulnerability lookup: %w. "+
+			"check the network, or rerun with --no-network to produce the SBOM only",
+			req.URL.Host, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("osv: %s returned %s", req.URL.Path, resp.Status)
+		return fmt.Errorf("osv.dev returned %s for %s; the service may be rate limiting or down, "+
+			"rerun later or with --no-network", resp.Status, req.URL.Path)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {

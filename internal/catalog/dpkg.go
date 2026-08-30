@@ -56,7 +56,7 @@ func (d Dpkg) Catalog(root fs.FS) ([]model.Component, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("dpkg: open %s: %w", DpkgStatusPath, err)
+		return nil, fmt.Errorf("reading the package database: %w", err)
 	}
 	defer func() { _ = f.Close() }()
 
@@ -64,7 +64,7 @@ func (d Dpkg) Catalog(root fs.FS) ([]model.Component, error) {
 
 	comps, err := parseStatus(f, codename)
 	if err != nil {
-		return nil, fmt.Errorf("dpkg: parse %s: %w", DpkgStatusPath, err)
+		return nil, fmt.Errorf("parsing %s: %w", DpkgStatusPath, err)
 	}
 	return comps, nil
 }

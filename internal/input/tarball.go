@@ -89,7 +89,10 @@ func extractTar(tr *tar.Reader, dest string) error {
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("read archive: %w", err)
+			if errors.Is(err, io.ErrUnexpectedEOF) {
+				return fmt.Errorf("archive is truncated")
+			}
+			return fmt.Errorf("reading archive: %w", err)
 		}
 
 		entries++
@@ -192,7 +195,13 @@ func writeFile(r io.Reader, target string, size int64) (int64, error) {
 	// able to make this write more than it declared.
 	n, err := io.Copy(f, io.LimitReader(r, maxSingleFile))
 	if err != nil {
-		return n, fmt.Errorf("write %s: %w", filepath.Base(target), err)
+		if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
+			// The destination is a fresh temp file, so a short read is the
+			// archive running out, not a disk problem. Say which.
+			return n, fmt.Errorf("archive is truncated, it ends part-way through %s",
+				filepath.Base(target))
+		}
+		return n, fmt.Errorf("extracting %s: %w", filepath.Base(target), err)
 	}
 	return n, nil
 }

@@ -35,8 +35,20 @@ func newScanCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scan <path>",
 		Short: "Scan a firmware rootfs for packages and known vulnerabilities",
-		Long: "Scan an extracted rootfs directory, a rootfs tarball, or a filesystem\n" +
-			"image. The format is detected from the file's contents, not its name.",
+		Long: "Scan an extracted rootfs directory, a rootfs tarball, or a squashfs image.\n" +
+			"The format is detected from the file's contents, not its name, so an lz4\n" +
+			"image called .gz is read correctly.\n\n" +
+			"Packages come from the dpkg and apk databases in the image. Anything found\n" +
+			"by filename or version-string heuristics instead is reported at low\n" +
+			"confidence and is not looked up.\n\n" +
+			"Exit codes: 0 clean, 1 findings at or above --fail-on, 2 the scan could\n" +
+			"not complete.",
+		Example: "  # print a report\n" +
+			"  fwscan scan rootfs.squashfs\n\n" +
+			"  # produce both artifacts and fail the build on anything high or worse\n" +
+			"  fwscan scan --sbom bom.cdx.json --output report.json --fail-on high rootfs.tar.gz\n\n" +
+			"  # SBOM only, no network\n" +
+			"  fwscan scan --no-network --sbom bom.cdx.json ./extracted-rootfs",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runScan(cmd, args[0], version, opts)

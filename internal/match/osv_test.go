@@ -540,3 +540,58 @@ func findByIDForTest(findings []model.Finding, id string) (model.Finding, bool) 
 	}
 	return model.Finding{}, false
 }
+
+// The message a user sees when OSV cannot be reached has to point at the way
+// out, which is the flag that finishes the scan without it.
+func TestUnreachableMessageIsActionable(t *testing.T) {
+	// A server that is closed before use gives a real dial failure.
+	server := httptest.NewServer(http.NewServeMux())
+	url := server.URL
+	server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = url
+
+	_, err := osv.Match(context.Background(), []model.Component{
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+	})
+	if err == nil {
+		t.Fatal("Match() against a dead server returned no error")
+	}
+	message := err.Error()
+	for _, want := range []string{"cannot reach", "--no-network"} {
+		if !strings.Contains(message, want) {
+			t.Errorf("message %q does not mention %q", message, want)
+		}
+	}
+	if first := message[:1]; first != strings.ToLower(first) {
+		t.Errorf("message %q does not start lowercase", message)
+	}
+	if strings.Contains(message, "\n") {
+		t.Errorf("message spans several lines: %q", message)
+	}
+}
+
+// A non-200 is a different problem from an unreachable host and says so.
+func TestServiceErrorMessageIsActionable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "slow down", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+
+	_, err := osv.Match(context.Background(), []model.Component{
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+	})
+	if err == nil {
+		t.Fatal("Match() against a rate-limiting server returned no error")
+	}
+	for _, want := range []string{"429", "rate limiting", "--no-network"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("message %q does not mention %q", err, want)
+		}
+	}
+}

@@ -36,7 +36,7 @@ func Open(path string) (fs.FS, CleanupFunc, error) {
 	if err != nil {
 		return nil, noopCleanup, err
 	}
-	src, err := sourceFor(format, compression)
+	src, err := sourceFor(path, format, compression)
 	if err != nil {
 		return nil, noopCleanup, err
 	}
@@ -56,7 +56,7 @@ func Open(path string) (fs.FS, CleanupFunc, error) {
 // sourceFor maps a detected format to its handler. Formats that are recognised
 // but not yet implemented get a clear message rather than a confusing one; the
 // remaining handlers arrive in T5 and T11.
-func sourceFor(format Format, compression Compression) (Source, error) {
+func sourceFor(path string, format Format, compression Compression) (Source, error) {
 	switch format {
 	case FormatDirectory:
 		return NewDir(), nil
@@ -64,9 +64,13 @@ func sourceFor(format Format, compression Compression) (Source, error) {
 		return NewTarball(compression), nil
 	case FormatSquashFS:
 		return NewSquashFS(), nil
-	case FormatUnknown:
-		return nil, fmt.Errorf("unsupported format: %w", ErrUnsupportedFormat)
 	default:
-		return nil, fmt.Errorf("%s images are not supported yet: %w", format, ErrUnsupportedFormat)
+		// The message names what fwscan can read and why the file extension
+		// did not help, because that is the first thing a user checks.
+		return nil, fmt.Errorf(
+			"%w: %s is not a rootfs directory, a tar archive, or a squashfs image. "+
+				"detection reads the file's contents, not its name. "+
+				"for a full flash dump, extract it with binwalk first and scan the rootfs",
+			ErrUnsupportedFormat, path)
 	}
 }
