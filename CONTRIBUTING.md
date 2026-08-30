@@ -20,10 +20,16 @@ update in the same pull request, called out in the description.
 
 ```sh
 make build   # -> bin/fwscan
-make test    # go test ./... -race -cover
+make test    # go test ./... -cover, with -race where the kernel supports it
 make lint    # golangci-lint run
 make help    # everything else
 ```
+
+The race detector needs a 48-bit virtual address space on arm64, and several
+single-board kernels are built narrower — an Orange Pi 5 is 39-bit, a Raspberry
+Pi 5 is 47. `make test` detects that and runs without it rather than dying with
+`ThreadSanitizer: unsupported VMA range`. CI runs on amd64 and uses
+`make test-race`, which insists on it.
 
 You need Go (version in `go.mod`) and `golangci-lint`. Scanning squashfs images
 needs `squashfs-tools` 4.4 or newer — earlier builds lack lz4 and zstd support.

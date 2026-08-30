@@ -15,8 +15,24 @@ help: ## List the available targets
 build: ## Build ./bin/fwscan with the version stamped in
 	$(GO) build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) ./cmd/fwscan
 
+# The race detector needs a 48-bit virtual address space on arm64. Several
+# single-board kernels are built narrower -- the Orange Pi 5's RK3588 kernel is
+# 39-bit, the Raspberry Pi 5's is 47 -- and `go test -race` there dies with
+# "ThreadSanitizer: unsupported VMA range" before running a single test. Probing
+# for it keeps `make test` usable on those machines; CI runs on amd64 and always
+# has it.
+RACE := $(shell d=$$(mktemp -d); printf 'package main\nfunc main(){}\n' > $$d/rc.go; \
+	(cd $$d && $(GO) mod init rc >/dev/null 2>&1 && $(GO) run -race ./rc.go >/dev/null 2>&1) \
+	&& echo -race; rm -rf $$d)
+
 .PHONY: test
-test: ## Run the unit tests with the race detector and coverage
+test: ## Run the unit tests with coverage, and the race detector where it works
+	@test -n "$(RACE)" || echo "note: race detector unavailable on this kernel, running without it"
+	$(GO) test ./... $(RACE) -cover
+
+.PHONY: test-race
+test-race: ## Run the unit tests, insisting on the race detector
+	@test -n "$(RACE)" || { echo "the race detector does not work on this kernel"; exit 1; }
 	$(GO) test ./... -race -cover
 
 .PHONY: test-integration

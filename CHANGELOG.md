@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `make test` now probes for race-detector support and runs without it on
+  kernels that cannot provide it, instead of failing outright. CI uses the new
+  `make test-race`, which still requires it.
+
 ### Fixed
 
 - A vulnerability unfixed in the scanned release no longer reports another

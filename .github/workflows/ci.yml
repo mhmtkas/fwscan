@@ -51,7 +51,9 @@ jobs:
       - name: Build the squashfs fixture variants
         run: make fixtures
 
-      - run: go test ./... -race -cover
+      # CI runs on amd64, where the race detector always works, so it is
+      # required here rather than probed for.
+      - run: make test-race
 
       - name: Install cyclonedx-cli
         run: |
