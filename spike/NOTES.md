@@ -344,7 +344,90 @@ Two traps worth stating plainly:
   verify after extraction that nothing landed outside the temp dir — the same
   check T5 applies to tar. T15 re-verifies this.
 
-## T0.5 — Decision log — UNRESOLVED
+## T0.5 — Decision log — DONE — Phase 0 closed
 
-Consolidated conclusions and anything that contradicts the MVP scope and so
-needs maintainer review.
+### Verdict: continue. Both kill-risks retired, no change to the MVP scope.
+
+| Spike exit criterion | Result |
+|---|---|
+| dpkg parser matches ground truth | PASS — byte-for-byte on both fixtures (T0.2) |
+| OSV backport true-negative **and** true-positive | PASS — with the release qualifier (T0.3) |
+| All four squashfs compressions extract | PASS — Plan A, no pure-Go reader needed (T0.4) |
+| Version comparison matches `dpkg --compare-versions` | PASS — 18/18 (below) |
+| NOTES.md written | this file |
+
+### Frozen decisions the gated tasks read
+
+**Purl construction (gates T3, T6)**
+
+```
+pkg:deb/debian/<SOURCE-name>@<percent-encoded SOURCE-version>?arch=source&distro=<codename>
+```
+
+Source name and version come from the `Source:` field, falling back to
+`Package`/`Version`; codename comes from `VERSION_CODENAME` in
+`usr/lib/os-release`. Full derivation table and the evidence for each of the four
+constraints are in T0.3. The `distro` qualifier is mandatory: without it two of
+three backport cases are false positives.
+
+**SquashFS (gates T11)** — Plan A, shell out to `unsquashfs`, require ≥ 4.4.
+
+**Matcher shape (feeds T6)** — dedupe on (source name, source version) before
+querying, roughly 28% fewer queries; one `querybatch` call handles 393 purls in
+1.3 s with no pagination; fetch vulnerability details with a bounded pool of ten
+workers, never serially.
+
+### Version comparison — `go-deb-version` vs `dpkg --compare-versions`
+
+Harness in `spike/vercmp/`. dpkg 1.23.7 as oracle,
+`knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23`. **18/18 agree**,
+covering every case the plan asked for plus the ones the earlier tasks turned up:
+
+| Case | Pair | Both say |
+|---|---|---|
+| backport revisions | `1.1.1k-1+deb11u1` vs `…u2` | lt |
+| backport vs later upstream | `1.1.1k-1+deb11u2` vs `1.1.1n-0+deb11u1` | lt |
+| **numeric, not lexical, suffix** | `3.7.9-2+deb12u7` vs `…u10` | lt |
+| epoch beats no epoch | `1:1.2.11.dfsg-2` vs `1.2.11.dfsg-2` | gt |
+| epoch ordering | `1:1.2.11.dfsg-2` vs `2:1.0-1` | lt |
+| tilde sorts before release | `1.0~rc1` vs `1.0` | lt |
+| native vs revisioned | `1.0` vs `1.0-1` | lt |
+| binNMU | `5.1-2` vs `5.1-2+b3` | lt |
+| `+really` | `1.0+really1.3.1-1` vs `1.0-1` | gt |
+
+Two of these matter beyond box-ticking. `+deb12u7 < +deb12u10` proves the suffix
+is compared numerically — a string compare would call u7 the newer one and
+suppress a real finding. And `1:X > X` is the mechanism behind the T0.3 epoch
+trap: sending a binary version that carries an epoch its source lacks sorts the
+query above every fixed-version range, silently hiding vulnerabilities.
+
+`dpkg --compare-versions` is the oracle, not the library. This table is carried
+into T6 as a table-driven unit test.
+
+### Open questions for the maintainer — do not let T6 land without a decision
+
+All three come from T0.3 and are conflicts between measured OSV behaviour and
+`docs/output-spec.md`. They are recorded, not resolved.
+
+1. **Ids arrive as `DEBIAN-CVE-…` and `aliases` is empty on 0/292 records.** The
+   plain CVE sits in `upstream[]`, a field the spec never mentions. Proposed:
+   `id` = the CVE from `upstream[]`, `aliases` = the OSV id plus the rest.
+2. **CVSS v4 has no rule.** 11 of 292 records are v4-only with no v3 fallback and
+   would fall through to `unknown`; all are 2025–2026 CVEs, so the share grows.
+   Meanwhile spec §1's v2 step and ecosystem-severity step are both unreachable
+   for Debian data — 0 records carry v2, 0 carry `database_specific.severity`.
+   Proposed: compute v4 base scores into the same four buckets.
+3. **19.5% of findings will be `unknown`** and therefore invisible to `--fail-on`.
+   Mostly old Debian-marked-minor issues. Proposed: a line in README limitations,
+   no code change.
+
+### Surprises worth remembering
+
+- Querying **binary** package names returns zero vulnerabilities rather than an
+  error. A scanner built on that mistake reports every image as clean and looks
+  like it is working.
+- `distro=debian-11` also returns zero. Both failure modes are silent; only
+  ground truth catches them, which is the entire justification for this spike.
+- The fixtures are 100% `install ok installed`, so the status filter needs
+  synthetic coverage (T0.1, T0.2).
+- tar has no magic number at offset 0 (T0.4).
