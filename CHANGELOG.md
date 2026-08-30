@@ -44,5 +44,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   directory listings, and tests asserting no temp directory survives a failure.
 - Error message pass: every user-facing failure is a single lowercase
   actionable line on stderr, with help text carrying examples and exit codes.
+- Release pipeline: goreleaser building static binaries for linux/amd64,
+  linux/arm64 and darwin/arm64 with checksums, published on tag push.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

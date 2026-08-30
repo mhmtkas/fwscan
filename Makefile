@@ -63,6 +63,12 @@ fmt: ## Rewrite source with gofmt
 tidy: ## Sync go.mod/go.sum
 	$(GO) mod tidy
 
+.PHONY: snapshot
+snapshot: ## Build release artifacts locally without publishing
+	@command -v goreleaser >/dev/null 2>&1 || { \
+		echo "goreleaser not found: https://goreleaser.com/install/"; exit 1; }
+	goreleaser release --snapshot --clean --skip=publish
+
 .PHONY: clean
 clean: ## Remove build output
-	rm -rf bin/
+	rm -rf bin/ dist/

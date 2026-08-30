@@ -1,0 +1,71 @@
+version: 2
+
+project_name: fwscan
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: fwscan
+    main: ./cmd/fwscan
+    binary: fwscan
+    env:
+      # A firmware scanner is run on build servers and in containers, so the
+      # binary must not depend on the host's libc.
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # Intel Macs are not a target for this tool; Linux covers CI and devices,
+      # and darwin/arm64 covers the development machine.
+      - goos: darwin
+        goarch: amd64
+
+archives:
+  - id: fwscan
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  # The changelog is maintained by hand in CHANGELOG.md, so the release notes
+  # are a commit list rather than a second, diverging summary.
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Verifying a download
+
+    ```sh
+    sha256sum -c checksums.txt --ignore-missing
+    ```
+
+    Scanning squashfs images needs `squashfs-tools` 4.4 or newer on the host.

@@ -4,3 +4,4 @@ bin/
 testdata/images/mini-rootfs.lz4.squashfs
 testdata/images/mini-rootfs.zstd.squashfs
 testdata/images/mini-rootfs.xz.squashfs
+dist/
