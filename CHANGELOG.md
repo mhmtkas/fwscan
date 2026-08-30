@@ -39,5 +39,6 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shape Alpine requires.
 - Heuristic detectors for the kernel, busybox and versioned shared libraries,
   all reported at low confidence with evidence.
+- `--fail-on` and the exit codes from output-spec section 5.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

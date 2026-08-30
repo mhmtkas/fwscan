@@ -26,6 +26,7 @@ type scanOptions struct {
 	noNetwork  bool
 	sbomPath   string
 	outputPath string
+	failOn     string
 }
 
 func newScanCmd(version string) *cobra.Command {
@@ -47,11 +48,20 @@ func newScanCmd(version string) *cobra.Command {
 		"write a CycloneDX 1.6 SBOM to this file")
 	cmd.Flags().StringVar(&opts.outputPath, "output", "",
 		"write the full machine-readable report to this file")
+	cmd.Flags().StringVar(&opts.failOn, "fail-on", "",
+		"exit 1 when a finding is at or above this severity (critical|high|medium|low)")
 	return cmd
 }
 
 func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error {
 	started := time.Now()
+
+	// Validated before any work, so a typo fails immediately rather than after
+	// a long scan.
+	threshold, err := report.ParseFailOn(opts.failOn)
+	if err != nil {
+		return err
+	}
 
 	format, compression, err := input.Detect(target)
 	if err != nil {
@@ -106,7 +116,16 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		}
 	}
 
-	return report.Terminal(cmd.OutOrStdout(), version, info, comps, findings, opts.noNetwork)
+	if err := report.Terminal(cmd.OutOrStdout(), version, info, comps, findings, opts.noNetwork); err != nil {
+		return err
+	}
+
+	// The report has already told the user everything; the threshold breach
+	// only changes the exit code, and ThresholdError prints nothing.
+	if n := report.ThresholdFindings(findings, threshold); n > 0 {
+		return &ThresholdError{Count: n}
+	}
+	return nil
 }
 
 func writeJSONReport(path, version string, info report.ScanInfo, comps []model.Component, findings []model.Finding) error {
