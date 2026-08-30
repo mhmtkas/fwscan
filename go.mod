@@ -8,6 +8,7 @@ require (
 )
 
 require (
+	github.com/CycloneDX/cyclonedx-go v0.12.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23 // indirect

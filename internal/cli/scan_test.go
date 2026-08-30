@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -110,4 +111,84 @@ func writeJunk(t *testing.T) string {
 		t.Fatalf("write: %v", err)
 	}
 	return path
+}
+
+func TestScanWritesSBOM(t *testing.T) {
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	out := filepath.Join(t.TempDir(), "bom.cdx.json")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--sbom", out, image})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("scan failed: %v (stderr: %s)", err, stderr.String())
+	}
+
+	body, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("sbom not written: %v", err)
+	}
+	var doc struct {
+		BOMFormat   string `json:"bomFormat"`
+		SpecVersion string `json:"specVersion"`
+		Components  []struct {
+			Name       string `json:"name"`
+			PackageURL string `json:"purl"`
+			Properties []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"properties"`
+		} `json:"components"`
+		Vulnerabilities any `json:"vulnerabilities"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	if doc.BOMFormat != "CycloneDX" || doc.SpecVersion != "1.6" {
+		t.Errorf("format = %s %s, want CycloneDX 1.6", doc.BOMFormat, doc.SpecVersion)
+	}
+	if len(doc.Components) != 6 {
+		t.Errorf("got %d components, want 6", len(doc.Components))
+	}
+	if doc.Vulnerabilities != nil {
+		t.Error("the SBOM carries vulnerabilities")
+	}
+	for _, c := range doc.Components {
+		var hasConfidence, hasEvidence bool
+		for _, p := range c.Properties {
+			switch p.Name {
+			case "fwscan:confidence":
+				hasConfidence = true
+			case "fwscan:evidence":
+				hasEvidence = true
+			}
+		}
+		if !hasConfidence || !hasEvidence {
+			t.Errorf("%s: missing confidence or evidence property", c.Name)
+		}
+	}
+}
+
+// A failure part-way through must not leave a truncated file behind, and must
+// not destroy a file that was already there.
+func TestScanSBOMPathUnwritable(t *testing.T) {
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	unwritable := filepath.Join(t.TempDir(), "no-such-dir", "bom.json")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--sbom", unwritable, image})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected an error writing to a missing directory")
+	}
+	if !strings.Contains(err.Error(), "sbom") {
+		t.Errorf("error = %q, want it to name the sbom", err)
+	}
 }

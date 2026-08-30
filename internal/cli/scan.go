@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"slices"
 	"time"
@@ -13,10 +14,12 @@ import (
 	"github.com/mhmtkas/fwscan/internal/match"
 	"github.com/mhmtkas/fwscan/internal/model"
 	"github.com/mhmtkas/fwscan/internal/report"
+	"github.com/mhmtkas/fwscan/internal/sbom"
 )
 
 type scanOptions struct {
 	noNetwork bool
+	sbomPath  string
 }
 
 func newScanCmd(version string) *cobra.Command {
@@ -34,6 +37,8 @@ func newScanCmd(version string) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&opts.noNetwork, "no-network", false,
 		"catalog packages only; skip the CVE lookup")
+	cmd.Flags().StringVar(&opts.sbomPath, "sbom", "",
+		"write a CycloneDX 1.6 SBOM to this file")
 	return cmd
 }
 
@@ -64,6 +69,14 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 			"fwscan: no package database found; is this a Linux rootfs?")
 	}
 
+	// The SBOM is written before the CVE lookup, so a network failure still
+	// leaves the user with the artifact that does not depend on the network.
+	if opts.sbomPath != "" {
+		if err := writeSBOM(opts.sbomPath, comps, version, started); err != nil {
+			return err
+		}
+	}
+
 	var findings []model.Finding
 	if !opts.noNetwork {
 		findings, err = match.NewOSV().Match(cmd.Context(), comps)
@@ -80,6 +93,17 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		Duration:    time.Since(started),
 	}
 	return report.Terminal(cmd.OutOrStdout(), version, info, comps, findings, opts.noNetwork)
+}
+
+func writeSBOM(path string, comps []model.Component, version string, started time.Time) error {
+	opts := sbom.Options{ToolVersion: version, Timestamp: started}
+	err := report.WriteFileAtomic(path, func(w io.Writer) error {
+		return sbom.Write(w, comps, opts)
+	})
+	if err != nil {
+		return fmt.Errorf("write sbom: %w", err)
+	}
+	return nil
 }
 
 // catalogAll runs every cataloger over the rootfs and returns the union,

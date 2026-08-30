@@ -49,6 +49,16 @@ jobs:
           unsquashfs -version | head -1
       - run: go test ./... -race -cover
 
+      - name: Install cyclonedx-cli
+        run: |
+          curl -sSfL -o /usr/local/bin/cyclonedx \
+            https://github.com/CycloneDX/cyclonedx-cli/releases/latest/download/cyclonedx-linux-x64
+          chmod +x /usr/local/bin/cyclonedx
+          cyclonedx --version
+
+      - name: Validate the SBOM against the CycloneDX 1.6 schema
+        run: make validate-sbom
+
   build:
     needs: test
     runs-on: ubuntu-latest

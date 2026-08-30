@@ -27,6 +27,17 @@ test-integration: ## Run the tests that hit the real OSV API
 lint: ## Run golangci-lint
 	golangci-lint run
 
+.PHONY: validate-sbom
+validate-sbom: build ## Generate an SBOM from the fixture and validate it against the CycloneDX 1.6 schema
+	@command -v cyclonedx >/dev/null 2>&1 || { \
+		echo "cyclonedx-cli not found. Install it from"; \
+		echo "  https://github.com/CycloneDX/cyclonedx-cli/releases"; \
+		echo "or, on macOS: brew install cyclonedx/cyclonedx/cyclonedx-cli"; \
+		exit 1; }
+	@mkdir -p bin
+	./bin/$(BINARY) scan --no-network --sbom bin/fixture.cdx.json testdata/images/mini-rootfs.tar.gz >/dev/null
+	cyclonedx validate --input-file bin/fixture.cdx.json --input-format json --input-version v1_6 --fail-on-errors
+
 .PHONY: fmt
 fmt: ## Rewrite source with gofmt
 	$(GO) fmt ./...
