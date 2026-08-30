@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -72,11 +73,18 @@ type batchRequest struct {
 }
 
 type batchResponse struct {
-	Results []struct {
-		Vulns []struct {
-			ID string `json:"id"`
-		} `json:"vulns"`
-	} `json:"results"`
+	Results []batchResult `json:"results"`
+}
+
+type batchResult struct {
+	Vulns []struct {
+		ID string `json:"id"`
+	} `json:"vulns"`
+	// OSV paginates a result once a single package has more vulnerabilities
+	// than one page holds. The spike saw none at the sizes fwscan sends, but
+	// "not observed" is not "cannot happen", and silently dropping the rest
+	// would under-report.
+	NextPageToken string `json:"next_page_token"`
 }
 
 // vulnRecord is the part of an OSV vulnerability document fwscan reads.
@@ -283,6 +291,13 @@ func (o *OSV) queryBatch(ctx context.Context, keys []queryKey) (map[queryKey][]s
 			return nil, fmt.Errorf("osv: asked about %d packages, got %d results", len(asked), len(resp.Results))
 		}
 		for i, result := range resp.Results {
+			if result.NextPageToken != "" {
+				// Reporting a partial answer as if it were complete is the one
+				// outcome a vulnerability scanner must never produce.
+				return nil, fmt.Errorf(
+					"osv returned a paginated result for %s, which fwscan cannot yet follow; "+
+						"the report would be incomplete", asked[i].source)
+			}
 			if len(result.Vulns) == 0 {
 				continue
 			}
@@ -326,7 +341,9 @@ func (o *OSV) fetchVulns(ctx context.Context, ids []string) (map[string]vulnReco
 			defer wg.Done()
 			for id := range work {
 				var record vulnRecord
-				err := o.getJSON(ctx, "/v1/vulns/"+id, &record)
+				// The id comes back from OSV rather than from the user, but it
+				// still ends up in a request path, so it is escaped.
+				err := o.getJSON(ctx, "/v1/vulns/"+url.PathEscape(id), &record)
 				mu.Lock()
 				if err != nil {
 					if firstErr == nil {
@@ -334,7 +351,10 @@ func (o *OSV) fetchVulns(ctx context.Context, ids []string) (map[string]vulnReco
 						cancel() // stop the rest; one failure fails the scan
 					}
 				} else {
-					records[record.ID] = record
+					// Keyed by the id that was asked for, not the one that came
+					// back. A record whose id differs -- withdrawn, superseded
+					// -- would otherwise be dropped without a word.
+					records[id] = record
 				}
 				mu.Unlock()
 			}

@@ -129,11 +129,21 @@ func extractTar(tr *tar.Reader, dest string) error {
 			if err != nil {
 				return err
 			}
+			if _, err := os.Lstat(source); err != nil {
+				// The source is missing, usually because it was an absolute
+				// symlink this extractor deliberately dropped. Real rootfs
+				// images contain exactly that -- bin/sh pointing at
+				// /bin/busybox, with another name hard-linked to it -- so
+				// skipping the link is right and failing the scan is not.
+				continue
+			}
 			if err := os.MkdirAll(filepath.Dir(target), extractDirPerm); err != nil {
 				return fmt.Errorf("create parent of %s: %w", header.Name, err)
 			}
 			if err := os.Link(source, target); err != nil && !errors.Is(err, os.ErrExist) {
-				return fmt.Errorf("link %s: %w", header.Name, err)
+				// The path in the OS error is inside a temp directory the user
+				// never named, so only the archive's own name is reported.
+				return fmt.Errorf("cannot create the hard link %s", header.Name)
 			}
 		default:
 			// Character devices, block devices, FIFOs and sockets are not

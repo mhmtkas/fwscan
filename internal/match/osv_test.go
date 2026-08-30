@@ -37,11 +37,7 @@ func newFakeOSV(t *testing.T) *OSV {
 			return
 		}
 		var resp batchResponse
-		resp.Results = make([]struct {
-			Vulns []struct {
-				ID string `json:"id"`
-			} `json:"vulns"`
-		}, len(req.Queries))
+		resp.Results = make([]batchResult, len(req.Queries))
 		for i, q := range req.Queries {
 			resp.Results[i].Vulns = byPURL[fixtureKey(q)].Vulns
 		}
@@ -592,6 +588,141 @@ func TestServiceErrorMessageIsActionable(t *testing.T) {
 	for _, want := range []string{"429", "rate limiting", "--no-network"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("message %q does not mention %q", err, want)
+		}
+	}
+}
+
+// A release with no fix of its own is still unfixed. Borrowing another
+// release's fixed version tells the reader to install something that does not
+// exist for them, which is worse than reporting no known fix.
+func TestFixedVersionDoesNotBorrowAnotherRelease(t *testing.T) {
+	record := vulnRecord{ID: "TEST-1", Affected: []affected{
+		affectedEntry("Debian:12", "openssl", "pkg:deb/debian/openssl?arch=source&distro=bookworm", "3.0.11-1~deb12u2"),
+		// bullseye is listed as affected but carries no fixed event.
+		affectedEntry("Debian:11", "openssl", "pkg:deb/debian/openssl?arch=source&distro=bullseye", ""),
+	}}
+	key := queryKey{source: "openssl", version: "1.1.1k-1+deb11u1", distro: "bullseye", kind: kindDeb}
+
+	if got := fixedVersion(record, key); got != "" {
+		t.Errorf("fixedVersion() = %q, want empty; bullseye has no fix of its own", got)
+	}
+
+	// The release that does have one still reports it.
+	key.distro = "bookworm"
+	key.version = "3.0.0-1"
+	if got := fixedVersion(record, key); got != "3.0.11-1~deb12u2" {
+		t.Errorf("fixedVersion() = %q, want bookworm's own fix", got)
+	}
+}
+
+// affectedEntry builds an affected entry; fixed may be empty for a release that
+// is affected but unfixed.
+func affectedEntry(ecosystem, name, purl, fixed string) affected {
+	var a affected
+	a.Package.Ecosystem = ecosystem
+	a.Package.Name = name
+	a.Package.PURL = purl
+
+	var r struct {
+		Type   string `json:"type"`
+		Events []struct {
+			Introduced string `json:"introduced"`
+			Fixed      string `json:"fixed"`
+		} `json:"events"`
+	}
+	r.Type = "ECOSYSTEM"
+	r.Events = append(r.Events, struct {
+		Introduced string `json:"introduced"`
+		Fixed      string `json:"fixed"`
+	}{Introduced: "0"})
+	if fixed != "" {
+		r.Events = append(r.Events, struct {
+			Introduced string `json:"introduced"`
+			Fixed      string `json:"fixed"`
+		}{Fixed: fixed})
+	}
+	a.Ranges = append(a.Ranges, r)
+	return a
+}
+
+// A paginated result means the answer is incomplete. Reporting it as if it were
+// whole is the one outcome a vulnerability scanner must never produce.
+func TestPaginatedResultIsRefused(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, batchResponse{Results: []batchResult{{
+			Vulns: []struct {
+				ID string `json:"id"`
+			}{{ID: "DEBIAN-CVE-2022-0778"}},
+			NextPageToken: "there-is-more",
+		}}})
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+
+	_, err := osv.Match(context.Background(), []model.Component{
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+	})
+	if err == nil {
+		t.Fatal("a paginated result was accepted as complete")
+	}
+	if !strings.Contains(err.Error(), "incomplete") {
+		t.Errorf("error = %v, want it to say the report would be incomplete", err)
+	}
+}
+
+// output-spec section 3 requires cvss_vector to be empty whenever the severity
+// did not come from CVSS. A vector that parses but scores exactly 0 falls
+// outside every band in section 1, so it must not leave a vector behind.
+func TestZeroScoringVectorLeavesNoVector(t *testing.T) {
+	record := vulnRecord{Severity: []struct {
+		Type  string `json:"type"`
+		Score string `json:"score"`
+	}{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N"}}}
+
+	severity, score, vector := severityOf(record)
+	if severity != model.SeverityUnknown {
+		t.Errorf("severity = %q, want unknown", severity)
+	}
+	if score != 0 || vector != "" {
+		t.Errorf("score = %v vector = %q, want both empty on a non-CVSS outcome", score, vector)
+	}
+}
+
+// The bands in output-spec section 1, at their exact edges.
+func TestSeverityBucketBoundaries(t *testing.T) {
+	v3 := []struct {
+		score float64
+		want  model.Severity
+	}{
+		{10.0, model.SeverityCritical}, {9.0, model.SeverityCritical},
+		{8.9, model.SeverityHigh}, {7.0, model.SeverityHigh},
+		{6.9, model.SeverityMedium}, {4.0, model.SeverityMedium},
+		{3.9, model.SeverityLow}, {0.1, model.SeverityLow},
+		{0.0, model.SeverityUnknown},
+	}
+	for _, tt := range v3 {
+		if got := bucketFromV3Score(tt.score); got != tt.want {
+			t.Errorf("bucketFromV3Score(%v) = %q, want %q", tt.score, got, tt.want)
+		}
+	}
+
+	// v2 has no critical band.
+	v2 := []struct {
+		score float64
+		want  model.Severity
+	}{
+		{10.0, model.SeverityHigh}, {7.0, model.SeverityHigh},
+		{6.9, model.SeverityMedium}, {4.0, model.SeverityMedium},
+		{3.9, model.SeverityLow}, {0.0, model.SeverityLow},
+	}
+	for _, tt := range v2 {
+		if got := bucketFromV2Score(tt.score); got != tt.want {
+			t.Errorf("bucketFromV2Score(%v) = %q, want %q", tt.score, got, tt.want)
 		}
 	}
 }

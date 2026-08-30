@@ -68,10 +68,15 @@ func identify(record vulnRecord) (id string, aliases []string) {
 // unknown because the spec defines no rule for them. Both facts are recorded in
 // spike/NOTES.md as open questions rather than decided here.
 func severityOf(record vulnRecord) (model.Severity, float64, string) {
-	// 1. CVSS v3.x.
+	// 1. CVSS v3.x. output-spec section 1's bands start at 0.1, so a vector
+	// scoring exactly 0 -- no impact on anything -- maps to no bucket. It falls
+	// through rather than being reported as an unknown severity that
+	// nonetheless carries a vector, which would contradict section 3.
 	if vector, ok := vectorOfType(record, "CVSS_V3"); ok {
 		if score, ok := cvss3BaseScore(vector); ok {
-			return bucketFromV3Score(score), score, vector
+			if bucket := bucketFromV3Score(score); bucket != model.SeverityUnknown {
+				return bucket, score, vector
+			}
 		}
 	}
 
@@ -190,17 +195,18 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 		if a.Package.Name != key.source {
 			continue
 		}
-		matchesRelease := affectedMatchesRelease(a, key)
+		// Entries for other releases are skipped outright rather than kept as a
+		// fallback. A release with no fix of its own is still unfixed, and
+		// borrowing another release's version tells the reader to install
+		// something that does not exist for them -- which is worse than saying
+		// no fix is known.
+		if !affectedMatchesRelease(a, key) {
+			continue
+		}
 
 		for _, r := range a.Ranges {
 			for _, e := range r.Events {
 				if e.Fixed == "" {
-					continue
-				}
-				if !matchesRelease {
-					if fallback == "" {
-						fallback = e.Fixed
-					}
 					continue
 				}
 				// Prefer a window that actually contains the installed version.

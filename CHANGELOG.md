@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A vulnerability unfixed in the scanned release no longer reports another
+  release's fixed version, which pointed at a package that does not exist for
+  that image.
+- Control characters from a package name or version are replaced before
+  reaching the terminal, so a crafted image cannot write escape sequences to
+  the reader's screen.
+- A paginated OSV result is reported as an error rather than silently
+  truncating the findings.
+- A hard link whose source was a dropped absolute symlink no longer aborts the
+  whole scan.
+- A CVSS vector scoring exactly zero no longer produces an `unknown` severity
+  that still carries a vector.
+
 ## [0.1.0] — 2026-08-30
 
 First release. Scans a Linux firmware rootfs, emits a CycloneDX SBOM, and

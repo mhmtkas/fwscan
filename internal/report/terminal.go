@@ -50,7 +50,7 @@ func writeHeader(w io.Writer, version string, info ScanInfo, packages PackageCou
 	if _, err := fmt.Fprintf(w, "fwscan %s\n\n", DisplayVersion(version)); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(w, "  Target      %s\n", targetLine(info)); err != nil {
+	if _, err := fmt.Fprintf(w, "  Target      %s\n", sanitize(targetLine(info))); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "  Packages    %d (%d high confidence, %d low)\n",
@@ -97,8 +97,10 @@ func writeTable(w io.Writer, findings []model.Finding) error {
 			fixed = noFixedVersion
 		}
 		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			f.Severity, formatScore(f.CVSS), f.Component.Name, f.Component.Version,
-			fixed, f.ID, f.Component.Confidence); err != nil {
+			sanitize(string(f.Severity)), formatScore(f.CVSS),
+			sanitize(f.Component.Name), sanitize(f.Component.Version),
+			sanitize(fixed), sanitize(f.ID),
+			sanitize(string(f.Component.Confidence))); err != nil {
 			return err
 		}
 	}

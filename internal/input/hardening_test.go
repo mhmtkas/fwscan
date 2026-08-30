@@ -221,3 +221,90 @@ func TestSquashFSNoTempDirLeakOnFailure(t *testing.T) {
 		t.Errorf("temp directories leaked: %d before, %d after", before, after)
 	}
 }
+
+// A later entry must not be able to reach outside the extraction directory by
+// travelling through a symlink an earlier entry created.
+func TestNoWriteEscapeThroughAnEarlierSymlink(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	mustDir := func(name string) {
+		if err := tw.WriteHeader(&tar.Header{Name: name + "/", Typeflag: tar.TypeDir, Mode: 0o755}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustLink := func(name, target string) {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Typeflag: tar.TypeSymlink, Linkname: target, Mode: 0o777}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustReg := func(name, body string) {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Typeflag: tar.TypeReg, Mode: 0o644, Size: int64(len(body))}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(tw, body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustDir("d")
+	mustLink("d/up", "..")            // resolves to the extraction root: kept
+	mustReg("d/up/pwned", "escaped")  // travels through it
+	mustReg("d/up/../pwned2", "also") // and with a .. for good measure
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dest := t.TempDir()
+	inner := filepath.Join(dest, "extract")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = extractTar(tar.NewReader(bytes.NewReader(buf.Bytes())), inner)
+
+	// Nothing may exist beside the extraction directory.
+	entries, err := os.ReadDir(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if e.Name() != "extract" {
+			t.Errorf("escaped write created %s next to the extraction directory", e.Name())
+		}
+	}
+}
+
+// A hard link whose source was dropped (an absolute symlink, say) must not kill
+// the whole scan: real rootfs images contain these.
+func TestHardLinkToDroppedSourceIsNotFatal(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "bin/sh", Typeflag: tar.TypeSymlink, Linkname: "/bin/busybox", Mode: 0o777,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "bin/ash", Typeflag: tar.TypeLink, Linkname: "bin/sh",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := testStatus
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "var/lib/dpkg/status", Typeflag: tar.TypeReg, Mode: 0o644, Size: int64(len(body)),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(tw, body); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	if err := extractTar(tar.NewReader(bytes.NewReader(buf.Bytes())), dir); err != nil {
+		t.Fatalf("extractTar() error = %v; a hard link to a dropped source must not be fatal", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "var", "lib", "dpkg", "status")); err != nil {
+		t.Errorf("the rest of the archive was not extracted: %v", err)
+	}
+}
