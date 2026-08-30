@@ -19,6 +19,10 @@ build: ## Build ./bin/fwscan with the version stamped in
 test: ## Run the unit tests with the race detector and coverage
 	$(GO) test ./... -race -cover
 
+.PHONY: test-integration
+test-integration: ## Run the tests that hit the real OSV API
+	$(GO) test -tags integration -count=1 ./...
+
 .PHONY: lint
 lint: ## Run golangci-lint
 	golangci-lint run

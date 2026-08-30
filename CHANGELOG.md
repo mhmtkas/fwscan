@@ -23,5 +23,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   extracted-rootfs-directory handler.
 - Tarball input with transparent gzip, xz, zstd and lz4 decompression,
   extraction to a temp directory, and path-traversal protection.
+- OSV matcher: batched `querybatch` queries, concurrent detail fetches, CVSS
+  v3 and v2 base-score computation, severity mapping and per-release fixed
+  version selection.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

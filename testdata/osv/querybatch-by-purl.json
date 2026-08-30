@@ -1,0 +1,23 @@
+{
+  "pkg:deb/debian/definitely-not-a-real-package@1.0-1?arch=source&distro=bullseye": {},
+  "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u1?arch=source&distro=bullseye": {
+    "vulns": [
+      {
+        "id": "DEBIAN-CVE-2022-0778",
+        "modified": "2026-08-27T23:04:16.253509Z"
+      }
+    ]
+  },
+  "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u2?arch=source&distro=bullseye": {},
+  "pkg:deb/debian/zlib@1:1.2.11.dfsg-2?arch=source&distro=bullseye": {
+    "vulns": [
+      {
+        "id": "DEBIAN-CVE-2022-37434",
+        "modified": "2026-08-27T23:04:23.810777Z"
+      },
+      {
+        "id": "SYNTHETIC-ECOSYSTEM-SEVERITY"
+      }
+    ]
+  }
+}
