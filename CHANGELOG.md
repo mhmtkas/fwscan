@@ -6,47 +6,62 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-30
+
+First release. Scans a Linux firmware rootfs, emits a CycloneDX SBOM, and
+reports known vulnerabilities from OSV.dev.
+
 ### Added
 
-- Phase 0 spike: public Debian rootfs fixtures, a dpkg status parsing proof of
-  concept validated against `dpkg-query`, OSV backport-awareness validation, the
-  squashfs compression matrix, and the consolidated decision log in
-  `spike/NOTES.md`.
-- Repository scaffolding: Go module, package layout, `Makefile`, `golangci-lint`
-  configuration, CI workflow, and the `fwscan version` command.
-- Domain model: `Component`, `Finding`, `Confidence` and `Severity`, with the
-  finding and component sort orders from output-spec section 1.
-- dpkg cataloger reading `var/lib/dpkg/status`, resolving source package name
-  and version, detecting the release codename from `os-release`, and building
-  purls with the release qualifier the spike proved necessary.
-- Input layer: `Source` interface, content-based format detection, and the
-  extracted-rootfs-directory handler.
-- Tarball input with transparent gzip, xz, zstd and lz4 decompression,
-  extraction to a temp directory, and path-traversal protection.
-- OSV matcher: batched `querybatch` queries, concurrent detail fetches, CVSS
-  v3 and v2 base-score computation, severity mapping and per-release fixed
-  version selection.
-- Terminal report and the `fwscan scan` command, wiring input, cataloging and
-  matching into a working end-to-end scan.
-- CycloneDX 1.6 SBOM output behind `--sbom`, validated against the official
-  schema by `make validate-sbom` in CI.
-- JSON report behind `--output`, written atomically, with the schema and sort
-  orders from output-spec section 3.
-- `--no-network` mode, proven by test to make no vulnerability lookup at all.
-- SquashFS input via `unsquashfs`, with the internal compression read from the
-  superblock and an actionable error when the tool is missing.
-- apk cataloger for Alpine images, and matcher support for the ecosystem query
-  shape Alpine requires.
-- Heuristic detectors for the kernel, busybox and versioned shared libraries,
-  all reported at low confidence with evidence.
-- `--fail-on` and the exit codes from output-spec section 5.
-- Hostile-input hardening: fuzz targets for the dpkg and apk parsers, bounded
-  directory listings, and tests asserting no temp directory survives a failure.
-- Error message pass: every user-facing failure is a single lowercase
-  actionable line on stderr, with help text carrying examples and exit codes.
-- Release pipeline: goreleaser building static binaries for linux/amd64,
-  linux/arm64 and darwin/arm64 with checksums, published on tag push.
-- Full README with quickstart, output example, limitations and a `make demo`
-  target.
+**Scanning**
 
-[Unreleased]: https://github.com/mhmtkas/fwscan/commits/main
+- `fwscan scan` reading extracted rootfs directories, tar archives with gzip, xz,
+  zstd or lz4 compression, and squashfs images. The format is detected from the
+  file's contents, never from its name.
+- dpkg cataloger (`var/lib/dpkg/status`) and apk cataloger
+  (`lib/apk/db/installed`), both resolving the source package the vulnerability
+  data is keyed on.
+- Heuristic detectors for the kernel version, the busybox version and versioned
+  shared libraries, reported at low confidence with the path they came from.
+
+**Vulnerability matching**
+
+- OSV.dev matcher, release-aware for both Debian and Alpine, so a package
+  patched by a security backport is reported as fixed rather than vulnerable.
+- Lookups batched and deduplicated by source package; vulnerability details
+  fetched through a bounded worker pool.
+- CVSS v3 and v2 base scores computed from their vectors, mapped to the severity
+  buckets in `docs/output-spec.md`.
+- Fixed versions selected per release, so a bookworm fix is never reported to a
+  bullseye image.
+
+**Output**
+
+- Severity-sorted terminal report.
+- `--output` for the full JSON report, written atomically.
+- `--sbom` for a CycloneDX 1.6 document, validated against the official schema in
+  CI, carrying components only.
+- `--fail-on` and the exit codes from `docs/output-spec.md` section 5: 0 clean,
+  1 findings at or above the threshold, 2 the scan could not complete.
+- `--no-network` to produce the SBOM without any vulnerability lookup.
+
+**Project**
+
+- Release binaries for linux/amd64, linux/arm64 and darwin/arm64, with
+  checksums.
+- CI running lint, race tests, the squashfs compression matrix and CycloneDX
+  schema validation.
+- `spike/NOTES.md`, the evidence behind the query formats and the squashfs
+  strategy, including the checks that failed before they passed.
+
+### Known limitations
+
+- Roughly a fifth of Debian's OSV records carry no severity and land in the
+  `unknown` bucket, which `--fail-on` never triggers on.
+- Records carrying only a CVSS v4 vector also report as `unknown`.
+- Heuristic components are reported but not looked up.
+- No offline mode, no SPDX output, no opkg or rpm support, no VEX. See the
+  limitations table in the README.
+
+[Unreleased]: https://github.com/mhmtkas/fwscan/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/mhmtkas/fwscan/releases/tag/v0.1.0

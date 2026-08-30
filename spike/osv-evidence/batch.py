@@ -1,7 +1,11 @@
-import json,urllib.request,time,sys,statistics
-sys.path.insert(0,"<redacted-scratch-path>")
-from purls import from_status, purl, source_of
-import re
+"""T0.3 batch-behaviour measurement. Run from the repository root:
+
+    python3 spike/osv-evidence/batch.py
+"""
+import json, os, statistics, sys, time, urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from purls import from_status, purl  # noqa: E402
 
 def qb(purls, timeout=120):
     body=json.dumps({"queries":[{"package":{"purl":p}} for p in purls]}).encode()
