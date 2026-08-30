@@ -27,6 +27,13 @@ const (
 	tempDirNamespace = "fwscan-extract-"
 )
 
+// tempRoot is where extraction directories are created. Empty means the
+// system temp directory, which is what every real run uses. Tests point it at
+// their own directory so that counting what an extraction left behind cannot
+// be confused by another package's test binary running at the same time --
+// `go test ./...` runs packages in parallel and they share os.TempDir().
+var tempRoot string
+
 // Tarball opens a tar archive, transparently decompressing it first.
 type Tarball struct {
 	compression Compression
@@ -53,7 +60,7 @@ func (t Tarball) Open(path string) (fs.FS, CleanupFunc, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	dest, err := os.MkdirTemp("", tempDirNamespace)
+	dest, err := os.MkdirTemp(tempRoot, tempDirNamespace)
 	if err != nil {
 		return nil, noopCleanup, fmt.Errorf("create temp dir: %w", err)
 	}

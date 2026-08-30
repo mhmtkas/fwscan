@@ -11,27 +11,41 @@ import (
 	"testing"
 )
 
-// tempDirsUnder counts fwscan's extraction directories currently on disk.
-// Every failure path must leave none behind.
-func tempDirsUnder(t *testing.T) int {
+// isolateTempRoot points extraction at a directory only this test uses, and
+// returns a function counting the extraction directories inside it.
+//
+// Counting os.TempDir() directly does not work: `go test ./...` runs package
+// binaries in parallel, and internal/cli's end-to-end tests run the real fwscan
+// binary, which creates and removes extraction directories in the same place.
+// The count then reflects another package's timing rather than this test's
+// behaviour.
+func isolateTempRoot(t *testing.T) func() int {
 	t.Helper()
-	entries, err := os.ReadDir(os.TempDir())
-	if err != nil {
-		t.Fatalf("read temp dir: %v", err)
-	}
-	var n int
-	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), tempDirNamespace) {
-			n++
+	dir := t.TempDir()
+	previous := tempRoot
+	tempRoot = dir
+	t.Cleanup(func() { tempRoot = previous })
+
+	return func() int {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read temp root: %v", err)
 		}
+		var n int
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), tempDirNamespace) {
+				n++
+			}
+		}
+		return n
 	}
-	return n
 }
 
 // Every error path has to clean up after itself. A scanner that leaks an
 // extracted rootfs per failed image fills the disk of whoever runs it in CI.
 func TestNoTempDirsLeakOnFailure(t *testing.T) {
-	before := tempDirsUnder(t)
+	count := isolateTempRoot(t)
+	before := count()
 
 	hostile := []struct {
 		name  string
@@ -71,7 +85,7 @@ func TestNoTempDirsLeakOnFailure(t *testing.T) {
 		})
 	}
 
-	if after := tempDirsUnder(t); after != before {
+	if after := count(); after != before {
 		t.Errorf("temp directories leaked: %d before, %d after", before, after)
 	}
 }
@@ -203,7 +217,8 @@ func TestDeclaredSizeIsNotTrusted(t *testing.T) {
 // program's work.
 func TestSquashFSNoTempDirLeakOnFailure(t *testing.T) {
 	requireSquashfsTools(t)
-	before := tempDirsUnder(t)
+	count := isolateTempRoot(t)
+	before := count()
 
 	path := filepath.Join(t.TempDir(), "broken.squashfs")
 	body := make([]byte, 1024)
@@ -217,7 +232,7 @@ func TestSquashFSNoTempDirLeakOnFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("a corrupt squashfs produced a usable rootfs")
 	}
-	if after := tempDirsUnder(t); after != before {
+	if after := count(); after != before {
 		t.Errorf("temp directories leaked: %d before, %d after", before, after)
 	}
 }

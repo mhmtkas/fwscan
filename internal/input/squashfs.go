@@ -47,7 +47,7 @@ func (SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
 			ErrUnsquashfsMissing)
 	}
 
-	dest, err := os.MkdirTemp("", tempDirNamespace)
+	dest, err := os.MkdirTemp(tempRoot, tempDirNamespace)
 	if err != nil {
 		return nil, noopCleanup, fmt.Errorf("create temp dir: %w", err)
 	}
