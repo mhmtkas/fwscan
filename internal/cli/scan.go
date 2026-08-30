@@ -18,8 +18,9 @@ import (
 )
 
 type scanOptions struct {
-	noNetwork bool
-	sbomPath  string
+	noNetwork  bool
+	sbomPath   string
+	outputPath string
 }
 
 func newScanCmd(version string) *cobra.Command {
@@ -39,6 +40,8 @@ func newScanCmd(version string) *cobra.Command {
 		"catalog packages only; skip the CVE lookup")
 	cmd.Flags().StringVar(&opts.sbomPath, "sbom", "",
 		"write a CycloneDX 1.6 SBOM to this file")
+	cmd.Flags().StringVar(&opts.outputPath, "output", "",
+		"write the full machine-readable report to this file")
 	return cmd
 }
 
@@ -92,7 +95,23 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		StartedAt:   started.UTC(),
 		Duration:    time.Since(started),
 	}
+	if opts.outputPath != "" {
+		if err := writeJSONReport(opts.outputPath, version, info, comps, findings); err != nil {
+			return err
+		}
+	}
+
 	return report.Terminal(cmd.OutOrStdout(), version, info, comps, findings, opts.noNetwork)
+}
+
+func writeJSONReport(path, version string, info report.ScanInfo, comps []model.Component, findings []model.Finding) error {
+	err := report.WriteFileAtomic(path, func(w io.Writer) error {
+		return report.JSON(w, version, info, comps, findings)
+	})
+	if err != nil {
+		return fmt.Errorf("write report: %w", err)
+	}
+	return nil
 }
 
 func writeSBOM(path string, comps []model.Component, version string, started time.Time) error {

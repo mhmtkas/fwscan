@@ -47,7 +47,7 @@ func Terminal(w io.Writer, version string, info ScanInfo, comps []model.Componen
 }
 
 func writeHeader(w io.Writer, version string, info ScanInfo, packages PackageCounts, findings []model.Finding, noNetwork bool) error {
-	if _, err := fmt.Fprintf(w, "fwscan %s\n\n", version); err != nil {
+	if _, err := fmt.Fprintf(w, "fwscan %s\n\n", DisplayVersion(version)); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "  Target      %s\n", targetLine(info)); err != nil {

@@ -192,3 +192,65 @@ func TestScanSBOMPathUnwritable(t *testing.T) {
 		t.Errorf("error = %q, want it to name the sbom", err)
 	}
 }
+
+func TestScanWritesJSONReport(t *testing.T) {
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	out := filepath.Join(t.TempDir(), "report.json")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--output", out, image})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("scan failed: %v (stderr: %s)", err, stderr.String())
+	}
+
+	body, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("report not written: %v", err)
+	}
+	if !bytes.HasSuffix(body, []byte("}\n")) {
+		t.Error("report does not end with a trailing newline")
+	}
+
+	var doc struct {
+		SchemaVersion string `json:"schema_version"`
+		Tool          struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"tool"`
+		Scan struct {
+			Target      string `json:"target"`
+			Format      string `json:"format"`
+			Compression string `json:"compression"`
+		} `json:"scan"`
+		Summary struct {
+			Packages struct {
+				Total int `json:"total"`
+			} `json:"packages"`
+		} `json:"summary"`
+		Components []map[string]any `json:"components"`
+		Findings   []map[string]any `json:"findings"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		t.Fatalf("report is not valid JSON: %v", err)
+	}
+	if doc.SchemaVersion != "1" || doc.Tool.Name != "fwscan" || doc.Tool.Version != "0.1.0" {
+		t.Errorf("header = %+v %+v", doc.SchemaVersion, doc.Tool)
+	}
+	if doc.Scan.Format != "tar" || doc.Scan.Compression != "gzip" {
+		t.Errorf("scan block = %+v", doc.Scan)
+	}
+	if doc.Summary.Packages.Total != 6 || len(doc.Components) != 6 {
+		t.Errorf("packages = %d, components = %d, want 6 and 6", doc.Summary.Packages.Total, len(doc.Components))
+	}
+	// --no-network still produces the array, empty.
+	if doc.Findings == nil {
+		t.Error("findings is null, want an empty array")
+	}
+	if len(doc.Findings) != 0 {
+		t.Errorf("got %d findings in --no-network mode", len(doc.Findings))
+	}
+}

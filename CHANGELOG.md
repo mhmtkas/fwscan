@@ -30,5 +30,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   matching into a working end-to-end scan.
 - CycloneDX 1.6 SBOM output behind `--sbom`, validated against the official
   schema by `make validate-sbom` in CI.
+- JSON report behind `--output`, written atomically, with the schema and sort
+  orders from output-spec section 3.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

@@ -1,0 +1,30 @@
+{
+  "schema_version": "1",
+  "tool": {
+    "name": "fwscan",
+    "version": "0.1.0"
+  },
+  "scan": {
+    "target": "rootfs.squashfs",
+    "format": "squashfs",
+    "compression": "zstd",
+    "started_at": "2026-08-30T14:05:11Z",
+    "duration_ms": 8421
+  },
+  "summary": {
+    "packages": {
+      "total": 0,
+      "high_confidence": 0,
+      "low_confidence": 0
+    },
+    "findings": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0,
+      "unknown": 0
+    }
+  },
+  "components": [],
+  "findings": []
+}

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,6 +56,9 @@ func fixedInfo() ScanInfo {
 func highComponent(name, version string) model.Component {
 	return model.Component{
 		Name: name, Version: version, Arch: "arm64",
+		// Percent-encoded exactly as output-spec section 3 requires: "+"
+		// becomes %2B.
+		PURL:       "pkg:deb/debian/" + name + "@" + strings.ReplaceAll(version, "+", "%2B") + "?arch=arm64&distro=bullseye",
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
 	}
 }
