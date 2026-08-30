@@ -1,0 +1,38 @@
+{
+  "bare": {
+    "purl": "pkg:deb/debian/libssl1.1@1.1.1k-1%2Bdeb11u1",
+    "count": 0,
+    "ids": [],
+    "elapsed": 0.41
+  },
+  "arch": {
+    "purl": "pkg:deb/debian/libssl1.1@1.1.1k-1%2Bdeb11u1?arch=amd64",
+    "count": 0,
+    "ids": [],
+    "elapsed": 0.31
+  },
+  "distro": {
+    "purl": "pkg:deb/debian/libssl1.1@1.1.1k-1%2Bdeb11u1?distro=debian-11",
+    "count": 0,
+    "ids": [],
+    "elapsed": 0.42
+  },
+  "arch+distro": {
+    "purl": "pkg:deb/debian/libssl1.1@1.1.1k-1%2Bdeb11u1?arch=amd64&distro=debian-11",
+    "count": 0,
+    "ids": [],
+    "elapsed": 0.33
+  },
+  "distro-bullseye": {
+    "purl": "pkg:deb/debian/libssl1.1@1.1.1k-1%2Bdeb11u1?distro=bullseye",
+    "count": 0,
+    "ids": [],
+    "elapsed": 0.32
+  },
+  "unencoded-plus": {
+    "purl": "pkg:deb/debian/libssl1.1@1.1.1k-1+deb11u1",
+    "count": 0,
+    "ids": [],
+    "elapsed": 0.33
+  }
+}

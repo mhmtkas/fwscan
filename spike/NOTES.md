@@ -111,12 +111,166 @@ status-aware oracle form if a fixture is ever regenerated. The plain
 - **Malformed lines** (no colon) are skipped rather than treated as fatal — a
   hostile image must not be able to abort the scan.
 
-## T0.3 — OSV backport-awareness validation — UNRESOLVED
+## T0.3 — OSV backport-awareness validation — DONE — **BINDING ON T3 AND T6**
 
-**Gates T3 and T6.** Final purl construction rule (including whether a
-`distro`/release qualifier is required), with request/response evidence for the
-backport true-negative and the true-positive check, plus batch latency and
-rate-limit observations.
+Kill-risk #1 is retired: OSV is backport-aware for Debian **only if the query
+carries the release codename**. Getting that qualifier right is, as the plan
+predicted, the single most important finding of the spike.
+
+Evidence: `spike/osv-evidence/` (recorded requests and responses).
+Scripts: `purls.py` (purl derivation), `backport-test.py`, `batch.py`.
+
+### The purl rule — final
+
+```
+pkg:deb/debian/<SOURCE-package>@<SOURCE-version>?arch=source&distro=<codename>
+```
+
+Four independent things have to be right, and each was wrong in an obvious first
+attempt:
+
+1. **Source package name, not binary name.** OSV's Debian data is keyed on source
+   packages. `pkg:deb/debian/libssl1.1@1.1.1k-1+deb11u1` returns **0** vulns;
+   `pkg:deb/debian/openssl@...` returns 111. Querying binary names silently
+   reports every package as clean — the worst possible failure mode.
+2. **`distro=<codename>`, and the codename only.** `distro=bullseye` works.
+   `distro=debian-11` and `distro=debian-11.2` both return **0**. Take the value
+   from `VERSION_CODENAME` in the rootfs's `usr/lib/os-release` (both fixtures
+   carry it; `/etc/os-release` is a symlink to it and may not survive extraction).
+3. **Source version, not binary version.** They differ for binNMUs
+   (`bash` binary `5.1-2+b3`, source `5.1-2`) and, more dangerously, when a binary
+   carries an epoch its source does not: querying `util-linux` as
+   `1:2.36.1-8+deb11u1` returns 7 vulns, the correct `2.36.1-8+deb11u1` returns 9.
+   The epoch form silently loses two findings.
+4. **Percent-encode the version.** `+` → `%2B` and `:` → `%3A`, per the purl spec
+   and output-spec §3.
+
+`arch=source` mirrors the purl OSV itself publishes in its records. It is not
+required for matching (`arch=amd64`, `arch=all` and no arch all return the same
+111), but it states the truth about what is being queried and costs nothing.
+
+Deriving source name and version from a dpkg stanza:
+
+| `Source:` field | Source name | Source version |
+|---|---|---|
+| absent | the `Package` value | the `Version` value |
+| `util-linux` | `util-linux` | the `Version` value |
+| `util-linux (2.36.1-8+deb11u1)` | `util-linux` | `2.36.1-8+deb11u1` |
+
+The parenthesised form appears exactly when the two versions diverge, so honouring
+it resolves both the binNMU and the epoch cases automatically.
+
+### Backport true-negative — PASS
+
+Ground truth from the Debian Security Tracker page for CVE-2022-0778: source
+`openssl`, release `bullseye`, fixed at **`1.1.1k-1+deb11u2`** (DSA-5103-1). Note
+the upstream version does not change — only the Debian revision — which is
+precisely the case that makes naive scanners cry wolf.
+
+| Installed version | Expected | `?distro=bullseye` | bare purl |
+|---|---|---|---|
+| `1.1.1k-1+deb11u1` (one revision before the fix) | flagged | flagged — PASS | flagged — PASS |
+| `1.1.1k-1+deb11u2` (**the backported fix**) | clean | clean — PASS | **flagged — FALSE POSITIVE** |
+| `1.1.1n-0+deb11u1` (later upstream) | clean | clean — PASS | **flagged — FALSE POSITIVE** |
+
+Without the qualifier OSV matches across every Debian release at once, so a
+version that is fixed in bullseye still falls inside some other release's
+vulnerable range. Two false positives out of three. **The `distro` qualifier is
+not optional; it is the feature.**
+
+### True-positive — PASS
+
+Ground truth from the tracker for CVE-2022-37434: source `zlib`, bullseye, fixed
+at `1:1.2.11.dfsg-2+deb11u2`.
+
+- `zlib@1:1.2.11.dfsg-2` (the version in the bullseye fixture) → flagged. Correct.
+- `zlib@1:1.2.11.dfsg-2+deb11u1` → still flagged. Correct: the fix is `u2`.
+- OSV's `affected[]` entry for `Debian:11` carries `fixed: 1:1.2.11.dfsg-2+deb11u2`,
+  matching the tracker exactly.
+
+Here the epoch is genuine — `zlib`'s source version really does start `1:` — which
+is why the rule is "use the source version as recorded", not "strip epochs".
+
+### Batch behaviour
+
+`POST /v1/querybatch`, one call, no pagination observed at any size tried.
+
+| Batch | Request body | Latency | Results | With vulns | Total vulns | `next_page_token` |
+|---|---|---|---|---|---|---|
+| 131 purls (both fixtures) | 11.4 KB | 0.81 s | 131 | 59 | 380 | none |
+| 393 purls | 33.4 KB | 1.28 s | 393 | 181 | 1384 | none |
+
+393-purl call repeated 5 times back to back: 1.14–1.35 s, median 1.31 s. No
+rate-limit response, no `Retry-After`, no rate-limit headers returned at all.
+Seven batch calls plus ~600 detail fetches in a few minutes drew no throttling.
+No API key is needed.
+
+The 393-purl batch was built by querying the two fixtures' source/version pairs
+against additional Debian releases, since the fixtures alone yield 131 unique
+purls. That is honest load for a scale measurement, not an accuracy measurement.
+
+**Deduplication matters:** 88 and 96 binary packages collapse to 63 and 68 unique
+source purls — about 28% fewer queries. The matcher should dedupe on
+(source name, source version) and fan the results back out to every binary
+package that shares a source.
+
+### `querybatch` returns identifiers only — cost of details
+
+`querybatch` gives `{id, modified}` per hit. Severity, `affected[].ranges` and the
+fixed version all require `GET /v1/vulns/{id}`.
+
+Both fixtures together: 131 purls → **292 unique vulnerability ids**.
+
+| Strategy | Wall clock |
+|---|---|
+| serial detail fetch | 271 ms each → 79 s |
+| 10 concurrent workers | **8.1 s** |
+
+**Carry into T6:** batch the queries, dedupe the ids, then fetch details with a
+bounded worker pool (10 is comfortable and drew no throttling). Serial fetching
+makes a trivial scan take over a minute and must not ship.
+
+### Three findings that conflict with `docs/output-spec.md` — MAINTAINER REVIEW NEEDED
+
+Measured across all 292 records. Recorded here rather than resolved unilaterally;
+T0.5 carries them forward, and T6 must not be written against the spec as it
+currently stands without a decision.
+
+**1. Vulnerability ids are `DEBIAN-CVE-…`, and `aliases` is always empty.**
+Output-spec §3 shows `"id": "CVE-2022-3602"` with `"aliases": ["DSA-5343-1"]`.
+Reality: the record id is `DEBIAN-CVE-2022-3602`, `aliases` is empty on
+**0/292** records — every single one — and the plain CVE id lives in a field the
+spec never mentions, `upstream: ["CVE-2022-37434"]` (present on 288/292).
+*Proposed rule:* report `id` = the CVE from `upstream[]` when there is one, else
+the OSV id; report `aliases` = the OSV id plus any remaining `upstream` entries.
+That yields the id shape the spec's example shows and keeps the OSV id traceable.
+
+**2. CVSS v4 has no rule, and v2 never occurs.** Severity types across 292 records:
+
+| Type | Records |
+|---|---|
+| CVSS_V3 only | 224 |
+| **CVSS_V4 only** | **11** |
+| both V3 and V4 | 0 |
+| no severity at all | 57 |
+| CVSS_V2 anywhere | **0** |
+
+The 11 v4-only records carry a `CVSS:4.0/...` vector and **no v3 fallback**, so
+under output-spec §1 as written they fall through to `unknown`. They are all
+2025–2026 CVEs, so the share grows over time, not shrinks. Meanwhile §1's step 2
+(CVSS v2) is unreachable for Debian data, and step 3 (ecosystem severity) is too:
+none of the 57 severity-less records carry a `database_specific.severity`, at
+record level or affected level — the only `database_specific` key present is
+`source`. Effectively only steps 1 and 4 of the four-step mapping ever fire.
+*Proposed rule:* add CVSS v4 base-score computation between steps 1 and 2, mapped
+to the same four buckets. *Alternative, if that is too much for v1:* treat v4 as
+`unknown` and say so in the README.
+
+**3. 57 of 292 findings (19.5%) will be `unknown`.** They are mostly old,
+Debian-marked-minor issues (CVE-2005-2541, CVE-2007-5686, CVE-2010-4756,
+CVE-2011-3389). Per output-spec §5, `unknown` never triggers exit 1, so a fifth
+of the output is advisory noise that `--fail-on` ignores. Worth a line in the
+README's limitations section; no code change proposed.
 
 ## T0.4 — SquashFS compression matrix — UNRESOLVED
 
