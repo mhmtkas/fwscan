@@ -1,0 +1,34 @@
+version: "2"
+
+linters:
+  default: standard  # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose      # this tool makes HTTP calls to OSV; leaked bodies leak sockets
+    - errorlint      # error wrapping is a stated convention
+    - gosec          # it parses untrusted firmware images
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    gosec:
+      excludes:
+        - G204  # unsquashfs is the one sanctioned shell-out (CLAUDE.md rule 8)
+  exclusions:
+    paths:
+      # Spike code is throwaway by design and exempt from lint (CLAUDE.md).
+      - spike
+    rules:
+      - path: _test\.go
+        linters: [gosec, unparam]
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    paths:
+      - spike
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
