@@ -63,6 +63,11 @@ fmt: ## Rewrite source with gofmt
 tidy: ## Sync go.mod/go.sum
 	$(GO) mod tidy
 
+.PHONY: demo
+demo: build ## Scan the fixture image, for an asciinema recording
+	@echo '$$ fwscan scan testdata/images/mini-rootfs.tar.gz'
+	@./bin/$(BINARY) scan testdata/images/mini-rootfs.tar.gz || true
+
 .PHONY: snapshot
 snapshot: ## Build release artifacts locally without publishing
 	@command -v goreleaser >/dev/null 2>&1 || { \

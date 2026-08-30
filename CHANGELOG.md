@@ -46,5 +46,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   actionable line on stderr, with help text carrying examples and exit codes.
 - Release pipeline: goreleaser building static binaries for linux/amd64,
   linux/arm64 and darwin/arm64 with checksums, published on tag push.
+- Full README with quickstart, output example, limitations and a `make demo`
+  target.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main
