@@ -5,7 +5,10 @@ responses from `api.osv.dev`, recorded 2026-08-30, replayed by an
 `httptest.Server` in `internal/match`.
 
 - **`querybatch-by-purl.json`** — the `vulns` array `POST /v1/querybatch`
-  returned for each query purl, keyed by that purl.
+  returned for each query, keyed by the purl for Debian and by
+  `ecosystem|name|version` for Alpine. Two keying schemes because OSV needs two
+  query shapes: Alpine cannot be queried by purl at all (`spike/NOTES.md`,
+  T0.3a).
 - **`vulns.json`** — full `GET /v1/vulns/{id}` documents, keyed by id.
 
 ## What was trimmed, and why
@@ -24,6 +27,14 @@ in output-spec section 1:
 | `DEBIAN-CVE-2022-37434` | CVSS v3 plus per-release fixed versions across eight affected entries |
 | `DEBIAN-CVE-2010-4756` | no severity at all, so the `unknown` bucket |
 | `DEBIAN-CVE-2025-6141` | CVSS v4 only, with no v3 to fall back to |
+| `ALPINE-CVE-2022-37434` | fourteen affected releases whose purls are all identical, so only the ecosystem field distinguishes them |
+| `ALPINE-CVE-2022-2097` | Alpine backport true-negative — present at `1.1.1o-r0`, absent at `1.1.1q-r0` |
+
+`ALPINE-CVE-2022-37434` earns its place. Every one of its affected entries
+carries the same purl, `pkg:apk/alpine/zlib?arch=source`, and they differ only
+in `ecosystem`. Matching them by purl picks v3.11's fix, `1.2.11-r4`, which is
+*older* than the installed `1.2.12-r1` — a fix that reads as a downgrade. That
+regression is what the Alpine test guards.
 
 ## The one synthetic record
 

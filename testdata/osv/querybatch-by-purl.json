@@ -1,4 +1,23 @@
 {
+  "Alpine:v3.16|openssl|1.1.1o-r0": {
+    "vulns": [
+      {
+        "id": "ALPINE-CVE-2022-2097",
+        "modified": "2026-08-27T22:18:01.693568Z"
+      }
+    ]
+  },
+  "Alpine:v3.16|openssl|1.1.1q-r0": {
+    "vulns": []
+  },
+  "Alpine:v3.16|zlib|1.2.12-r1": {
+    "vulns": [
+      {
+        "id": "ALPINE-CVE-2022-37434",
+        "modified": "2026-08-27T22:18:01.838822Z"
+      }
+    ]
+  },
   "pkg:deb/debian/definitely-not-a-real-package@1.0-1?arch=source&distro=bullseye": {},
   "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u1?arch=source&distro=bullseye": {
     "vulns": [

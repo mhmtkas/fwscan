@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mhmtkas/fwscan/internal/catalog"
 	"github.com/mhmtkas/fwscan/internal/model"
 )
 
@@ -42,7 +43,7 @@ func newFakeOSV(t *testing.T) *OSV {
 			} `json:"vulns"`
 		}, len(req.Queries))
 		for i, q := range req.Queries {
-			resp.Results[i].Vulns = byPURL[q.Package.PURL].Vulns
+			resp.Results[i].Vulns = byPURL[fixtureKey(q)].Vulns
 		}
 		writeJSON(w, resp)
 	})
@@ -65,6 +66,16 @@ func newFakeOSV(t *testing.T) *OSV {
 	return osv
 }
 
+// fixtureKey mirrors how the recorded responses are keyed: by purl for the
+// ecosystems OSV matches that way, and by ecosystem|name|version for the ones
+// it does not.
+func fixtureKey(q query) string {
+	if q.Package.PURL != "" {
+		return q.Package.PURL
+	}
+	return q.Package.Ecosystem + "|" + q.Package.Name + "|" + q.Version
+}
+
 func readFixture(t *testing.T, name string, into any) {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("..", "..", "testdata", "osv", name))
@@ -85,7 +96,19 @@ func debComponent(name, version, source, sourceVersion string) model.Component {
 	return model.Component{
 		Name: name, Version: version, Arch: "amd64",
 		Source: source, SourceVersion: sourceVersion, Distro: "bullseye",
+		// The purl is what tells the matcher which query shape to use, so a
+		// component without one is never looked up.
+		PURL:       catalog.BinaryPURL(name, version, "amd64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+	}
+}
+
+func apkComponent(name, version, origin string) model.Component {
+	return model.Component{
+		Name: name, Version: version, Arch: "x86_64",
+		Source: origin, SourceVersion: version, Distro: "v3.16",
+		PURL:       catalog.ApkPURL(name, version, "x86_64", "v3.16"),
+		Confidence: model.ConfidenceHigh, Evidence: catalog.ApkInstalledPath,
 	}
 }
 
@@ -326,4 +349,194 @@ func contains(haystack []string, needle string) bool {
 		}
 	}
 	return false
+}
+
+// Debian and Alpine need different query shapes. Getting this wrong is silent:
+// a purl query for Alpine returns nothing rather than an error, so an Alpine
+// image would scan perfectly clean (spike/NOTES.md T0.3a).
+func TestQueryShapePerEcosystem(t *testing.T) {
+	tests := []struct {
+		name          string
+		component     model.Component
+		wantOK        bool
+		wantPURL      string
+		wantName      string
+		wantEcosystem string
+		wantVersion   string
+	}{
+		{
+			name:      "debian is queried by purl",
+			component: debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+			wantOK:    true,
+			wantPURL:  "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u1?arch=source&distro=bullseye",
+		},
+		{
+			name:          "alpine is queried by ecosystem",
+			component:     apkComponent("libssl1.1", "1.1.1o-r0", "openssl"),
+			wantOK:        true,
+			wantName:      "openssl",
+			wantEcosystem: "Alpine:v3.16",
+			wantVersion:   "1.1.1o-r0",
+		},
+		{
+			name: "alpine without a release cannot be queried",
+			component: model.Component{
+				Name: "openssl", Version: "1.1.1o-r0", Source: "openssl", SourceVersion: "1.1.1o-r0",
+				PURL: "pkg:apk/alpine/openssl@1.1.1o-r0",
+			},
+			wantOK: false,
+		},
+		{
+			name: "a heuristic component has no purl and is not queried",
+			component: model.Component{
+				Name: "busybox", Version: "1.30.1", Source: "busybox", SourceVersion: "1.30.1",
+				Confidence: model.ConfidenceLow, Evidence: "bin/busybox",
+			},
+			wantOK: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := queryFor(keyFor(tt.component))
+			if ok != tt.wantOK {
+				t.Fatalf("queryFor() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if got.Package.PURL != tt.wantPURL {
+				t.Errorf("purl = %q, want %q", got.Package.PURL, tt.wantPURL)
+			}
+			if got.Package.Name != tt.wantName {
+				t.Errorf("name = %q, want %q", got.Package.Name, tt.wantName)
+			}
+			if got.Package.Ecosystem != tt.wantEcosystem {
+				t.Errorf("ecosystem = %q, want %q", got.Package.Ecosystem, tt.wantEcosystem)
+			}
+			if got.Version != tt.wantVersion {
+				t.Errorf("version = %q, want %q", got.Version, tt.wantVersion)
+			}
+		})
+	}
+}
+
+// The request must carry exactly one shape: a purl query with an empty name and
+// ecosystem, or an ecosystem query with no purl. Sending both would be
+// ambiguous.
+func TestQueryOmitsUnusedFields(t *testing.T) {
+	deb, _ := queryFor(keyFor(debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1")))
+	body, err := json.Marshal(deb)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(body), `"ecosystem"`) || strings.Contains(string(body), `"name"`) {
+		t.Errorf("debian query carries ecosystem fields: %s", body)
+	}
+
+	apk, _ := queryFor(keyFor(apkComponent("libssl1.1", "1.1.1o-r0", "openssl")))
+	body, err = json.Marshal(apk)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(body), `"purl"`) {
+		t.Errorf("alpine query carries a purl: %s", body)
+	}
+	if !strings.Contains(string(body), `"version":"1.1.1o-r0"`) {
+		t.Errorf("alpine query missing the version: %s", body)
+	}
+}
+
+// Alpine, end to end through the recorded responses.
+func TestOSVMatchAlpine(t *testing.T) {
+	osv := newFakeOSV(t)
+
+	t.Run("fixed version comes from the right release", func(t *testing.T) {
+		findings, err := osv.Match(context.Background(),
+			[]model.Component{apkComponent("zlib", "1.2.12-r1", "zlib")})
+		if err != nil {
+			t.Fatalf("Match() error = %v", err)
+		}
+		f := findOne(t, findings, "CVE-2022-37434")
+
+		// The record lists a fixed version for every Alpine release from 3.11
+		// to 3.24, and every one of those entries carries the *same* purl,
+		// pkg:apk/alpine/zlib?arch=source. Only the ecosystem field tells them
+		// apart. Picking the wrong entry yields 1.2.11-r4, which is older than
+		// the installed 1.2.12-r1 -- a fix that reads as a downgrade.
+		if f.FixedVersion != "1.2.12-r2" {
+			t.Errorf("fixed version = %q, want 1.2.12-r2 (v3.16's)", f.FixedVersion)
+		}
+		if f.FixedVersion == "1.2.11-r4" {
+			t.Error("picked v3.11's fix; affected entries are being matched by purl")
+		}
+	})
+
+	t.Run("backported fix is not reported", func(t *testing.T) {
+		findings, err := osv.Match(context.Background(),
+			[]model.Component{apkComponent("libssl1.1", "1.1.1q-r0", "openssl")})
+		if err != nil {
+			t.Fatalf("Match() error = %v", err)
+		}
+		if _, ok := findByIDForTest(findings, "CVE-2022-2097"); ok {
+			t.Error("reported against the version that fixes it")
+		}
+	})
+
+	t.Run("vulnerable version is reported on every binary sharing the origin", func(t *testing.T) {
+		findings, err := osv.Match(context.Background(), []model.Component{
+			apkComponent("libssl1.1", "1.1.1o-r0", "openssl"),
+			apkComponent("libcrypto1.1", "1.1.1o-r0", "openssl"),
+		})
+		if err != nil {
+			t.Fatalf("Match() error = %v", err)
+		}
+		var names []string
+		for _, f := range findings {
+			if f.ID == "CVE-2022-2097" {
+				names = append(names, f.Component.Name)
+			}
+		}
+		if len(names) != 2 {
+			t.Errorf("finding landed on %v, want both binaries", names)
+		}
+	})
+}
+
+// A reported fix that is older than what is installed is always wrong, whatever
+// produced it.
+func TestFixedVersionIsNeverOlderThanInstalled(t *testing.T) {
+	osv := newFakeOSV(t)
+
+	comps := []model.Component{
+		apkComponent("zlib", "1.2.12-r1", "zlib"),
+		apkComponent("libssl1.1", "1.1.1o-r0", "openssl"),
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+		debComponent("zlib1g", "1:1.2.11.dfsg-2", "zlib", "1:1.2.11.dfsg-2"),
+	}
+	findings, err := osv.Match(context.Background(), comps)
+	if err != nil {
+		t.Fatalf("Match() error = %v", err)
+	}
+	if len(findings) == 0 {
+		t.Fatal("no findings to check")
+	}
+	for _, f := range findings {
+		if f.FixedVersion == "" {
+			continue
+		}
+		if versionLess(f.FixedVersion, f.Component.Version) {
+			t.Errorf("%s on %s: fixed %q is older than installed %q",
+				f.ID, f.Component.Name, f.FixedVersion, f.Component.Version)
+		}
+	}
+}
+
+func findByIDForTest(findings []model.Finding, id string) (model.Finding, bool) {
+	for _, f := range findings {
+		if f.ID == id {
+			return f, true
+		}
+	}
+	return model.Finding{}, false
 }

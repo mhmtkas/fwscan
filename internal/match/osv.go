@@ -53,11 +53,18 @@ func NewOSV() *OSV {
 	}
 }
 
-// query is one entry in a querybatch request.
+// query is one entry in a querybatch request. OSV accepts either a purl or a
+// name plus ecosystem; which one is required depends on the ecosystem, so both
+// shapes are modelled and the empty fields are omitted.
 type query struct {
-	Package struct {
-		PURL string `json:"purl"`
-	} `json:"package"`
+	Package queryPackage `json:"package"`
+	Version string       `json:"version,omitempty"`
+}
+
+type queryPackage struct {
+	PURL      string `json:"purl,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Ecosystem string `json:"ecosystem,omitempty"`
 }
 
 type batchRequest struct {
@@ -108,14 +115,73 @@ type queryKey struct {
 	source  string
 	version string
 	distro  string
+	kind    packageKind
 }
+
+// packageKind selects the query shape. Debian is queried by purl with a distro
+// qualifier; Alpine cannot be, because OSV's Alpine records carry no distro
+// qualifier and keep the release in their ecosystem field instead. A purl query
+// for Alpine returns nothing, silently (spike/NOTES.md T0.3a).
+type packageKind int
+
+const (
+	kindUnknown packageKind = iota
+	kindDeb
+	kindApk
+)
 
 func keyFor(c model.Component) queryKey {
 	source, version := c.Source, c.SourceVersion
 	if source == "" {
 		source, version = c.Name, c.Version
 	}
-	return queryKey{source: source, version: version, distro: c.Distro}
+	return queryKey{source: source, version: version, distro: c.Distro, kind: kindOf(c)}
+}
+
+// kindOf reads the package type off the component's purl. Components with no
+// purl are heuristic results, which nothing knows how to look up.
+// ecosystem returns the OSV ecosystem string for an apk key, e.g.
+// "Alpine:v3.16". It is empty for Debian, which is matched by purl instead.
+func (k queryKey) ecosystem() string {
+	if k.kind == kindApk && k.distro != "" {
+		return "Alpine:" + k.distro
+	}
+	return ""
+}
+
+func kindOf(c model.Component) packageKind {
+	switch {
+	case strings.HasPrefix(c.PURL, "pkg:deb/"):
+		return kindDeb
+	case strings.HasPrefix(c.PURL, "pkg:apk/"):
+		return kindApk
+	default:
+		return kindUnknown
+	}
+}
+
+// queryFor builds the request entry for a key, in whichever shape its ecosystem
+// requires.
+func queryFor(key queryKey) (query, bool) {
+	switch key.kind {
+	case kindDeb:
+		var q query
+		q.Package.PURL = catalog.SourcePURL(key.source, key.version, key.distro)
+		return q, true
+	case kindApk:
+		if key.distro == "" {
+			// Without the release there is no ecosystem to ask about, and a
+			// bare "Alpine" returns nothing.
+			return query{}, false
+		}
+		var q query
+		q.Package.Name = key.source
+		q.Package.Ecosystem = key.ecosystem()
+		q.Version = key.version
+		return q, true
+	default:
+		return query{}, false
+	}
 }
 
 // Match implements Matcher.
@@ -130,8 +196,8 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 	grouped := make(map[queryKey][]model.Component, len(comps))
 	for _, c := range comps {
 		key := keyFor(c)
-		if key.source == "" || key.version == "" {
-			continue // nothing to ask about
+		if key.source == "" || key.version == "" || key.kind == kindUnknown {
+			continue // nothing that can be looked up
 		}
 		if _, seen := grouped[key]; !seen {
 			order = append(order, key)
@@ -195,17 +261,26 @@ func (o *OSV) queryBatch(ctx context.Context, keys []queryKey) (map[queryKey][]s
 		end := min(start+size, len(keys))
 		chunk := keys[start:end]
 
-		req := batchRequest{Queries: make([]query, len(chunk))}
-		for i, key := range chunk {
-			req.Queries[i].Package.PURL = catalog.SourcePURL(key.source, key.version, key.distro)
+		req := batchRequest{Queries: make([]query, 0, len(chunk))}
+		asked := make([]queryKey, 0, len(chunk))
+		for _, key := range chunk {
+			q, ok := queryFor(key)
+			if !ok {
+				continue
+			}
+			req.Queries = append(req.Queries, q)
+			asked = append(asked, key)
+		}
+		if len(req.Queries) == 0 {
+			continue
 		}
 
 		var resp batchResponse
 		if err := o.postJSON(ctx, "/v1/querybatch", req, &resp); err != nil {
 			return nil, err
 		}
-		if len(resp.Results) != len(chunk) {
-			return nil, fmt.Errorf("osv: asked about %d packages, got %d results", len(chunk), len(resp.Results))
+		if len(resp.Results) != len(asked) {
+			return nil, fmt.Errorf("osv: asked about %d packages, got %d results", len(asked), len(resp.Results))
 		}
 		for i, result := range resp.Results {
 			if len(result.Vulns) == 0 {
@@ -216,7 +291,7 @@ func (o *OSV) queryBatch(ctx context.Context, keys []queryKey) (map[queryKey][]s
 				ids = append(ids, v.ID)
 			}
 			slices.Sort(ids)
-			out[chunk[i]] = ids
+			out[asked[i]] = ids
 		}
 	}
 	return out, nil

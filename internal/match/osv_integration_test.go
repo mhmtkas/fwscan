@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mhmtkas/fwscan/internal/catalog"
 	"github.com/mhmtkas/fwscan/internal/model"
 )
 
@@ -25,13 +26,18 @@ func TestOSVLiveBackportBehaviour(t *testing.T) {
 
 	osv := NewOSV()
 
-	vulnerable := model.Component{
-		Name: "libssl1.1", Version: "1.1.1k-1+deb11u1", Arch: "amd64",
-		Source: "openssl", SourceVersion: "1.1.1k-1+deb11u1", Distro: "bullseye",
-		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+	debian := func(version string) model.Component {
+		return model.Component{
+			Name: "libssl1.1", Version: version, Arch: "amd64",
+			Source: "openssl", SourceVersion: version, Distro: "bullseye",
+			// The purl is what selects the query shape, so a component without
+			// one is never looked up.
+			PURL:       catalog.BinaryPURL("libssl1.1", version, "amd64", "bullseye"),
+			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+		}
 	}
-	fixed := vulnerable
-	fixed.Version, fixed.SourceVersion = "1.1.1k-1+deb11u2", "1.1.1k-1+deb11u2"
+	vulnerable := debian("1.1.1k-1+deb11u1")
+	fixed := debian("1.1.1k-1+deb11u2")
 
 	t.Run("true positive", func(t *testing.T) {
 		findings, err := osv.Match(ctx, []model.Component{vulnerable})
@@ -58,6 +64,28 @@ func TestOSVLiveBackportBehaviour(t *testing.T) {
 		if _, ok := findByID(findings, "CVE-2022-0778"); ok {
 			t.Error("CVE-2022-0778 reported against the version that fixes it; " +
 				"the distro qualifier is not reaching the query")
+		}
+	})
+
+	// Alpine goes through a different query shape entirely, so it needs its own
+	// live check (spike/NOTES.md T0.3a).
+	t.Run("alpine is queried by ecosystem", func(t *testing.T) {
+		alpine := model.Component{
+			Name: "zlib", Version: "1.2.12-r1", Arch: "x86_64",
+			Source: "zlib", SourceVersion: "1.2.12-r1", Distro: "v3.16",
+			PURL:       catalog.ApkPURL("zlib", "1.2.12-r1", "x86_64", "v3.16"),
+			Confidence: model.ConfidenceHigh, Evidence: catalog.ApkInstalledPath,
+		}
+		findings, err := osv.Match(ctx, []model.Component{alpine})
+		if err != nil {
+			t.Fatalf("Match() error = %v", err)
+		}
+		f, ok := findByID(findings, "CVE-2022-37434")
+		if !ok {
+			t.Fatal("CVE-2022-37434 not reported; the ecosystem query is not reaching OSV")
+		}
+		if f.FixedVersion != "1.2.12-r2" {
+			t.Errorf("fixed version = %q, want v3.16's 1.2.12-r2", f.FixedVersion)
 		}
 	})
 }

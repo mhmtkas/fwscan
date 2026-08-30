@@ -272,6 +272,74 @@ CVE-2011-3389). Per output-spec §5, `unknown` never triggers exit 1, so a fifth
 of the output is advisory noise that `--fail-on` ignores. Worth a line in the
 README's limitations section; no code change proposed.
 
+## T0.3a — Alpine query format — addendum, recorded during T12
+
+The original spike covered Debian only. T12 added an apk cataloger, and Alpine
+turned out **not** to follow the Debian rule, so it was validated the same way
+rather than assumed.
+
+### Purl queries do not work for Alpine at all
+
+| Query | Vulns |
+|---|---|
+| `pkg:apk/alpine/openssl@1.1.1n-r0` | 0 |
+| `…?arch=x86_64` | 0 |
+| `…?distro=alpine-3.16` | 0 |
+| `…?distro=v3.16` | 0 |
+| `…?distro=3.16` | 0 |
+| `pkg:apk/openssl@1.1.1n-r0?distro=v3.16` | 0 |
+| **ecosystem `Alpine:v3.16`, name `openssl`, version `1.1.1o-r0`** | **10** |
+
+The reason is visible in OSV's own records. An Alpine advisory's affected
+entries carry `purl: pkg:apk/alpine/openssl?arch=source` — **no distro
+qualifier at all** — and the release lives only in the `ecosystem` field
+(`Alpine:v3.13`, `Alpine:v3.14`, `Alpine:v3.16`, …). A purl cannot express which
+release it means, so a purl query cannot be release-scoped, and OSV returns
+nothing rather than guessing.
+
+**Consequence for the matcher:** Debian is queried by purl, Alpine by
+`{package: {name, ecosystem}, version}`. Two query shapes, one matcher.
+
+### The ecosystem string is exact
+
+| Ecosystem | Vulns |
+|---|---|
+| `Alpine:v3.16` | 10 |
+| `Alpine:v3.16.0` | 0 |
+| `Alpine:3.16` | 0 |
+| `Alpine` | 0 |
+
+So: `Alpine:v` + major.minor, truncated from `VERSION_ID` (`3.16.0` → `v3.16`).
+The patch component must be dropped and the `v` is mandatory. Both failure modes
+are silent, exactly like the Debian ones.
+
+### Source package names again
+
+`libssl1.1` at `1.1.1o-r0` returns 0; its origin `openssl` returns 10. The apk
+database records the origin in the `o:` field, which is the direct analogue of
+dpkg's `Source:`.
+
+### Backport true-negative holds
+
+`openssl` on `Alpine:v3.16`: `1.1.1o-r0` returns 10 vulnerabilities including
+ALPINE-CVE-2022-2097, and `1.1.1q-r0` — the version that fixes it — returns 9,
+with that CVE gone. Release-scoped matching works for Alpine too, through the
+ecosystem field rather than a qualifier.
+
+### Record shape
+
+Identical to Debian's: ids are `ALPINE-CVE-2022-2097`, `aliases` is empty, and
+the plain CVE is in `upstream`. The identifier reconciliation written for Debian
+applies unchanged.
+
+**Open question 4 for the maintainer:** apk versions are not Debian versions.
+`1.1.1o-r0` and `1.0_alpha1` follow apk's own ordering rules, which
+`go-deb-version` does not implement. It happens to order the common
+`x.y.z-rN` shape correctly, and that is what the fixed-version selection relies
+on today, but a version carrying `_alpha`, `_pre` or `_git` would be compared
+wrongly. A dedicated apk comparison is not in any task's acceptance criteria and
+would need a dependency that CLAUDE.md rule 7 does not permit.
+
 ## T0.4 — SquashFS compression matrix — DONE — **BINDING ON T4, T5 AND T11**
 
 Kill-risk #2 is retired. **Plan A: shell out to `unsquashfs`.** All four

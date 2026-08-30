@@ -42,22 +42,26 @@ func detectCodename(root fs.FS) string {
 	return ""
 }
 
-// parseCodename reads VERSION_CODENAME from os-release's shell-ish syntax,
-// tolerating quotes and ignoring everything else.
+// parseCodename reads VERSION_CODENAME from os-release's shell-ish syntax.
 func parseCodename(r io.Reader) string {
+	value := parseOSReleaseField(r, "VERSION_CODENAME")
+	// Debian codenames are single lowercase words; anything else is not one.
+	if strings.ContainsAny(value, " \t/") {
+		return ""
+	}
+	return value
+}
+
+// parseOSReleaseField reads one key from os-release's shell-ish syntax,
+// tolerating quotes and ignoring everything else.
+func parseOSReleaseField(r io.Reader, want string) string {
 	sc := bufio.NewScanner(io.LimitReader(r, maxOSReleaseSize))
 	for sc.Scan() {
 		key, value, found := strings.Cut(sc.Text(), "=")
-		if !found || strings.TrimSpace(key) != "VERSION_CODENAME" {
+		if !found || strings.TrimSpace(key) != want {
 			continue
 		}
-		value = strings.TrimSpace(value)
-		value = strings.Trim(value, `"'`)
-		// Debian codenames are single lowercase words; anything else is not one.
-		if value == "" || strings.ContainsAny(value, " \t/") {
-			return ""
-		}
-		return value
+		return strings.Trim(strings.TrimSpace(value), `"'`)
 	}
 	return ""
 }

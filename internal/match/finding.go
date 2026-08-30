@@ -144,6 +144,24 @@ func bucketFromV3Score(score float64) model.Severity {
 	}
 }
 
+// affectedMatchesRelease reports whether an affected entry describes the same
+// release the component came from.
+//
+// The two ecosystems say it in different places. Debian's affected purls carry
+// a distro qualifier; Alpine's carry none at all and put the release in the
+// ecosystem field instead (spike/NOTES.md T0.3a). Matching only on the purl
+// would silently pick another release's fix — which reads as a fixed version
+// older than the one installed.
+func affectedMatchesRelease(a affected, key queryKey) bool {
+	if eco := key.ecosystem(); eco != "" {
+		return a.Package.Ecosystem == eco
+	}
+	if key.distro == "" {
+		return true
+	}
+	return strings.Contains(a.Package.PURL, "distro="+key.distro)
+}
+
 // bucketFromV2Score maps a v2 base score. v2 has no critical band, so 7.0 and
 // above is high (output-spec section 1, step 2).
 func bucketFromV2Score(score float64) model.Severity {
@@ -172,7 +190,7 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 		if a.Package.Name != key.source {
 			continue
 		}
-		matchesRelease := key.distro == "" || strings.Contains(a.Package.PURL, "distro="+key.distro)
+		matchesRelease := affectedMatchesRelease(a, key)
 
 		for _, r := range a.Ranges {
 			for _, e := range r.Events {

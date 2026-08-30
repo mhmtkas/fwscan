@@ -1,4 +1,772 @@
 {
+  "ALPINE-CVE-2022-2097": {
+    "affected": [
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.13",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "1.1.1q-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.14",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "1.1.1q-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.15",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "1.1.1q-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.16",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "1.1.1q-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.17",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.18",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.19",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.20",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.21",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.22",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.23",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.24",
+          "name": "openssl",
+          "purl": "pkg:apk/alpine/openssl?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "1.1.1"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.15",
+          "name": "openssl3",
+          "purl": "pkg:apk/alpine/openssl3?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-2097.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.16",
+          "name": "openssl3",
+          "purl": "pkg:apk/alpine/openssl3?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "3.0.5-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      }
+    ],
+    "details": "AES OCB mode for 32-bit x86 platforms using the AES-NI assembly optimised implementation will not encrypt the entirety of the data under some circumstances. This could reveal sixteen bytes of data that was preexisting in the memory that wasn't written. In the special case of \"in place\" encryption, sixteen bytes of the plaintext would be revealed. Since OpenSSL does not support OCB based cipher suites for TLS and DTLS, they are both unaffected. Fixed in OpenSSL 3.0.5 (Affected 3.0.0-3.0.4). Fixed in OpenSSL 1.1.1q (Affected 1.1.1-1.1.1p).",
+    "id": "ALPINE-CVE-2022-2097",
+    "modified": "2026-08-27T22:18:01.693568075Z",
+    "published": "2022-07-05T11:15:08.340Z",
+    "references": [
+      {
+        "type": "ADVISORY",
+        "url": "https://security.alpinelinux.org/vuln/CVE-2022-2097"
+      }
+    ],
+    "schema_version": "1.9.0",
+    "severity": [
+      {
+        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N",
+        "type": "CVSS_V3"
+      }
+    ],
+    "upstream": [
+      "CVE-2022-2097"
+    ]
+  },
+  "ALPINE-CVE-2022-37434": {
+    "affected": [
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.11",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.11-r4"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.12",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.13",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.14",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.15",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.16",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.17",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.18",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.19",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.20",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.21",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.22",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.23",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.24",
+          "name": "zlib",
+          "purl": "pkg:apk/alpine/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.12-r2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.23",
+          "name": "zlib-ng",
+          "purl": "pkg:apk/alpine/zlib-ng?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "2.0.6-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      },
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/cve-osv-conversion/alpine/ALPINE-CVE-2022-37434.json"
+        },
+        "ecosystem_specific": {},
+        "package": {
+          "ecosystem": "Alpine:v3.24",
+          "name": "zlib-ng",
+          "purl": "pkg:apk/alpine/zlib-ng?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "2.0.6-r0"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ]
+      }
+    ],
+    "details": "zlib through 1.2.12 has a heap-based buffer over-read or buffer overflow in inflate in inflate.c via a large gzip header extra field. NOTE: only applications that call inflateGetHeader are affected. Some common applications bundle the affected zlib source code but may be unable to call inflateGetHeader (e.g., see the nodejs/node reference).",
+    "id": "ALPINE-CVE-2022-37434",
+    "modified": "2026-08-27T22:18:01.838822811Z",
+    "published": "2022-08-05T07:15:07.240Z",
+    "references": [
+      {
+        "type": "ADVISORY",
+        "url": "https://security.alpinelinux.org/vuln/CVE-2022-37434"
+      }
+    ],
+    "schema_version": "1.9.0",
+    "severity": [
+      {
+        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+        "type": "CVSS_V3"
+      }
+    ],
+    "upstream": [
+      "CVE-2022-37434"
+    ]
+  },
   "DEBIAN-CVE-2010-4756": {
     "affected": [
       {

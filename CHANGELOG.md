@@ -35,5 +35,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `--no-network` mode, proven by test to make no vulnerability lookup at all.
 - SquashFS input via `unsquashfs`, with the internal compression read from the
   superblock and an actionable error when the tool is missing.
+- apk cataloger for Alpine images, and matcher support for the ecosystem query
+  shape Alpine requires.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main
