@@ -32,6 +32,16 @@ func TestJSONGolden(t *testing.T) {
 			golden: "report-empty.json",
 			build:  func() ([]model.Component, []model.Finding) { return nil, nil },
 		},
+		{
+			// --no-network: the same document, findings empty and the summary
+			// zeroed, so one parser handles both modes.
+			name:   "no-network mode",
+			golden: "report-no-network.json",
+			build: func() ([]model.Component, []model.Finding) {
+				comps, _ := sampleFindings()
+				return comps, nil
+			},
+		},
 	}
 
 	for _, tt := range tests {

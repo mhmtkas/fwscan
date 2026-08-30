@@ -17,6 +17,11 @@ import (
 	"github.com/mhmtkas/fwscan/internal/sbom"
 )
 
+// newMatcher builds the vulnerability matcher. It is a variable so a test can
+// substitute one that fails loudly if it is ever called, which is how
+// --no-network is proven to make no network calls at all.
+var newMatcher = func() match.Matcher { return match.NewOSV() }
+
 type scanOptions struct {
 	noNetwork  bool
 	sbomPath   string
@@ -82,7 +87,7 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 
 	var findings []model.Finding
 	if !opts.noNetwork {
-		findings, err = match.NewOSV().Match(cmd.Context(), comps)
+		findings, err = newMatcher().Match(cmd.Context(), comps)
 		if err != nil {
 			return err
 		}

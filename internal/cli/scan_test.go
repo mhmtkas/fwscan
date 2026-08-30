@@ -2,11 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/mhmtkas/fwscan/internal/match"
+	"github.com/mhmtkas/fwscan/internal/model"
 )
 
 // End to end through the cobra command, with the network skipped so the result
@@ -253,4 +258,69 @@ func TestScanWritesJSONReport(t *testing.T) {
 	if len(doc.Findings) != 0 {
 		t.Errorf("got %d findings in --no-network mode", len(doc.Findings))
 	}
+}
+
+// exploding is a matcher that fails the test if anything asks it to look
+// something up. --no-network must never construct a request, let alone send one.
+type exploding struct{ t *testing.T }
+
+func (e exploding) Match(context.Context, []model.Component) ([]model.Finding, error) {
+	e.t.Error("the matcher was invoked in --no-network mode")
+	return nil, errors.New("matcher must not be called")
+}
+
+func TestNoNetworkNeverCallsTheMatcher(t *testing.T) {
+	original := newMatcher
+	newMatcher = func() match.Matcher { return exploding{t: t} }
+	t.Cleanup(func() { newMatcher = original })
+
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	out := filepath.Join(t.TempDir(), "report.json")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--output", out, image})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+}
+
+// Without --no-network the matcher is called, which keeps the test above
+// honest: it would otherwise pass even if the flag did nothing.
+func TestNetworkModeCallsTheMatcher(t *testing.T) {
+	var called bool
+	original := newMatcher
+	newMatcher = func() match.Matcher {
+		return matcherFunc(func(context.Context, []model.Component) ([]model.Finding, error) {
+			called = true
+			return nil, nil
+		})
+	}
+	t.Cleanup(func() { newMatcher = original })
+
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", image})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("scan failed: %v", err)
+	}
+	if !called {
+		t.Error("the matcher was not called without --no-network")
+	}
+	if !strings.Contains(stdout.String(), "Findings") {
+		t.Error("the Findings line is missing when the lookup did run")
+	}
+}
+
+type matcherFunc func(context.Context, []model.Component) ([]model.Finding, error)
+
+func (f matcherFunc) Match(ctx context.Context, comps []model.Component) ([]model.Finding, error) {
+	return f(ctx, comps)
 }
