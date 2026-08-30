@@ -272,11 +272,77 @@ CVE-2011-3389). Per output-spec §5, `unknown` never triggers exit 1, so a fifth
 of the output is advisory noise that `--fail-on` ignores. Worth a line in the
 README's limitations section; no code change proposed.
 
-## T0.4 — SquashFS compression matrix — UNRESOLVED
+## T0.4 — SquashFS compression matrix — DONE — **BINDING ON T4, T5 AND T11**
 
-**Gates T11.** Extraction matrix for gzip/xz/lz4/zstd, tool versions, magic-byte
-table, and the final Plan A (shell out to `unsquashfs`) vs Plan B (pure Go)
-decision.
+Kill-risk #2 is retired. **Plan A: shell out to `unsquashfs`.** All four
+compressors build and extract cleanly, so no pure-Go squashfs reader is needed
+and Plan B is not exercised.
+
+### Extraction matrix
+
+Host: macOS 15 (darwin/arm64), squashfs-tools **4.7.5 (2026/03/01)** from
+Homebrew — the same binary provides `mksquashfs` and `unsquashfs`. Source
+tree: the bullseye fixture plus a fake `bin/busybox`, a `bin/sh` symlink and an
+empty `lib/modules/5.10.0-11-arm64/` directory, 16 entries, 96 KB.
+
+| `-comp` | Build | Image size | Extract | Content vs source | `unsquashfs -s` reports |
+|---|---|---|---|---|---|
+| `gzip` | OK | 24576 B | OK | identical | `Compression gzip` |
+| `xz` | OK | 24576 B | OK | identical | `Compression xz` |
+| `lz4` | OK | 40960 B | OK | identical | `Compression lz4` |
+| `zstd` | OK | 24576 B | OK | identical | `Compression zstd` |
+
+"Identical" means the SHA-256 over the sorted per-file SHA-256 list matched the
+source tree exactly (`f8eef1c87021f0bb387bf9c5ce475b3e1a2c17214956d87f6175946c82bd6e71`)
+for all four. Symlinks and the empty directory survived the round trip.
+
+lz4 is 67% larger than the others at this size, as expected — it trades ratio for
+decompression speed, which is exactly why embedded vendors pick it.
+
+### Version requirement
+
+lz4 and zstd support both landed in squashfs-tools **4.4**; 4.7.5 was used here
+and Debian bookworm ships 4.5.x. T11's CI step must install `squashfs-tools` and
+should assert the version is ≥ 4.4, because a too-old `unsquashfs` fails only at
+extraction time, on the compressor the user happens to have, with a message
+fwscan does not control.
+
+### Magic bytes — observed, not quoted
+
+Every value below was read off a file produced during this task, not copied from
+documentation. These feed `input/detect.go` (T4) and `input/decompress.go` (T5).
+
+| Format | Offset | Bytes | ASCII |
+|---|---|---|---|
+| SquashFS, little endian | 0 | `68 73 71 73` | `hsqs` |
+| gzip | 0 | `1F 8B` | |
+| xz | 0 | `FD 37 7A 58 5A 00` | |
+| zstd | 0 | `28 B5 2F FD` | |
+| lz4 frame | 0 | `04 22 4D 18` | |
+| tar (POSIX/ustar) | **257** | `75 73 74 61 72` | `ustar` |
+
+Two traps worth stating plainly:
+
+- **tar has no magic at offset 0.** The `ustar` string sits at offset 257, inside
+  the first header block. A detector that only ever looks at offset 0 will
+  classify an uncompressed tarball as unknown. The observed first bytes of the
+  test tar were `2e 5f 72 6f 6f 74` — just the first filename.
+- **Big-endian squashfs is `sqsh`, not `hsqs`.** Only the little-endian form was
+  produced here. Big-endian images are effectively extinct on the targets fwscan
+  cares about; if one ever appears, `unsquashfs` handles it and fwscan's detector
+  simply would not recognise it. Not treated as v1 scope.
+
+### Plan A consequences carried into T11 and T15
+
+- `unsquashfs` is the only permitted runtime shell-out (CLAUDE.md rule 8). Its
+  absence must be detected up front and reported with an install hint, never as a
+  raw `exec: "unsquashfs": executable file not found in $PATH`.
+- Extraction goes to the caller-owned temp dir and the returned cleanup function
+  removes it, on every error path.
+- `unsquashfs` is being handed a hostile image. Path traversal inside the archive
+  is its problem, not one fwscan can fix from outside, but fwscan must still
+  verify after extraction that nothing landed outside the temp dir — the same
+  check T5 applies to tar. T15 re-verifies this.
 
 ## T0.5 — Decision log — UNRESOLVED
 
