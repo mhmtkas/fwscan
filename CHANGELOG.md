@@ -19,5 +19,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - dpkg cataloger reading `var/lib/dpkg/status`, resolving source package name
   and version, detecting the release codename from `os-release`, and building
   purls with the release qualifier the spike proved necessary.
+- Input layer: `Source` interface, content-based format detection, and the
+  extracted-rootfs-directory handler.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main
