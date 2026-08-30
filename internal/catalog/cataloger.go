@@ -23,5 +23,5 @@ type Cataloger interface {
 
 // All returns the catalogers a scan runs, in order.
 func All() []Cataloger {
-	return []Cataloger{NewDpkg(), NewApk()}
+	return []Cataloger{NewDpkg(), NewApk(), NewHeuristic()}
 }

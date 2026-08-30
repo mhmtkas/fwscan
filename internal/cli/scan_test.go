@@ -36,8 +36,9 @@ func TestScanEndToEndNoNetwork(t *testing.T) {
 	for _, want := range []string{
 		"fwscan v0.1.0",
 		"(tar, gzip)",
-		"Packages    6 (6 high confidence, 0 low)",
-		"Cataloged 6 packages. CVE lookup skipped (--no-network).",
+		"Packages    7 (6 high confidence, 1 low)",
+		"Cataloged 7 packages. CVE lookup skipped (--no-network).",
+		"1 low-confidence component was identified by filename heuristics",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q:\n%s", want, got)
@@ -155,8 +156,8 @@ func TestScanWritesSBOM(t *testing.T) {
 	if doc.BOMFormat != "CycloneDX" || doc.SpecVersion != "1.6" {
 		t.Errorf("format = %s %s, want CycloneDX 1.6", doc.BOMFormat, doc.SpecVersion)
 	}
-	if len(doc.Components) != 6 {
-		t.Errorf("got %d components, want 6", len(doc.Components))
+	if len(doc.Components) != 7 {
+		t.Errorf("got %d components, want 7", len(doc.Components))
 	}
 	if doc.Vulnerabilities != nil {
 		t.Error("the SBOM carries vulnerabilities")
@@ -248,8 +249,8 @@ func TestScanWritesJSONReport(t *testing.T) {
 	if doc.Scan.Format != "tar" || doc.Scan.Compression != "gzip" {
 		t.Errorf("scan block = %+v", doc.Scan)
 	}
-	if doc.Summary.Packages.Total != 6 || len(doc.Components) != 6 {
-		t.Errorf("packages = %d, components = %d, want 6 and 6", doc.Summary.Packages.Total, len(doc.Components))
+	if doc.Summary.Packages.Total != 7 || len(doc.Components) != 7 {
+		t.Errorf("packages = %d, components = %d, want 7 and 7", doc.Summary.Packages.Total, len(doc.Components))
 	}
 	// --no-network still produces the array, empty.
 	if doc.Findings == nil {

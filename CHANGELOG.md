@@ -37,5 +37,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   superblock and an actionable error when the tool is missing.
 - apk cataloger for Alpine images, and matcher support for the ecosystem query
   shape Alpine requires.
+- Heuristic detectors for the kernel, busybox and versioned shared libraries,
+  all reported at low confidence with evidence.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

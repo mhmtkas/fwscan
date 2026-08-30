@@ -122,13 +122,13 @@ func writeFootnote(w io.Writer, packages PackageCounts) error {
 	}
 	// output-spec section 2 writes this sentence for a plural count. The
 	// singular form is the same sentence made grammatical, not a new format.
-	noun, verb := "components", "were"
+	noun, verb, object := "components", "were", "false positives"
 	if packages.LowConfidence == 1 {
-		noun, verb = "component", "was"
+		noun, verb, object = "component", "was", "a false positive"
 	}
 	_, err := fmt.Fprintf(w,
-		"\n%d low-confidence %s %s identified by filename heuristics and may be false positives.\n"+
+		"\n%d low-confidence %s %s identified by filename heuristics and may be %s.\n"+
 			"Run with --output report.json for full details including aliases and evidence paths.\n",
-		packages.LowConfidence, noun, verb)
+		packages.LowConfidence, noun, verb, object)
 	return err
 }

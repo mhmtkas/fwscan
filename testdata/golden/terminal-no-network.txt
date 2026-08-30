@@ -5,5 +5,5 @@ fwscan v0.1.0
 
 Cataloged 4 packages. CVE lookup skipped (--no-network).
 
-1 low-confidence component was identified by filename heuristics and may be false positives.
+1 low-confidence component was identified by filename heuristics and may be a false positive.
 Run with --output report.json for full details including aliases and evidence paths.

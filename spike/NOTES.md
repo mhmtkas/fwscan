@@ -488,6 +488,18 @@ All three come from T0.3 and are conflicts between measured OSV behaviour and
 3. **19.5% of findings will be `unknown`** and therefore invisible to `--fail-on`.
    Mostly old Debian-marked-minor issues. Proposed: a line in README limitations,
    no code change.
+4. **apk versions are not Debian versions** — see T0.3a above.
+5. **Heuristic components are not matched.** T13's detectors carry no purl, so
+   the matcher skips them and they appear in the report and the SBOM but never
+   produce a finding. output-spec section 2's example table does show a
+   low-confidence finding (`busybox … CVE-2022-48174 … low`), so the spec
+   arguably expects them to be matched. They are not, deliberately: a version
+   inferred from a filename, with no release to scope it to, is exactly the
+   input that made the bare purl produce two false positives out of three in
+   T0.3. `libssl.so.3` names an ABI, not a release; querying "openssl 3" against
+   every distribution at once would manufacture findings rather than find them.
+   The reporter still renders a low-confidence finding correctly, so enabling
+   this later is a matcher change only. Maintainer decision.
 
 ### Surprises worth remembering
 
