@@ -16,5 +16,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   configuration, CI workflow, and the `fwscan version` command.
 - Domain model: `Component`, `Finding`, `Confidence` and `Severity`, with the
   finding and component sort orders from output-spec section 1.
+- dpkg cataloger reading `var/lib/dpkg/status`, resolving source package name
+  and version, detecting the release codename from `os-release`, and building
+  purls with the release qualifier the spike proved necessary.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

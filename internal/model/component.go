@@ -20,9 +20,20 @@ const (
 
 // Component is one piece of software found in the image.
 type Component struct {
-	Name       string
-	Version    string
-	Arch       string
+	Name    string
+	Version string
+	Arch    string
+	// Source and SourceVersion name the source package the binary was built
+	// from. They are separate fields because OSV's Debian data is keyed on
+	// source packages and the versions genuinely differ for binNMUs and for
+	// binaries carrying an epoch their source does not (spike/NOTES.md T0.3).
+	// They fall back to Name and Version when the database does not say.
+	Source        string
+	SourceVersion string
+	// Distro is the release codename, e.g. "bookworm". Empty when the image did
+	// not identify itself. Without it OSV matches across every Debian release
+	// at once and reports backported fixes as vulnerable.
+	Distro     string
 	PURL       string
 	Confidence Confidence
 	// Evidence is the path inside the image the finding came from, e.g.

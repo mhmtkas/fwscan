@@ -1,0 +1,308 @@
+package catalog
+
+import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"testing/fstest"
+
+	"github.com/mhmtkas/fwscan/internal/model"
+)
+
+// statusFS builds a rootfs containing just a dpkg database, plus an os-release
+// naming the given codename when one is supplied.
+func statusFS(status, codename string) fstest.MapFS {
+	m := fstest.MapFS{DpkgStatusPath: &fstest.MapFile{Data: []byte(status)}}
+	if codename != "" {
+		m["usr/lib/os-release"] = &fstest.MapFile{
+			Data: []byte("PRETTY_NAME=\"Debian GNU/Linux\"\nID=debian\nVERSION_CODENAME=" + codename + "\n"),
+		}
+	}
+	return m
+}
+
+func TestDpkgCatalog(t *testing.T) {
+	tests := []struct {
+		name     string
+		status   string
+		codename string
+		want     []model.Component
+	}{
+		{
+			name:     "normal stanza",
+			codename: "bookworm",
+			status: "Package: openssl\n" +
+				"Status: install ok installed\n" +
+				"Architecture: amd64\n" +
+				"Version: 3.0.11-1~deb12u2\n" +
+				"Description: Secure Sockets Layer toolkit\n",
+			want: []model.Component{{
+				Name: "openssl", Version: "3.0.11-1~deb12u2", Arch: "amd64",
+				Source: "openssl", SourceVersion: "3.0.11-1~deb12u2", Distro: "bookworm",
+				PURL:       "pkg:deb/debian/openssl@3.0.11-1~deb12u2?arch=amd64&distro=bookworm",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "multi-line Description cannot smuggle a package",
+			codename: "bookworm",
+			status: "Package: real-pkg\n" +
+				"Status: install ok installed\n" +
+				"Architecture: amd64\n" +
+				"Version: 1.0-1\n" +
+				"Description: first line\n" +
+				" Package: decoy\n" +
+				" Status: install ok installed\n" +
+				" .\n" +
+				" still the description\n",
+			want: []model.Component{{
+				Name: "real-pkg", Version: "1.0-1", Arch: "amd64",
+				Source: "real-pkg", SourceVersion: "1.0-1", Distro: "bookworm",
+				PURL:       "pkg:deb/debian/real-pkg@1.0-1?arch=amd64&distro=bookworm",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "not-installed packages are excluded",
+			codename: "bullseye",
+			status: "Package: gone\n" +
+				"Status: deinstall ok config-files\n" +
+				"Architecture: amd64\n" +
+				"Version: 9.9-1\n" +
+				"\n" +
+				"Package: broken\n" +
+				"Status: install ok half-installed\n" +
+				"Architecture: amd64\n" +
+				"Version: 8.8-1\n" +
+				"\n" +
+				"Package: present\n" +
+				"Status: install ok installed\n" +
+				"Architecture: amd64\n" +
+				"Version: 1.0-1\n",
+			want: []model.Component{{
+				Name: "present", Version: "1.0-1", Arch: "amd64",
+				Source: "present", SourceVersion: "1.0-1", Distro: "bullseye",
+				PURL:       "pkg:deb/debian/present@1.0-1?arch=amd64&distro=bullseye",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "epoch version is preserved and percent-encoded in the purl",
+			codename: "bullseye",
+			status: "Package: zlib1g\n" +
+				"Status: install ok installed\n" +
+				"Architecture: amd64\n" +
+				"Source: zlib\n" +
+				"Version: 1:1.2.11.dfsg-2\n",
+			want: []model.Component{{
+				Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "amd64",
+				Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", Distro: "bullseye",
+				PURL:       "pkg:deb/debian/zlib1g@1:1.2.11.dfsg-2?arch=amd64&distro=bullseye",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "Source with a version overrides the binary version",
+			codename: "bullseye",
+			status: "Package: bsdutils\n" +
+				"Status: install ok installed\n" +
+				"Architecture: amd64\n" +
+				"Source: util-linux (2.36.1-8+deb11u1)\n" +
+				"Version: 1:2.36.1-8+deb11u1\n",
+			want: []model.Component{{
+				Name: "bsdutils", Version: "1:2.36.1-8+deb11u1", Arch: "amd64",
+				Source: "util-linux", SourceVersion: "2.36.1-8+deb11u1", Distro: "bullseye",
+				PURL:       "pkg:deb/debian/bsdutils@1:2.36.1-8%2Bdeb11u1?arch=amd64&distro=bullseye",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "arch all is carried through as a qualifier",
+			codename: "bookworm",
+			status: "Package: tzdata\n" +
+				"Status: install ok installed\n" +
+				"Architecture: all\n" +
+				"Version: 2026b-0+deb12u1\n",
+			want: []model.Component{{
+				Name: "tzdata", Version: "2026b-0+deb12u1", Arch: "all",
+				Source: "tzdata", SourceVersion: "2026b-0+deb12u1", Distro: "bookworm",
+				PURL:       "pkg:deb/debian/tzdata@2026b-0%2Bdeb12u1?arch=all&distro=bookworm",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name: "no os-release means no distro qualifier",
+			status: "Package: busybox\n" +
+				"Status: install ok installed\n" +
+				"Architecture: arm64\n" +
+				"Version: 1.30.1-6\n",
+			want: []model.Component{{
+				Name: "busybox", Version: "1.30.1-6", Arch: "arm64",
+				Source: "busybox", SourceVersion: "1.30.1-6",
+				PURL:       "pkg:deb/debian/busybox@1.30.1-6?arch=arm64",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "malformed lines are skipped, not fatal",
+			codename: "bookworm",
+			status: "this line has no colon\n" +
+				"Package: survivor\n" +
+				"Status: install ok installed\n" +
+				"Architecture: amd64\n" +
+				"Version: 1.0\n",
+			want: []model.Component{{
+				Name: "survivor", Version: "1.0", Arch: "amd64",
+				Source: "survivor", SourceVersion: "1.0", Distro: "bookworm",
+				PURL:       "pkg:deb/debian/survivor@1.0?arch=amd64&distro=bookworm",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+		{
+			name:     "stanza without a trailing blank line is still flushed",
+			codename: "bookworm",
+			status:   "Package: last\nStatus: install ok installed\nArchitecture: amd64\nVersion: 2.0",
+			want: []model.Component{{
+				Name: "last", Version: "2.0", Arch: "amd64",
+				Source: "last", SourceVersion: "2.0", Distro: "bookworm",
+				PURL:       "pkg:deb/debian/last@2.0?arch=amd64&distro=bookworm",
+				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewDpkg().Catalog(statusFS(tt.status, tt.codename))
+			if err != nil {
+				t.Fatalf("Catalog() error = %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d components, want %d: %+v", len(got), len(tt.want), got)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("component %d:\n got  %+v\n want %+v", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestDpkgCatalogNoDatabase(t *testing.T) {
+	// An image without dpkg is not an error; it is an image without dpkg.
+	got, err := NewDpkg().Catalog(fstest.MapFS{"etc/hostname": &fstest.MapFile{Data: []byte("box\n")}})
+	if err != nil {
+		t.Fatalf("Catalog() error = %v, want nil", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("got %d components, want 0", len(got))
+	}
+}
+
+func TestDpkgName(t *testing.T) {
+	if got := NewDpkg().Name(); got != "dpkg" {
+		t.Errorf("Name() = %q, want %q", got, "dpkg")
+	}
+}
+
+// TestDpkgRealFixture parses the committed bookworm database. The expected
+// count is the one dpkg-query itself produced in spike/NOTES.md T0.2.
+func TestDpkgRealFixture(t *testing.T) {
+	const wantPackages = 88
+
+	status, err := os.ReadFile(filepath.Join("..", "..", "testdata", "dpkg-status", "bookworm-slim-status"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	osRelease, err := os.ReadFile(filepath.Join("..", "..", "testdata", "dpkg-status", "bookworm-slim-os-release"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	root := fstest.MapFS{
+		DpkgStatusPath:       &fstest.MapFile{Data: status},
+		"usr/lib/os-release": &fstest.MapFile{Data: osRelease},
+	}
+	comps, err := NewDpkg().Catalog(root)
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if len(comps) != wantPackages {
+		t.Fatalf("got %d packages, want %d", len(comps), wantPackages)
+	}
+
+	for _, c := range comps {
+		if c.Confidence != model.ConfidenceHigh {
+			t.Errorf("%s: confidence = %q, want high", c.Name, c.Confidence)
+		}
+		if c.Evidence != DpkgStatusPath {
+			t.Errorf("%s: evidence = %q, want %q", c.Name, c.Evidence, DpkgStatusPath)
+		}
+		if c.Distro != "bookworm" {
+			t.Errorf("%s: distro = %q, want bookworm", c.Name, c.Distro)
+		}
+		if c.Name == "" || c.Version == "" || c.PURL == "" {
+			t.Errorf("incomplete component: %+v", c)
+		}
+		if strings.Contains(c.PURL, "+") {
+			t.Errorf("%s: purl has a literal '+', want it percent-encoded: %s", c.Name, c.PURL)
+		}
+	}
+
+	// bsdutils is the epoch-vs-source case the spike surfaced.
+	var bsdutils *model.Component
+	for i := range comps {
+		if comps[i].Name == "bsdutils" {
+			bsdutils = &comps[i]
+		}
+	}
+	if bsdutils == nil {
+		t.Fatal("bsdutils not found in the fixture")
+	}
+	if bsdutils.Source != "util-linux" {
+		t.Errorf("bsdutils source = %q, want util-linux", bsdutils.Source)
+	}
+	if strings.HasPrefix(bsdutils.SourceVersion, "1:") {
+		t.Errorf("bsdutils source version %q kept the binary's epoch", bsdutils.SourceVersion)
+	}
+}
+
+func TestSourcePURL(t *testing.T) {
+	// The exact form spike/NOTES.md T0.3 proved backport-aware.
+	got := SourcePURL("openssl", "1.1.1k-1+deb11u2", "bullseye")
+	want := "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u2?arch=source&distro=bullseye"
+	if got != want {
+		t.Errorf("SourcePURL() = %q, want %q", got, want)
+	}
+	if got := SourcePURL("", "1.0", "bullseye"); got != "" {
+		t.Errorf("SourcePURL() with no name = %q, want empty", got)
+	}
+}
+
+func TestAllCatalogers(t *testing.T) {
+	all := All()
+	if len(all) == 0 {
+		t.Fatal("All() returned no catalogers")
+	}
+	var names []string
+	for _, c := range all {
+		names = append(names, c.Name())
+	}
+	if !slicesContains(names, "dpkg") {
+		t.Errorf("All() = %v, want it to include dpkg", names)
+	}
+}
+
+func slicesContains(haystack []string, needle string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
+}
+
+var _ fs.FS = fstest.MapFS{}
