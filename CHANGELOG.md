@@ -21,5 +21,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   purls with the release qualifier the spike proved necessary.
 - Input layer: `Source` interface, content-based format detection, and the
   extracted-rootfs-directory handler.
+- Tarball input with transparent gzip, xz, zstd and lz4 decompression,
+  extraction to a temp directory, and path-traversal protection.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main

@@ -3,6 +3,7 @@ package input
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -57,8 +58,61 @@ func Detect(path string) (Format, Compression, error) {
 	if info.IsDir() {
 		return FormatDirectory, CompressionNone, nil
 	}
-	// Magic-byte detection for archives and images lands in T5 and T11. Until
-	// then a regular file is honestly reported as unrecognised rather than
-	// guessed at.
-	return FormatUnknown, CompressionNone, nil
+
+	header, err := peek(path)
+	if err != nil {
+		return FormatUnknown, CompressionNone, err
+	}
+
+	compression := detectCompression(header)
+	if compression == CompressionNone {
+		return detectFormat(header), CompressionNone, nil
+	}
+
+	// Compressed: look through the wrapper to see what is actually inside. A
+	// rootfs.ext4.lz4 and a rootfs.tar.lz4 are both lz4, and only the payload
+	// says which handler is needed.
+	inner, err := peekCompressed(path, compression)
+	if err != nil {
+		return FormatUnknown, compression, err
+	}
+	return detectFormat(inner), compression, nil
+}
+
+// peek reads the leading bytes of a file for magic-number detection.
+func peek(path string) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // the path is the user's scan target
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	buf := make([]byte, peekLen)
+	n, err := io.ReadFull(f, buf)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	return buf[:n], nil
+}
+
+// peekCompressed decompresses just enough of the payload to identify it.
+func peekCompressed(path string, c Compression) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // the path is the user's scan target
+	if err != nil {
+		return nil, fmt.Errorf("cannot read %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	stream, closer, err := decompress(f, c)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = closer.Close() }()
+
+	buf := make([]byte, peekLen)
+	n, err := io.ReadFull(stream, buf)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("cannot decompress %s: %w", path, err)
+	}
+	return buf[:n], nil
 }

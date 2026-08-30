@@ -32,11 +32,11 @@ func noopCleanup() {}
 // The returned cleanup is never nil, including on the error path, so
 // `defer cleanup()` immediately after the call is always correct.
 func Open(path string) (fs.FS, CleanupFunc, error) {
-	format, _, err := Detect(path)
+	format, compression, err := Detect(path)
 	if err != nil {
 		return nil, noopCleanup, err
 	}
-	src, err := sourceFor(format)
+	src, err := sourceFor(format, compression)
 	if err != nil {
 		return nil, noopCleanup, err
 	}
@@ -56,10 +56,12 @@ func Open(path string) (fs.FS, CleanupFunc, error) {
 // sourceFor maps a detected format to its handler. Formats that are recognised
 // but not yet implemented get a clear message rather than a confusing one; the
 // remaining handlers arrive in T5 and T11.
-func sourceFor(format Format) (Source, error) {
+func sourceFor(format Format, compression Compression) (Source, error) {
 	switch format {
 	case FormatDirectory:
 		return NewDir(), nil
+	case FormatTar:
+		return NewTarball(compression), nil
 	case FormatUnknown:
 		return nil, fmt.Errorf("unsupported format: %w", ErrUnsupportedFormat)
 	default:
