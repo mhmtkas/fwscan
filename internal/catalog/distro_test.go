@@ -52,11 +52,11 @@ func TestDetectCodenamePathPreference(t *testing.T) {
 
 	// A usr/lib copy that does not name a codename must fall through to etc
 	// rather than stopping the search.
-	fallthrough_ := fstest.MapFS{
+	unhelpfulUsrLib := fstest.MapFS{
 		"usr/lib/os-release": &fstest.MapFile{Data: []byte("ID=debian\n")},
 		"etc/os-release":     &fstest.MapFile{Data: []byte("VERSION_CODENAME=trixie\n")},
 	}
-	if got := detectCodename(fallthrough_); got != "trixie" {
+	if got := detectCodename(unhelpfulUsrLib); got != "trixie" {
 		t.Errorf("with an unhelpful usr/lib copy, got %q, want trixie", got)
 	}
 
