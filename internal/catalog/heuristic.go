@@ -64,8 +64,8 @@ var kernelVersion = regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?[A-Za-z0-9.\-_
 // the most reliable heuristic in the set: the directory name is the kernel's
 // own release string, put there by the build.
 func detectKernel(root fs.FS) []model.Component {
-	entries, err := fs.ReadDir(root, kernelModulesDir)
-	if err != nil {
+	entries, ok := readDirBounded(root, kernelModulesDir)
+	if !ok {
 		return nil
 	}
 	var comps []model.Component
@@ -90,9 +90,26 @@ var busyboxPaths = []string{
 // busyboxBanner matches the version string busybox embeds in its own binary.
 var busyboxBanner = regexp.MustCompile(`BusyBox v([0-9]+\.[0-9]+\.[0-9]+)`)
 
-// maxBinaryScan bounds how much of a binary is searched. The banner sits in the
-// first data pages in practice, and this code is handed untrusted images.
-const maxBinaryScan = 8 << 20
+// Bounds on what a hostile image can make the detectors do (CLAUDE.md rule 9).
+const (
+	// maxBinaryScan bounds how much of a binary is searched. The banner sits in
+	// the first data pages in practice.
+	maxBinaryScan = 8 << 20
+	// maxDirEntries bounds a single directory listing. A rootfs with a million
+	// files in lib/ is not a rootfs, and fs.ReadDir materialises the whole
+	// listing before returning it.
+	maxDirEntries = 100_000
+)
+
+// readDirBounded lists a directory, refusing one large enough to be an attack
+// rather than an image.
+func readDirBounded(root fs.FS, dir string) ([]fs.DirEntry, bool) {
+	entries, err := fs.ReadDir(root, dir)
+	if err != nil || len(entries) > maxDirEntries {
+		return nil, false
+	}
+	return entries, true
+}
 
 // detectBusybox reads the version out of the busybox binary's own banner. In
 // embedded images busybox is frequently the entire userland and frequently
@@ -177,8 +194,8 @@ func detectSharedLibraries(root fs.FS) []model.Component {
 	var comps []model.Component
 
 	for _, dir := range libraryDirs {
-		entries, err := fs.ReadDir(root, dir)
-		if err != nil {
+		entries, ok := readDirBounded(root, dir)
+		if !ok {
 			continue
 		}
 		for _, entry := range entries {

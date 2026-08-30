@@ -40,5 +40,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Heuristic detectors for the kernel, busybox and versioned shared libraries,
   all reported at low confidence with evidence.
 - `--fail-on` and the exit codes from output-spec section 5.
+- Hostile-input hardening: fuzz targets for the dpkg and apk parsers, bounded
+  directory listings, and tests asserting no temp directory survives a failure.
 
 [Unreleased]: https://github.com/mhmtkas/fwscan/commits/main
