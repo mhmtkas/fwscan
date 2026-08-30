@@ -59,7 +59,8 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		// A rootfs with no package database is a legitimate result, but silence
 		// would look like a bug. The warning goes to stderr so stdout stays a
 		// clean report.
-		fmt.Fprintln(cmd.ErrOrStderr(),
+		// A failed warning write is not worth failing the scan over.
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
 			"fwscan: no package database found; is this a Linux rootfs?")
 	}
 
