@@ -33,7 +33,7 @@ func TestCompareVersions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := compareVersions(tt.a, tt.b)
+			got, ok := compareVersions(kindDeb, tt.a, tt.b)
 			if !ok {
 				t.Fatalf("compareVersions(%q, %q) could not parse", tt.a, tt.b)
 			}
@@ -41,7 +41,7 @@ func TestCompareVersions(t *testing.T) {
 				t.Errorf("compareVersions(%q, %q) = %d, want %d", tt.a, tt.b, sign(got), tt.want)
 			}
 			// The reverse comparison must agree, or ordering is not a total order.
-			back, _ := compareVersions(tt.b, tt.a)
+			back, _ := compareVersions(kindDeb, tt.b, tt.a)
 			if sign(back) != -tt.want {
 				t.Errorf("reverse compareVersions(%q, %q) = %d, want %d", tt.b, tt.a, sign(back), -tt.want)
 			}
@@ -55,11 +55,11 @@ func TestCompareVersionsUnparseable(t *testing.T) {
 		{"1.0", "also bad!"},
 		{"", "1.0"},
 	} {
-		if _, ok := compareVersions(pair[0], pair[1]); ok {
+		if _, ok := compareVersions(kindDeb, pair[0], pair[1]); ok {
 			t.Errorf("compareVersions(%q, %q) claimed to parse", pair[0], pair[1])
 		}
 		// An unknown ordering must never look like "before the fix".
-		if versionLess(pair[0], pair[1]) {
+		if versionLess(kindDeb, pair[0], pair[1]) {
 			t.Errorf("versionLess(%q, %q) = true on unparseable input", pair[0], pair[1])
 		}
 	}

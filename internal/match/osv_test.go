@@ -521,7 +521,7 @@ func TestFixedVersionIsNeverOlderThanInstalled(t *testing.T) {
 		if f.FixedVersion == "" {
 			continue
 		}
-		if versionLess(f.FixedVersion, f.Component.Version) {
+		if versionLess(kindOf(f.Component), f.FixedVersion, f.Component.Version) {
 			t.Errorf("%s on %s: fixed %q is older than installed %q",
 				f.ID, f.Component.Name, f.FixedVersion, f.Component.Version)
 		}

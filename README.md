@@ -182,6 +182,7 @@ make lint             # golangci-lint run
 make fixtures         # rebuild the squashfs test images
 make validate-sbom    # generate an SBOM and check it against the CycloneDX schema
 make test-integration # the tests that hit the real OSV API
+make test-apk-oracle  # check the apk version comparator against apk itself
 make snapshot         # build release artifacts locally
 make demo             # scan the fixture, for an asciinema recording
 ```

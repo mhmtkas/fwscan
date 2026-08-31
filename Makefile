@@ -39,6 +39,10 @@ test-race: ## Run the unit tests, insisting on the race detector
 test-integration: ## Run the tests that hit the real OSV API
 	$(GO) test -tags integration -count=1 ./...
 
+.PHONY: test-apk-oracle
+test-apk-oracle: ## Check the apk version comparator against apk itself (needs Docker)
+	$(GO) test -tags apkoracle -count=1 -run AgainstAPK ./internal/match/
+
 .PHONY: lint
 lint: ## Run golangci-lint
 	golangci-lint run

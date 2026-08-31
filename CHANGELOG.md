@@ -27,6 +27,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- An Alpine package whose version carries a pre-release suffix — `_alpha`,
+  `_beta`, `_pre` or `_rc` — is now ordered by apk's rules rather than Debian's.
+  The two disagree on exactly those suffixes, and the Debian library does not
+  reject an apk version, it answers wrongly. Where an advisory records more than
+  one fix window for a release, that named a later release's fix than the one
+  that actually resolves the issue. Version comparison is now chosen by the same
+  ecosystem that chooses the query shape.
 - A vulnerability unfixed in the scanned release no longer reports another
   release's fixed version, which pointed at a package that does not exist for
   that image.

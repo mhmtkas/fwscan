@@ -211,7 +211,7 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 					continue
 				}
 				// Prefer a window that actually contains the installed version.
-				if versionLess(key.version, e.Fixed) {
+				if versionLess(key.kind, key.version, e.Fixed) {
 					return e.Fixed
 				}
 				if fallback == "" {

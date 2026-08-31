@@ -337,13 +337,12 @@ Identical to Debian's: ids are `ALPINE-CVE-2022-2097`, `aliases` is empty, and
 the plain CVE is in `upstream`. The identifier reconciliation written for Debian
 applies unchanged.
 
-**Open question 4 for the maintainer:** apk versions are not Debian versions.
-`1.1.1o-r0` and `1.0_alpha1` follow apk's own ordering rules, which
-`go-deb-version` does not implement. It happens to order the common
-`x.y.z-rN` shape correctly, and that is what the fixed-version selection relies
-on today, but a version carrying `_alpha`, `_pre` or `_git` would be compared
-wrongly. A dedicated apk comparison is not in any task's acceptance criteria and
-would need a dependency that CLAUDE.md rule 7 does not permit.
+**Question 4, decided 31 Aug 2026 — see T20 below.** apk versions are not
+Debian versions. `1.1.1o-r0` and `1.0_alpha1` follow apk's own ordering rules,
+which `go-deb-version` does not implement. It happens to order the common
+`x.y.z-rN` shape correctly, and that is what the fixed-version selection relied
+on, but a version carrying a pre-release suffix was compared wrongly. Resolved
+by porting apk's own algorithm rather than by taking a dependency.
 
 ## T0.4 — SquashFS compression matrix — DONE — **BINDING ON T4, T5 AND T11**
 
@@ -477,12 +476,12 @@ query above every fixed-version range, silently hiding vulnerabilities.
 `dpkg --compare-versions` is the oracle, not the library. This table is carried
 into T6 as a table-driven unit test.
 
-### Maintainer decisions — three resolved 31 Aug 2026, two still open
+### Maintainer decisions — four resolved 31 Aug 2026, one still open
 
 Five questions, all conflicts between measured OSV behaviour and
-`docs/output-spec.md`. Questions 1, 3 and 5 were decided on 31 Aug 2026 and the
-spec, the README and this file now agree. Questions 2 and 4 are unresolved and
-each is implemented the conservative way in the meantime.
+`docs/output-spec.md`. Questions 1, 3, 4 and 5 were decided on 31 Aug 2026 and
+the spec, the README, the code and this file now agree. Question 2 is
+unresolved and is implemented the conservative way in the meantime.
 
 **Resolved.**
 
@@ -501,6 +500,30 @@ each is implemented the conservative way in the meantime.
    `--fail-on unknown` level was considered and rejected — the bucket is mostly
    issues Debian itself marked minor, so the gate would fire on everything and
    get switched off.
+4. **apk versions are not Debian versions** — see T0.3a above. *Decided:*
+   port apk's own comparison. Measured first: `go-deb-version` does not reject
+   an apk version, it silently orders it by Debian's rules, and the two disagree
+   on exactly the four pre-release suffixes — it reports `1.0_alpha1`,
+   `1.0_pre1` and `1.0_rc1` as *greater* than `1.0`, where apk orders all three
+   below it. (`1.0_p1` and `1.0_git20230101` it happens to get right.)
+
+   The consequence is narrower than it first looks, and worth stating precisely:
+   OSV decides on the server which versions an advisory affects, so a wrong
+   local ordering cannot suppress a finding. What it corrupts is
+   `fixedVersion()`, which uses the ordering to pick the fix window containing
+   the installed version (output-spec §1). A record carrying more than one
+   window for a release then answers with a later release's fix than the one
+   that actually fixes the issue. An earlier draft of this file claimed the
+   finding was suppressed outright; that was wrong.
+
+   Resolved by T20: `internal/match/apkversion.go` is a literal port of
+   apk-tools 2.14.4 `src/version.c`, so no new dependency and CLAUDE.md rule 7
+   is untouched. `apk version -t` is the oracle, run against a 62-string corpus
+   — 3844 ordered pairs plus a validity pass — with 0 mismatches;
+   `make test-apk-oracle` reruns it, and the curated subset is a unit test.
+   Comparison is now dispatched on the same `packageKind` that chose the query
+   shape, so the ecosystem decides both how to ask OSV and how to read the
+   answer.
 5. **Heuristic components are not matched.** T13's detectors carry no purl, so
    the matcher skips them and they appear in the report and the SBOM but never
    produce a finding. output-spec section 2's example table used to show a
@@ -531,14 +554,6 @@ each is implemented the conservative way in the meantime.
    change — v4 scoring is a MacroVector lookup table, not a formula — and no
    partial version is worth having, because a score that disagrees with the
    published one is worse in the `SCORE` column than saying nothing.
-4. **apk versions are not Debian versions** — see T0.3a above. Measured on
-   31 Aug 2026: `go-deb-version` reports `1.0_alpha1`, `1.0_pre1`, `1.0_p1` and
-   `1.0_git20230101` as *greater* than `1.0`, where apk orders the first two
-   below it. It does not error on the underscore, so the wrong answer is silent,
-   and it is wrong in the dangerous direction: an installed pre-release sorts
-   above the fixed version and the vulnerability is suppressed. A native
-   comparator is about a hundred lines and is not a dependency, so CLAUDE.md
-   rule 7 does not block it; `apk version -t` is the oracle.
 
 ### Surprises worth remembering
 
