@@ -230,20 +230,22 @@ Both fixtures together: 131 purls → **292 unique vulnerability ids**.
 bounded worker pool (10 is comfortable and drew no throttling). Serial fetching
 makes a trivial scan take over a minute and must not ship.
 
-### Three findings that conflict with `docs/output-spec.md` — MAINTAINER REVIEW NEEDED
+### Three findings that conflict with `docs/output-spec.md` — 1 AND 3 DECIDED, 2 STILL OPEN
 
-Measured across all 292 records. Recorded here rather than resolved unilaterally;
-T0.5 carries them forward, and T6 must not be written against the spec as it
-currently stands without a decision.
+Measured across all 292 records. Recorded here rather than resolved
+unilaterally. Findings 1 and 3 were decided by the maintainer on 31 Aug 2026 and
+the spec now carries the rule; finding 2 is still open.
 
 **1. Vulnerability ids are `DEBIAN-CVE-…`, and `aliases` is always empty.**
 Output-spec §3 shows `"id": "CVE-2022-3602"` with `"aliases": ["DSA-5343-1"]`.
 Reality: the record id is `DEBIAN-CVE-2022-3602`, `aliases` is empty on
 **0/292** records — every single one — and the plain CVE id lives in a field the
 spec never mentions, `upstream: ["CVE-2022-37434"]` (present on 288/292).
-*Proposed rule:* report `id` = the CVE from `upstream[]` when there is one, else
-the OSV id; report `aliases` = the OSV id plus any remaining `upstream` entries.
-That yields the id shape the spec's example shows and keeps the OSV id traceable.
+*Decided 31 Aug 2026, now normative in output-spec §3:* report `id` = the CVE
+from `upstream[]` when there is one, else the OSV id; report `aliases` = the OSV
+id plus any remaining `upstream` entries. That yields the id shape the spec's
+example shows and keeps the OSV id traceable. The matcher already did this; the
+decision moves the rule out of a code comment and into the spec.
 
 **2. CVSS v4 has no rule, and v2 never occurs.** Severity types across 292 records:
 
@@ -269,8 +271,11 @@ to the same four buckets. *Alternative, if that is too much for v1:* treat v4 as
 **3. 57 of 292 findings (19.5%) will be `unknown`.** They are mostly old,
 Debian-marked-minor issues (CVE-2005-2541, CVE-2007-5686, CVE-2010-4756,
 CVE-2011-3389). Per output-spec §5, `unknown` never triggers exit 1, so a fifth
-of the output is advisory noise that `--fail-on` ignores. Worth a line in the
-README's limitations section; no code change proposed.
+of the output is advisory noise that `--fail-on` ignores.
+*Decided 31 Aug 2026:* documented in the README's limitations section, no code
+change. Together with the 11 v4-only records in finding 2, 68 of 292 records
+(23.3%) are invisible to `--fail-on`, and the README states that combined share
+rather than the two separately.
 
 ## T0.3a — Alpine query format — addendum, recorded during T12
 
@@ -472,34 +477,68 @@ query above every fixed-version range, silently hiding vulnerabilities.
 `dpkg --compare-versions` is the oracle, not the library. This table is carried
 into T6 as a table-driven unit test.
 
-### Open questions for the maintainer — do not let T6 land without a decision
+### Maintainer decisions — three resolved 31 Aug 2026, two still open
 
-All three come from T0.3 and are conflicts between measured OSV behaviour and
-`docs/output-spec.md`. They are recorded, not resolved.
+Five questions, all conflicts between measured OSV behaviour and
+`docs/output-spec.md`. Questions 1, 3 and 5 were decided on 31 Aug 2026 and the
+spec, the README and this file now agree. Questions 2 and 4 are unresolved and
+each is implemented the conservative way in the meantime.
+
+**Resolved.**
 
 1. **Ids arrive as `DEBIAN-CVE-…` and `aliases` is empty on 0/292 records.** The
-   plain CVE sits in `upstream[]`, a field the spec never mentions. Proposed:
-   `id` = the CVE from `upstream[]`, `aliases` = the OSV id plus the rest.
-2. **CVSS v4 has no rule.** 11 of 292 records are v4-only with no v3 fallback and
-   would fall through to `unknown`; all are 2025–2026 CVEs, so the share grows.
-   Meanwhile spec §1's v2 step and ecosystem-severity step are both unreachable
-   for Debian data — 0 records carry v2, 0 carry `database_specific.severity`.
-   Proposed: compute v4 base scores into the same four buckets.
-3. **19.5% of findings will be `unknown`** and therefore invisible to `--fail-on`.
-   Mostly old Debian-marked-minor issues. Proposed: a line in README limitations,
-   no code change.
-4. **apk versions are not Debian versions** — see T0.3a above.
+   plain CVE sits in `upstream[]`, a field the spec never mentioned.
+   *Decided:* `id` = the CVE from `upstream[]`, `aliases` = the OSV id plus the
+   rest. Ratifies what the matcher already did, and output-spec §3 now carries
+   the rule under "Identifier derivation" so it is no longer only a code comment.
+   Four of the 292 records have no `upstream` CVE and keep their OSV id —
+   deterministic, and the alias list stays traceable either way.
+3. **19.5% of findings will be `unknown`** and therefore invisible to
+   `--fail-on`. Mostly old Debian-marked-minor issues. *Decided:* no code change.
+   The README states the share, combined with question 2's v4-only records
+   rather than separately, because what a user needs is the single number:
+   68 of 292 records, 23.3%, reported but never able to fail a build. A
+   `--fail-on unknown` level was considered and rejected — the bucket is mostly
+   issues Debian itself marked minor, so the gate would fire on everything and
+   get switched off.
 5. **Heuristic components are not matched.** T13's detectors carry no purl, so
    the matcher skips them and they appear in the report and the SBOM but never
-   produce a finding. output-spec section 2's example table does show a
-   low-confidence finding (`busybox … CVE-2022-48174 … low`), so the spec
-   arguably expects them to be matched. They are not, deliberately: a version
-   inferred from a filename, with no release to scope it to, is exactly the
-   input that made the bare purl produce two false positives out of three in
-   T0.3. `libssl.so.3` names an ABI, not a release; querying "openssl 3" against
-   every distribution at once would manufacture findings rather than find them.
-   The reporter still renders a low-confidence finding correctly, so enabling
-   this later is a matcher change only. Maintainer decision.
+   produce a finding. output-spec section 2's example table used to show a
+   low-confidence finding (`busybox … CVE-2022-48174 … low`), which read as the
+   spec expecting them to be matched. *Decided:* the behaviour is right and the
+   example was wrong. A version inferred from a filename, with no release to
+   scope it to, is exactly the input that made the bare purl produce two false
+   positives out of three in T0.3; `libssl.so.3` names an ABI, not a release,
+   and querying "openssl 3" against every distribution at once manufactures
+   findings rather than finding them. The example row is gone and §2 now states
+   the rule. The reporter still renders a low-confidence finding correctly and
+   `testdata/golden/terminal-findings.txt` still covers that rendering, so
+   enabling the lookup later stays a matcher change and not a format change.
+
+   Revisit in v1.x along one line only: a real upstream version scraped from an
+   embedded banner (`BusyBox v1.30.1`) could be queried against an upstream
+   ecosystem with no distro scope, whereas a bare soname carries no version and
+   must never be queried. That distinction did not exist when the detectors were
+   written and would have to be added to them first.
+
+**Still open.**
+
+2. **CVSS v4 has no rule.** 11 of 292 records are v4-only with no v3 fallback and
+   fall through to `unknown`; all are 2025–2026 CVEs, so the share grows.
+   Meanwhile spec §1's v2 step and ecosystem-severity step are both unreachable
+   for Debian data — 0 records carry v2, 0 carry `database_specific.severity`.
+   Proposed: compute v4 base scores into the same four buckets. Not a small
+   change — v4 scoring is a MacroVector lookup table, not a formula — and no
+   partial version is worth having, because a score that disagrees with the
+   published one is worse in the `SCORE` column than saying nothing.
+4. **apk versions are not Debian versions** — see T0.3a above. Measured on
+   31 Aug 2026: `go-deb-version` reports `1.0_alpha1`, `1.0_pre1`, `1.0_p1` and
+   `1.0_git20230101` as *greater* than `1.0`, where apk orders the first two
+   below it. It does not error on the underscore, so the wrong answer is silent,
+   and it is wrong in the dangerous direction: an installed pre-release sorts
+   above the fixed version and the vulnerability is suppressed. A native
+   comparator is about a hundred lines and is not a dependency, so CLAUDE.md
+   rule 7 does not block it; `apk version -t` is the oracle.
 
 ### Surprises worth remembering
 

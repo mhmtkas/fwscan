@@ -32,7 +32,6 @@ fwscan v0.1.0
 
 SEVERITY  SCORE  PACKAGE     INSTALLED           FIXED               VULN ID           CONF
 critical  9.8    openssl     1.1.1n-0+deb11u3    1.1.1n-0+deb11u5    CVE-2022-3602     high
-critical  9.1    busybox     1.30.1-6            —                   CVE-2022-48174    low
 high      8.1    openssh     8.4p1-5+deb11u1     8.4p1-5+deb11u3     CVE-2023-38408    high
 ...
 
@@ -45,6 +44,7 @@ Rules:
 - Table: exactly these 7 columns in this order. `FIXED` shows `—` when no fixed version is known. Column widths sized to content per run (simple padding; no external table library beyond stdlib `text/tabwriter`).
 - When there are zero findings: print header block, then `No known vulnerabilities found.` — no empty table.
 - The low-confidence footnote appears only when ≥1 low-confidence component exists.
+- Low-confidence components are cataloged, counted in `Packages` and written to the SBOM and the JSON `components` array, but are **not** queried against OSV in v1, so no finding carries `low` in the `CONF` column. A version inferred from a filename has no release to scope the query to, and an unscoped query manufactures findings instead of finding them (`spike/NOTES.md` T0.3). The column still accepts `high|low` so that enabling the lookup later is a matcher change, not a format change.
 - With `--no-network`: skip the `Findings` line and table entirely; after the header print `Cataloged 412 packages. CVE lookup skipped (--no-network).`
 - All diagnostics/progress/warnings go to **stderr**; stdout carries only the report, so it stays pipe-safe.
 
@@ -95,6 +95,8 @@ Top-level schema (field names are final):
 ```
 
 Rules: keys snake_case; timestamps RFC 3339 UTC; purl percent-encoding per the purl spec (note `+` → `%2B`); `components` sorted by name; `findings` sorted by the severity ordering from §1; `cvss_vector` empty string when severity came from a non-CVSS path; file written atomically (temp + rename); trailing newline at EOF. The exact purl string construction (including any `distro` qualifier) follows `spike/NOTES.md`, but the encoding and JSON placement follow this spec.
+
+**Identifier derivation.** OSV names its Debian and Alpine records `DEBIAN-CVE-…` and `ALPINE-CVE-…`, leaves `aliases` empty, and puts the plain CVE in an `upstream` array. So `id` is the first `CVE-…` entry in `upstream[]` when there is one and the OSV record id otherwise; `aliases` is the OSV record id, then the remaining `upstream` entries, then whatever the record's own `aliases` holds, de-duplicated and in that order. This keeps the id ecosystem-neutral, as the example above shows, without losing the record id the finding came from.
 
 ## 4. SBOM (`--sbom <file>`)
 

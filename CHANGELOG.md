@@ -8,6 +8,19 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The rule for a finding's `id` and `aliases` now lives in `docs/output-spec.md`
+  section 3 rather than only in a code comment: the plain CVE from OSV's
+  `upstream` field is the identifier, and the `DEBIAN-CVE-…`/`ALPINE-CVE-…`
+  record id is kept as an alias. No behaviour change — the matcher already did
+  this.
+- `docs/output-spec.md` section 2 no longer shows a finding against a
+  low-confidence component, and states instead that components identified by
+  filename heuristics are cataloged and reported but never queried against OSV.
+  The example implied a lookup the scanner deliberately does not perform.
+- The README's limitations section gives the combined share of findings that
+  `--fail-on` cannot see — severity-less records and CVSS v4-only records
+  together — instead of describing the two separately, and now also says that
+  heuristically identified components are never looked up.
 - `make test` now probes for race-detector support and runs without it on
   kernels that cannot provide it, instead of failing outright. CI uses the new
   `make test-race`, which still requires it.

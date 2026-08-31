@@ -28,8 +28,8 @@ func buildFinding(record vulnRecord, comp model.Component, key queryKey) model.F
 // in an "upstream" field; their "aliases" field was empty on all 292 records
 // the spike examined. output-spec section 3's example shows a plain CVE id, so
 // the upstream CVE is preferred and the OSV id is kept as an alias, which keeps
-// the record traceable. This reconciliation is flagged in spike/NOTES.md for
-// maintainer review.
+// the record traceable. output-spec section 3 carries this rule under
+// "Identifier derivation"; spike/NOTES.md records the evidence behind it.
 func identify(record vulnRecord) (id string, aliases []string) {
 	id = record.ID
 	seen := map[string]bool{}
@@ -65,8 +65,9 @@ func identify(record vulnRecord) (id string, aliases []string) {
 // carried a v3 vector, 11 carried v4 only, 57 carried nothing, and none carried
 // v2 or a database_specific severity. Steps 2 and 3 below are therefore
 // unreachable for Debian in practice, and v4-only records fall through to
-// unknown because the spec defines no rule for them. Both facts are recorded in
-// spike/NOTES.md as open questions rather than decided here.
+// unknown because the spec defines no rule for them. The v4 gap is still an open
+// question in spike/NOTES.md. The 57 severity-less records were reviewed and
+// deliberately left as unknown, which the README's limitations section states.
 func severityOf(record vulnRecord) (model.Severity, float64, string) {
 	// 1. CVSS v3.x. output-spec section 1's bands start at 0.1, so a vector
 	// scoring exactly 0 -- no impact on anything -- maps to no bucket. It falls

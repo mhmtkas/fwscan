@@ -154,10 +154,19 @@ Multi-partition flash dumps, UBI, JFFS2 and cramfs are not read directly:
 extract with binwalk first and point fwscan at the resulting rootfs. It does not
 try to compete with binwalk on extraction.
 
-Two honest caveats about the data. Roughly a fifth of Debian's OSV records carry
-no severity at all and land in the `unknown` bucket, which `--fail-on` never
-triggers on — they are mostly old issues Debian itself marked minor. And OSV
-records that carry only a CVSS v4 vector currently report as `unknown` too.
+Three honest caveats. Roughly a fifth of Debian's OSV records carry no severity
+at all and land in the `unknown` bucket, which `--fail-on` never triggers on —
+they are mostly old issues Debian itself marked minor. OSV records that carry
+only a CVSS v4 vector report as `unknown` too. Across the 292 records the spike
+measured, those two together were 68 records: about 23% of findings are visible
+in the report but invisible to `--fail-on`, so read the output as well as the
+exit code.
+
+The third: components identified by filename heuristics rather than by a package
+database are listed in the report and the SBOM, but are never looked up. A
+version guessed from a filename carries no release to scope the query to, and an
+unscoped query invents vulnerabilities rather than finding them. They are
+counted separately on the `Packages` line so the difference is visible.
 
 ## Name
 
