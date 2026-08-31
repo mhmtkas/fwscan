@@ -18,8 +18,8 @@ back with 55 vulnerabilities. Each result was cut down to the ids whose full
 record is also committed here, so the fixture stays small and every id the
 matcher follows resolves. Nothing about the response *shape* was altered.
 
-The four records kept were chosen to cover every branch of the severity mapping
-in output-spec section 1:
+The records kept were chosen to cover every branch of the severity mapping in
+output-spec section 1, plus the duplicate-collapsing rule:
 
 | Record | Covers |
 |---|---|
@@ -29,6 +29,14 @@ in output-spec section 1:
 | `DEBIAN-CVE-2025-6141` | CVSS v4 only, with no v3 to fall back to |
 | `ALPINE-CVE-2022-37434` | fourteen affected releases whose purls are all identical, so only the ecosystem field distinguishes them |
 | `ALPINE-CVE-2022-2097` | Alpine backport true-negative — present at `1.1.1o-r0`, absent at `1.1.1q-r0` |
+| `DSA-5218-1` | the same issue as `DEBIAN-CVE-2022-37434`, arriving as a second record |
+
+`DSA-5218-1` is why zlib's query returns three ids. OSV returns the advisory
+alongside the CVE record: it lists `CVE-2022-37434` in `upstream`, so the
+identifier rule resolves both to the same id, but it carries no severity and its
+affected purl is `pkg:deb/debian/zlib?arch=source` with no `distro` qualifier,
+so no release matches and it yields no fixed version either. Reported as it
+arrives, that is a second, emptier row for a CVE already in the table.
 
 `ALPINE-CVE-2022-37434` earns its place. Every one of its affected entries
 carries the same purl, `pkg:apk/alpine/zlib?arch=source`, and they differ only

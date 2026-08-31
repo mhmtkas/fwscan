@@ -58,6 +58,73 @@ func identify(record vulnRecord) (id string, aliases []string) {
 	return id, aliases
 }
 
+// dedupeFindings collapses findings that name the same vulnerability in the
+// same component.
+//
+// OSV answers a single package query with several records describing one issue:
+// a DEBIAN-CVE-… record with the CVSS vector and the release's fixed version,
+// and the DSA or DLA advisory that shipped the fix, which carries neither and
+// whose affected purl has no distro qualifier to match a release against. Both
+// resolve to the same CVE through the identifier rule in output-spec section 3,
+// so without this the report shows a CVE twice -- once scored and once as
+// unknown -- and inflates both the finding count and the unknown bucket. A DSA
+// covering four CVEs collapses onto the first of them, which made the second
+// row not even a copy of the first.
+func dedupeFindings(findings []model.Finding) []model.Finding {
+	type identity struct {
+		component model.Component
+		id        string
+	}
+
+	at := make(map[identity]int, len(findings))
+	out := make([]model.Finding, 0, len(findings))
+	for _, f := range findings {
+		key := identity{component: f.Component, id: f.ID}
+		i, seen := at[key]
+		if !seen {
+			at[key] = len(out)
+			out = append(out, f)
+			continue
+		}
+		out[i] = mergeFindings(out[i], f)
+	}
+	return out
+}
+
+// mergeFindings folds one duplicate into another.
+//
+// Severity, score and vector move together or not at all: they are one record's
+// assessment, and pairing a score with a vector that does not produce it would
+// report a number nothing backs. The fixed version is taken from whichever
+// record knows one, because a fix already survived the release check in
+// fixedVersion() and an advisory that names no release cannot contradict it.
+// Aliases are the union, so the record ids of everything merged away stay
+// visible in the JSON report.
+func mergeFindings(kept, other model.Finding) model.Finding {
+	// CompareFindings ranks by severity then score, and the two agree on
+	// component and id here, so it reduces to "is the other assessment
+	// better". Only a strictly better one displaces what is already there.
+	if model.CompareFindings(other, kept) < 0 {
+		kept.Severity, kept.CVSS, kept.CVSSVector = other.Severity, other.CVSS, other.CVSSVector
+	}
+	if kept.FixedVersion == "" {
+		kept.FixedVersion = other.FixedVersion
+	}
+
+	seen := make(map[string]bool, len(kept.Aliases)+len(other.Aliases))
+	seen[kept.ID] = true
+	for _, a := range kept.Aliases {
+		seen[a] = true
+	}
+	for _, a := range other.Aliases {
+		if !seen[a] {
+			seen[a] = true
+			kept.Aliases = append(kept.Aliases, a)
+		}
+	}
+	return kept
+}
+
 // severityOf maps a record to a bucket, a score and the vector it came from,
 // following output-spec section 1's priority order exactly.
 //

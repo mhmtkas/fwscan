@@ -1867,6 +1867,46 @@
       "CVE-2025-6141"
     ]
   },
+  "DSA-5218-1": {
+    "affected": [
+      {
+        "database_specific": {
+          "source": "https://storage.googleapis.com/debian-osv/dsa-osv/DSA-5218-1.json"
+        },
+        "package": {
+          "ecosystem": "Debian:11",
+          "name": "zlib",
+          "purl": "pkg:deb/debian/zlib?arch=source"
+        },
+        "ranges": [
+          {
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1:1.2.11.dfsg-2+deb11u2"
+              }
+            ],
+            "type": "ECOSYSTEM"
+          }
+        ],
+        "versions": [
+          "1:1.2.11.dfsg-2",
+          "1:1.2.11.dfsg-2+deb11u1"
+        ]
+      }
+    ],
+    "id": "DSA-5218-1",
+    "modified": "2026-03-09T02:10:38.888905Z",
+    "published": "2022-08-25T00:00:00Z",
+    "schema_version": "1.7.3",
+    "summary": "zlib - security update",
+    "upstream": [
+      "CVE-2022-37434",
+      "DEBIAN-CVE-2022-37434"
+    ]
+  },
   "SYNTHETIC-ECOSYSTEM-SEVERITY": {
     "affected": [
       {

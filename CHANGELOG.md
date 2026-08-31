@@ -35,6 +35,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A vulnerability is no longer reported twice for the same component. OSV
+  returns the DSA or DLA advisory alongside the `DEBIAN-CVE-…` record for one
+  issue, and both resolve to the same CVE; the advisory carries no severity and
+  no release-scoped fix, so the second row was the emptier one. On the fixture
+  image this was 17 of 114 findings, and it inflated the `unknown` bucket from 7
+  to 24.
 - An Alpine package whose version carries a pre-release suffix — `_alpha`,
   `_beta`, `_pre` or `_rc` — is now ordered by apk's rules rather than Debian's.
   The two disagree on exactly those suffixes, and the Debian library does not

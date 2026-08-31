@@ -252,6 +252,7 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 			}
 		}
 	}
+	findings = dedupeFindings(findings)
 	slices.SortFunc(findings, model.CompareFindings)
 	return findings, nil
 }

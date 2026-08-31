@@ -491,6 +491,14 @@ README, the code and this file agree, and none of them is waiting on anyone.
    the rule under "Identifier derivation" so it is no longer only a code comment.
    Four of the 292 records have no `upstream` CVE and keep their OSV id —
    deterministic, and the alias list stays traceable either way.
+
+   One consequence surfaced later, in T22: OSV returns the DSA or DLA advisory
+   alongside the `DEBIAN-CVE-…` record for the same issue, and the rule resolves
+   both to the same CVE. On the fixture image that was 17 of 114 findings — a
+   duplicate row each, always the emptier one, since an advisory carries no
+   severity and its affected purl has no `distro` qualifier to yield a fixed
+   version. The rule is still right; what was missing was collapsing findings
+   that name the same vulnerability in the same component, which T22 added.
 2. **CVSS v4 had no rule.** 11 of 292 records were v4-only with no v3 fallback
    and fell through to `unknown`; all are 2025–2026 CVEs, so the share grows
    rather than shrinks. Meanwhile spec §1's v2 step and ecosystem-severity step

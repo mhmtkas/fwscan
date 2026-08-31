@@ -18,7 +18,7 @@ fwscan v0.1.0
 
   Target      rootfs.tar.gz (tar, gzip)
   Packages    7 (6 high confidence, 1 low)
-  Findings    114   critical: 9  high: 44  medium: 36  low: 1  unknown: 24
+  Findings    97   critical: 9  high: 44  medium: 36  low: 1  unknown: 7
 
 SEVERITY  SCORE  PACKAGE      INSTALLED         FIXED                    VULN ID           CONF
 critical  9.8    zlib1g       1:1.2.11.dfsg-2   1:1.2.11.dfsg-2+deb11u2  CVE-2022-37434    high
