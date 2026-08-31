@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- CVSS v4.0 base scoring. A record carrying only a v4 vector used to report as
+  `unknown`, which meant it could never trigger `--fail-on`; every such record
+  in the data the spike measured was a 2025 or 2026 CVE, so the blind spot was
+  growing with each release. v4 scores now map to the same severity bands as
+  v3, and `docs/output-spec.md` section 1 carries the rule.
+
 ### Changed
 
 - The rule for a finding's `id` and `aliases` now lives in `docs/output-spec.md`

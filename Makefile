@@ -43,6 +43,10 @@ test-integration: ## Run the tests that hit the real OSV API
 test-apk-oracle: ## Check the apk version comparator against apk itself (needs Docker)
 	$(GO) test -tags apkoracle -count=1 -run AgainstAPK ./internal/match/
 
+.PHONY: test-cvss4-oracle
+test-cvss4-oracle: ## Check the CVSS v4 base scores against FIRST's reference calculator (needs Docker)
+	$(GO) test -tags cvss4oracle -count=1 -run AgainstReference ./internal/match/
+
 .PHONY: lint
 lint: ## Run golangci-lint
 	golangci-lint run

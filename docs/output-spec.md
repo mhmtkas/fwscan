@@ -11,11 +11,12 @@ Severity is derived per finding from the OSV record, in this priority order:
    - 7.0–8.9 → `high`
    - 4.0–6.9 → `medium`
    - 0.1–3.9 → `low`
-2. **CVSS v2** (`type: "CVSS_V2"`) — only if no v3: 7.0+ → `high`, 4.0–6.9 → `medium`, else `low` (v2 has no critical band).
-3. **Ecosystem severity** — if no CVSS at all but `database_specific.severity` (or affected-level equivalent) provides a textual level, lowercase it and map to the same four buckets where the wording matches; anything unmappable → `unknown`.
-4. Otherwise → `unknown`.
+2. **CVSS v4.0 vector** (`type: "CVSS_V4"`) — only if no v3: compute the base score and map it to the same bands as step 1. v4 has no closed-form formula: reduce the vector to its six-digit MacroVector, take that MacroVector's score from the specification's lookup table, and subtract the interpolated severity distance, exactly as FIRST's reference calculator does. Only the base metrics contribute; threat, environmental and supplemental metrics are validated when present but scored at their not-defined defaults, the same way step 1 ignores v3's temporal and environmental metrics.
+3. **CVSS v2** (`type: "CVSS_V2"`) — only if neither v3 nor v4: 7.0+ → `high`, 4.0–6.9 → `medium`, else `low` (v2 has no critical band).
+4. **Ecosystem severity** — if no CVSS at all but `database_specific.severity` (or affected-level equivalent) provides a textual level, lowercase it and map to the same four buckets where the wording matches; anything unmappable → `unknown`.
+5. Otherwise → `unknown`.
 
-Store both the bucket and the numeric score (score `0` + bucket `unknown` when absent). Sorting order everywhere: `critical > high > medium > low > unknown`; ties broken by CVSS score descending, then component name ascending, then vuln ID ascending. Use an existing CVSS parsing library only if already permitted by CLAUDE.md's dependency rule; otherwise implement v3 base-score computation with a full table-driven test against published example vectors.
+Store both the bucket and the numeric score (score `0` + bucket `unknown` when absent). Sorting order everywhere: `critical > high > medium > low > unknown`; ties broken by CVSS score descending, then component name ascending, then vuln ID ascending. Use an existing CVSS parsing library only if already permitted by CLAUDE.md's dependency rule; otherwise implement the base-score computation with a full table-driven test against published example vectors. For v4 the MacroVector lookup table is data that cannot be derived: transcribe it from the reference implementation, record which commit it came from, and check the result against that implementation rather than against hand-computed values.
 
 `FixedVersion`: from the OSV `affected[].ranges[].events` for the matching Debian/Alpine range, take the `fixed` event if present; empty string otherwise. If multiple ranges match, prefer the one whose `introduced`–`fixed` window contains the installed version.
 

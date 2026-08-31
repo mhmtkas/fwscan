@@ -230,11 +230,11 @@ Both fixtures together: 131 purls → **292 unique vulnerability ids**.
 bounded worker pool (10 is comfortable and drew no throttling). Serial fetching
 makes a trivial scan take over a minute and must not ship.
 
-### Three findings that conflict with `docs/output-spec.md` — 1 AND 3 DECIDED, 2 STILL OPEN
+### Three findings that conflict with `docs/output-spec.md` — ALL THREE DECIDED
 
 Measured across all 292 records. Recorded here rather than resolved
-unilaterally. Findings 1 and 3 were decided by the maintainer on 31 Aug 2026 and
-the spec now carries the rule; finding 2 is still open.
+unilaterally. All three were decided by the maintainer on 31 Aug 2026 and the
+spec now carries the rules.
 
 **1. Vulnerability ids are `DEBIAN-CVE-…`, and `aliases` is always empty.**
 Output-spec §3 shows `"id": "CVE-2022-3602"` with `"aliases": ["DSA-5343-1"]`.
@@ -264,18 +264,20 @@ under output-spec §1 as written they fall through to `unknown`. They are all
 none of the 57 severity-less records carry a `database_specific.severity`, at
 record level or affected level — the only `database_specific` key present is
 `source`. Effectively only steps 1 and 4 of the four-step mapping ever fire.
-*Proposed rule:* add CVSS v4 base-score computation between steps 1 and 2, mapped
-to the same four buckets. *Alternative, if that is too much for v1:* treat v4 as
-`unknown` and say so in the README.
+*Decided 31 Aug 2026, now normative in output-spec §1 as step 2:* compute the
+v4 base score and map it to the same four bands as v3. The alternative on the
+table — leave v4 as `unknown` and document it — was rejected: the affected CVEs
+are all recent, so the gap grows with every release, and an advisory that never
+reaches `--fail-on` is a gate that quietly stops working. Implemented in T21.
 
 **3. 57 of 292 findings (19.5%) will be `unknown`.** They are mostly old,
 Debian-marked-minor issues (CVE-2005-2541, CVE-2007-5686, CVE-2010-4756,
 CVE-2011-3389). Per output-spec §5, `unknown` never triggers exit 1, so a fifth
 of the output is advisory noise that `--fail-on` ignores.
 *Decided 31 Aug 2026:* documented in the README's limitations section, no code
-change. Together with the 11 v4-only records in finding 2, 68 of 292 records
-(23.3%) are invisible to `--fail-on`, and the README states that combined share
-rather than the two separately.
+change. The share was briefly stated as 68 of 292 (23.3%), pooling these with
+finding 2's v4-only records; once T21 made those scoreable it went back to the
+57 records that genuinely carry no severity at all, 19.5%.
 
 ## T0.3a — Alpine query format — addendum, recorded during T12
 
@@ -476,14 +478,11 @@ query above every fixed-version range, silently hiding vulnerabilities.
 `dpkg --compare-versions` is the oracle, not the library. This table is carried
 into T6 as a table-driven unit test.
 
-### Maintainer decisions — four resolved 31 Aug 2026, one still open
+### Maintainer decisions — all five resolved 31 Aug 2026
 
 Five questions, all conflicts between measured OSV behaviour and
-`docs/output-spec.md`. Questions 1, 3, 4 and 5 were decided on 31 Aug 2026 and
-the spec, the README, the code and this file now agree. Question 2 is
-unresolved and is implemented the conservative way in the meantime.
-
-**Resolved.**
+`docs/output-spec.md`. All five were decided on 31 Aug 2026; the spec, the
+README, the code and this file agree, and none of them is waiting on anyone.
 
 1. **Ids arrive as `DEBIAN-CVE-…` and `aliases` is empty on 0/292 records.** The
    plain CVE sits in `upstream[]`, a field the spec never mentioned.
@@ -492,14 +491,41 @@ unresolved and is implemented the conservative way in the meantime.
    the rule under "Identifier derivation" so it is no longer only a code comment.
    Four of the 292 records have no `upstream` CVE and keep their OSV id —
    deterministic, and the alias list stays traceable either way.
+2. **CVSS v4 had no rule.** 11 of 292 records were v4-only with no v3 fallback
+   and fell through to `unknown`; all are 2025–2026 CVEs, so the share grows
+   rather than shrinks. Meanwhile spec §1's v2 step and ecosystem-severity step
+   are both unreachable for Debian data — 0 records carry v2, 0 carry
+   `database_specific.severity`. *Decided:* implement v4 scoring in full rather
+   than document the gap. A gate that silently stops covering new advisories is
+   worse than one that is loud about what it cannot see.
+
+   Resolved by T21. v4 has no formula: a vector reduces to a six-digit
+   MacroVector, whose score is hand-assigned in a 270-entry table, and the
+   vector's own score is that number minus an interpolated distance from the
+   most severe vector its MacroVector can hold. The table is data and cannot be
+   derived, so it is transcribed from FIRST's reference calculator
+   (github.com/FIRSTdotorg/cvss-v4-calculator at commit
+   c5b0d409ae9f57c44264c6ce5f27d89298e1d32a, BSD-2-Clause) and the algorithm
+   ported from the same commit. No dependency, so CLAUDE.md rule 7 is untouched.
+
+   That reference implementation is the oracle, run as JavaScript under Node.
+   Verification is exhaustive rather than sampled — all 104,976 base vectors
+   (4·2·2·3·3·3·3·3·3·3·3), 0 mismatches — because a transcription slip would
+   sit in exactly one of 270 cells and a sample would probably walk past it.
+   `make test-cvss4-oracle` reruns it.
+
+   Only base metrics are scored. A Debian record writes out every metric,
+   defined or not (`…/E:X/CR:X/…/U:X`); those are validated but scored at their
+   not-defined defaults, exactly as the v3 path ignores temporal and
+   environmental metrics.
 3. **19.5% of findings will be `unknown`** and therefore invisible to
-   `--fail-on`. Mostly old Debian-marked-minor issues. *Decided:* no code change.
-   The README states the share, combined with question 2's v4-only records
-   rather than separately, because what a user needs is the single number:
-   68 of 292 records, 23.3%, reported but never able to fail a build. A
-   `--fail-on unknown` level was considered and rejected — the bucket is mostly
-   issues Debian itself marked minor, so the gate would fire on everything and
-   get switched off.
+   `--fail-on`. Mostly old Debian-marked-minor issues. *Decided:* no code change,
+   the README states the share. It briefly stated a pooled 23.3%, counting
+   question 2's v4-only records alongside these; T21 made those scoreable, so
+   the number is back to the 57 records that carry no severity at all, 19.5%.
+   A `--fail-on unknown` level was considered and rejected — the bucket is
+   mostly issues Debian itself marked minor, so the gate would fire on
+   everything and get switched off.
 4. **apk versions are not Debian versions** — see T0.3a above. *Decided:*
    port apk's own comparison. Measured first: `go-deb-version` does not reject
    an apk version, it silently orders it by Debian's rules, and the two disagree
@@ -543,17 +569,6 @@ unresolved and is implemented the conservative way in the meantime.
    ecosystem with no distro scope, whereas a bare soname carries no version and
    must never be queried. That distinction did not exist when the detectors were
    written and would have to be added to them first.
-
-**Still open.**
-
-2. **CVSS v4 has no rule.** 11 of 292 records are v4-only with no v3 fallback and
-   fall through to `unknown`; all are 2025–2026 CVEs, so the share grows.
-   Meanwhile spec §1's v2 step and ecosystem-severity step are both unreachable
-   for Debian data — 0 records carry v2, 0 carry `database_specific.severity`.
-   Proposed: compute v4 base scores into the same four buckets. Not a small
-   change — v4 scoring is a MacroVector lookup table, not a formula — and no
-   partial version is worth having, because a score that disagrees with the
-   published one is worse in the `SCORE` column than saying nothing.
 
 ### Surprises worth remembering
 

@@ -63,11 +63,10 @@ func identify(record vulnRecord) (id string, aliases []string) {
 //
 // The spike measured what Debian data actually contains: 224 of 292 records
 // carried a v3 vector, 11 carried v4 only, 57 carried nothing, and none carried
-// v2 or a database_specific severity. Steps 2 and 3 below are therefore
-// unreachable for Debian in practice, and v4-only records fall through to
-// unknown because the spec defines no rule for them. The v4 gap is still an open
-// question in spike/NOTES.md. The 57 severity-less records were reviewed and
-// deliberately left as unknown, which the README's limitations section states.
+// v2 or a database_specific severity. Steps 3 and 4 below are therefore
+// unreachable for Debian in practice. The 57 severity-less records were
+// reviewed and deliberately left as unknown, which the README's limitations
+// section states.
 func severityOf(record vulnRecord) (model.Severity, float64, string) {
 	// 1. CVSS v3.x. output-spec section 1's bands start at 0.1, so a vector
 	// scoring exactly 0 -- no impact on anything -- maps to no bucket. It falls
@@ -75,27 +74,37 @@ func severityOf(record vulnRecord) (model.Severity, float64, string) {
 	// nonetheless carries a vector, which would contradict section 3.
 	if vector, ok := vectorOfType(record, "CVSS_V3"); ok {
 		if score, ok := cvss3BaseScore(vector); ok {
-			if bucket := bucketFromV3Score(score); bucket != model.SeverityUnknown {
+			if bucket := bucketFromCVSSScore(score); bucket != model.SeverityUnknown {
 				return bucket, score, vector
 			}
 		}
 	}
 
-	// 2. CVSS v2, only when there is no v3.
+	// 2. CVSS v4, which shares v3's bands. A v4 vector may carry threat and
+	// environmental metrics; only the base metrics are scored, as for v3.
+	if vector, ok := vectorOfType(record, "CVSS_V4"); ok {
+		if score, ok := cvss4BaseScore(vector); ok {
+			if bucket := bucketFromCVSSScore(score); bucket != model.SeverityUnknown {
+				return bucket, score, vector
+			}
+		}
+	}
+
+	// 3. CVSS v2, only when there is neither v3 nor v4.
 	if vector, ok := vectorOfType(record, "CVSS_V2"); ok {
 		if score, ok := cvss2BaseScore(vector); ok {
 			return bucketFromV2Score(score), score, vector
 		}
 	}
 
-	// 3. A textual level from the database's own metadata.
+	// 4. A textual level from the database's own metadata.
 	if level, ok := ecosystemSeverity(record); ok {
 		if bucket, known := model.ParseSeverity(level); known {
 			return bucket, 0, ""
 		}
 	}
 
-	// 4. Nothing usable.
+	// 5. Nothing usable.
 	return model.SeverityUnknown, 0, ""
 }
 
@@ -134,8 +143,9 @@ func stringField(m map[string]any, key string) (string, bool) {
 	return s, true
 }
 
-// bucketFromV3Score maps a v3 base score per output-spec section 1.
-func bucketFromV3Score(score float64) model.Severity {
+// bucketFromCVSSScore maps a v3 or v4 base score per output-spec section 1.
+// The two share one set of bands.
+func bucketFromCVSSScore(score float64) model.Severity {
 	switch {
 	case score >= 9.0:
 		return model.SeverityCritical

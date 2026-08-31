@@ -115,13 +115,6 @@ func TestAPKVersionValidAgainstAPK(t *testing.T) {
 	}
 }
 
-func requireDocker(t *testing.T) {
-	t.Helper()
-	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skip("docker not available; skipping the apk oracle")
-	}
-}
-
 func runInAlpine(t *testing.T, script, stdin string) string {
 	t.Helper()
 	cmd := exec.Command("docker", "run", "--rm", "-i", alpineImage, "sh", "-c", script)

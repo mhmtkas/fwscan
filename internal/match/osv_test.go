@@ -217,11 +217,12 @@ func TestOSVMatch(t *testing.T) {
 	}
 }
 
-// A CVSS v4-only record has no v3 to fall back to, and output-spec section 1
-// defines no v4 rule, so it lands on unknown. Recorded here so that a later
-// decision to support v4 shows up as a deliberate change to this expectation
-// rather than a silent one (spike/NOTES.md T0.3, open question 2).
-func TestCVSSv4OnlyFallsThroughToUnknown(t *testing.T) {
+// A CVSS v4-only record is scored from its v4 vector. It used to fall through
+// to unknown, which kept a growing share of recent CVEs out of --fail-on's
+// reach; output-spec section 1 now carries a v4 rule (spike/NOTES.md T0.3,
+// question 2). The vector is a real one from Debian's OSV data, trailing X
+// metrics and all.
+func TestCVSSv4OnlyIsScored(t *testing.T) {
 	var vulns map[string]vulnRecord
 	readFixture(t, "vulns.json", &vulns)
 
@@ -232,9 +233,16 @@ func TestCVSSv4OnlyFallsThroughToUnknown(t *testing.T) {
 	if _, ok := vectorOfType(record, "CVSS_V4"); !ok {
 		t.Fatal("fixture no longer carries a v4 vector")
 	}
+	if _, ok := vectorOfType(record, "CVSS_V3"); ok {
+		t.Fatal("fixture gained a v3 vector, so it no longer tests the v4 path")
+	}
+
 	severity, score, vector := severityOf(record)
-	if severity != model.SeverityUnknown || score != 0 || vector != "" {
-		t.Errorf("severityOf() = (%q, %v, %q), want unknown with no score", severity, score, vector)
+	if severity != model.SeverityMedium || score != 4.8 {
+		t.Errorf("severityOf() = (%q, %v), want (medium, 4.8)", severity, score)
+	}
+	if !strings.HasPrefix(vector, "CVSS:4.0/") {
+		t.Errorf("vector = %q, want the v4 vector it was scored from", vector)
 	}
 }
 
@@ -706,8 +714,8 @@ func TestSeverityBucketBoundaries(t *testing.T) {
 		{0.0, model.SeverityUnknown},
 	}
 	for _, tt := range v3 {
-		if got := bucketFromV3Score(tt.score); got != tt.want {
-			t.Errorf("bucketFromV3Score(%v) = %q, want %q", tt.score, got, tt.want)
+		if got := bucketFromCVSSScore(tt.score); got != tt.want {
+			t.Errorf("bucketFromCVSSScore(%v) = %q, want %q", tt.score, got, tt.want)
 		}
 	}
 
