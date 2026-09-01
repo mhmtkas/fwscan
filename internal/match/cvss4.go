@@ -223,7 +223,10 @@ func cvss4BaseScore(vector string) (float64, bool) {
 	}
 
 	score := value - mean
-	if score < 0 {
+	// Not "< 0": the arithmetic can produce a negative zero, which is
+	// equal to zero and encodes in JSON as -0. A report should not carry a
+	// score nobody can explain.
+	if score <= 0 {
 		score = 0
 	}
 	if score > 10 {

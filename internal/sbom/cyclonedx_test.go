@@ -166,3 +166,47 @@ func TestWriteEmpty(t *testing.T) {
 		t.Errorf("metadata missing from an empty SBOM: %+v", doc["metadata"])
 	}
 }
+
+// CycloneDX requires bom-refs to be unique within a document, and neither the
+// purl nor the name@version fallback guarantees that: one image can carry the
+// same package for two architectures, and two filename heuristics can land on
+// the same name and version.
+func TestBOMRefsAreUnique(t *testing.T) {
+	comps := []model.Component{
+		{
+			Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "amd64",
+			PURL:       "pkg:deb/debian/zlib1g@1%3A1.2.11.dfsg-2?distro=bullseye",
+			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+		},
+		{
+			// The same purl: a multiarch image carries both builds.
+			Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "i386",
+			PURL:       "pkg:deb/debian/zlib1g@1%3A1.2.11.dfsg-2?distro=bullseye",
+			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+		},
+		{
+			Name: "busybox", Version: "1.30.1", Arch: "",
+			Confidence: model.ConfidenceLow, Evidence: "bin/busybox",
+		},
+		{
+			// No purl either, and the same name and version.
+			Name: "busybox", Version: "1.30.1", Arch: "",
+			Confidence: model.ConfidenceLow, Evidence: "sbin/busybox",
+		},
+	}
+
+	bom := Build(comps, Options{ToolVersion: "0.1.0"})
+	seen := map[string]bool{}
+	for _, c := range *bom.Components {
+		if c.BOMRef == "" {
+			t.Errorf("%s carries no bom-ref", c.Name)
+		}
+		if seen[c.BOMRef] {
+			t.Errorf("bom-ref %q appears more than once", c.BOMRef)
+		}
+		seen[c.BOMRef] = true
+	}
+	if len(seen) != len(comps) {
+		t.Errorf("got %d distinct refs for %d components", len(seen), len(comps))
+	}
+}

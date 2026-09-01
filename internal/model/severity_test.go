@@ -190,3 +190,35 @@ func ids(fs []Finding) []string {
 	}
 	return out
 }
+
+// The spec names no tie-break past the component name, so the remaining fields
+// provide one. Without it two builds of the same package in one image order
+// differently between runs, and the report and its goldens flap.
+func TestCompareComponentsIsATotalOrder(t *testing.T) {
+	base := Component{Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "amd64", PURL: "pkg:deb/debian/zlib1g?a=1"}
+
+	tests := []struct {
+		name string
+		b    Component
+		want int // sign of CompareComponents(base, b)
+	}{
+		{"identical", base, 0},
+		{"name decides first", Component{Name: "zzz"}, -1},
+		{"then version", func() Component { c := base; c.Version = "2:0"; return c }(), -1},
+		{"then architecture", func() Component { c := base; c.Arch = "i386"; return c }(), -1},
+		{"then the purl", func() Component { c := base; c.PURL = "pkg:deb/debian/zlib1g?a=2"; return c }(), -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CompareComponents(base, tt.b)
+			if sign(got) != tt.want {
+				t.Errorf("CompareComponents = %d, want sign %d", got, tt.want)
+			}
+			// Antisymmetry, or it is not an order at all.
+			if back := CompareComponents(tt.b, base); sign(back) != -tt.want {
+				t.Errorf("reversed = %d, want sign %d", back, -tt.want)
+			}
+		})
+	}
+}

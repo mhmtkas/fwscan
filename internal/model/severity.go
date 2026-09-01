@@ -89,12 +89,20 @@ func CompareFindings(a, b Finding) int {
 }
 
 // CompareComponents orders components by name ascending, as output-spec
-// section 3 requires for the JSON report. Version breaks ties so that two
-// versions of the same package have a stable order; the spec does not name a
-// tie-break, and an unstable one would make golden files flap.
+// section 3 requires for the JSON report. The spec names no tie-break, and an
+// unstable one would make the report and the goldens flap between runs, so the
+// remaining fields settle it: version, then architecture, which is what
+// separates the same package built for two of them in one image, then the purl,
+// which separates anything the first three do not.
 func CompareComponents(a, b Component) int {
 	if d := strings.Compare(a.Name, b.Name); d != 0 {
 		return d
 	}
-	return strings.Compare(a.Version, b.Version)
+	if d := strings.Compare(a.Version, b.Version); d != 0 {
+		return d
+	}
+	if d := strings.Compare(a.Arch, b.Arch); d != 0 {
+		return d
+	}
+	return strings.Compare(a.PURL, b.PURL)
 }

@@ -14,6 +14,15 @@ import (
 // The temp file is created alongside the destination rather than in the system
 // temp directory, because rename is only atomic within a filesystem.
 func WriteFileAtomic(path string, write func(io.Writer) error) (err error) {
+	// Checked up front, because the failure otherwise surfaces from the rename
+	// as "rename <dir>/.tmp123 <dir>: file exists", which names the temp file
+	// and blames the wrong thing. The destination being a directory is the
+	// mistake, and saying so is the difference between a fixable message and a
+	// puzzling one.
+	if info, statErr := os.Stat(path); statErr == nil && info.IsDir() {
+		return fmt.Errorf("cannot write %s: it is a directory", path)
+	}
+
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp")
 	if err != nil {

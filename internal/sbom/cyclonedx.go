@@ -69,30 +69,50 @@ func Build(comps []model.Component, opts Options) *cdx.BOM {
 	sorted := slices.Clone(comps)
 	slices.SortFunc(sorted, model.CompareComponents)
 
+	refs := bomRefs(sorted)
 	components := make([]cdx.Component, 0, len(sorted))
-	for _, c := range sorted {
-		components = append(components, componentOf(c))
+	for i, c := range sorted {
+		components = append(components, componentOf(c, refs[i]))
 	}
 	bom.Components = &components
 	return bom
 }
 
-func componentOf(c model.Component) cdx.Component {
+func componentOf(c model.Component, ref string) cdx.Component {
 	properties := []cdx.Property{
 		{Name: PropertyConfidence, Value: string(c.Confidence)},
 		{Name: PropertyEvidence, Value: c.Evidence},
 	}
 	return cdx.Component{
-		// BOMRef must be unique within the document. The purl is the natural
-		// choice; the name and version are the fallback for a component that
-		// has no purl, which a filename heuristic may well produce.
-		BOMRef:     bomRef(c),
+		BOMRef:     ref,
 		Type:       cdx.ComponentTypeLibrary,
 		Name:       c.Name,
 		Version:    c.Version,
 		PackageURL: c.PURL,
 		Properties: &properties,
 	}
+}
+
+// bomRefs assigns each component a reference that is unique within the
+// document, which CycloneDX requires. The purl is the natural choice and the
+// name@version pair is the fallback for a component that has no purl, which a
+// filename heuristic produces -- but neither is guaranteed unique. Two
+// components can share a purl when an image carries the same package for two
+// architectures, and two heuristic results can share a name and version. A
+// suffix is added only where a collision actually occurs, so the ordinary
+// document is unchanged.
+func bomRefs(comps []model.Component) []string {
+	seen := make(map[string]int, len(comps))
+	refs := make([]string, len(comps))
+	for i, c := range comps {
+		ref := bomRef(c)
+		if n := seen[ref]; n > 0 {
+			ref = fmt.Sprintf("%s#%d", ref, n+1)
+		}
+		seen[bomRef(c)]++
+		refs[i] = ref
+	}
+	return refs
 }
 
 func bomRef(c model.Component) string {

@@ -325,3 +325,27 @@ type matcherFunc func(context.Context, []model.Component) ([]model.Finding, erro
 func (f matcherFunc) Match(ctx context.Context, comps []model.Component) ([]model.Finding, error) {
 	return f(ctx, comps)
 }
+
+// The failure a mistyped --output produces has to name the mistake. Writing
+// through a temp file means the rename is what fails, and its message names the
+// temp file and says "file exists", which is both wrong and unfixable.
+func TestOutputPathThatIsADirectory(t *testing.T) {
+	dir := t.TempDir()
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+
+	cmd := NewRootCmd("v0.1.0")
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"scan", "--no-network", "--output", dir, image})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("writing a report over a directory succeeded")
+	}
+	if !strings.Contains(err.Error(), "it is a directory") {
+		t.Errorf("error = %v, want it to say the destination is a directory", err)
+	}
+	if strings.Contains(err.Error(), ".tmp") {
+		t.Errorf("error = %v, names the temp file rather than the destination", err)
+	}
+}

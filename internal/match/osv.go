@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -514,6 +515,27 @@ func upstreamRecordID(record vulnRecord) string {
 	return ""
 }
 
+// userAgent identifies fwscan to the API. The URL is there so an operator
+// looking at their logs can find out what is calling them.
+const userAgent = "fwscan (+https://github.com/mhmtkas/fwscan)"
+
+// withSameHostRedirects copies a client, adding a policy that refuses a
+// redirect to a different host. The copy is shallow and deliberate: the
+// caller's client is theirs, and a scanner should not reach in and change it.
+func withSameHostRedirects(client *http.Client) *http.Client {
+	copied := *client
+	copied.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+		if req.URL.Host != via[0].URL.Host {
+			return fmt.Errorf("refusing a redirect from %s to %s", via[0].URL.Host, req.URL.Host)
+		}
+		return nil
+	}
+	return &copied
+}
+
 func (o *OSV) postJSON(ctx context.Context, path string, body, out any) error {
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -536,9 +558,21 @@ func (o *OSV) getJSON(ctx context.Context, path string, out any) error {
 }
 
 func (o *OSV) do(req *http.Request, out any) error {
+	// Identify the caller. An unattributed client is one OSV cannot ask to slow
+	// down or contact about a problem, and every other tool that queries this
+	// API says who it is.
+	req.Header.Set("User-Agent", userAgent)
+
 	client := o.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: defaultTimeout}
+	}
+	// A redirect that changes host is not followed. The default policy would
+	// carry the request -- and on a POST, the body -- to wherever the response
+	// pointed, which for a scanner reading an answer it will act on is a
+	// decision worth making deliberately rather than inheriting.
+	if client.CheckRedirect == nil {
+		client = withSameHostRedirects(client)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

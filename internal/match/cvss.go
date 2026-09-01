@@ -186,7 +186,10 @@ func cvss2BaseScore(vector string) (float64, bool) {
 		fImpact = 0
 	}
 	score := ((0.6 * impactScore) + (0.4 * exploitability) - 1.5) * fImpact
-	if score < 0 {
+	// Not "< 0": the arithmetic can produce a negative zero, which is
+	// equal to zero and encodes in JSON as -0. A report should not carry a
+	// score nobody can explain.
+	if score <= 0 {
 		score = 0
 	}
 	// v2 rounds to one decimal place, ordinary rounding rather than v3's Roundup.

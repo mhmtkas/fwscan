@@ -1,6 +1,9 @@
 package match
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // Vectors and their published base scores, taken from FIRST's CVSS v3.1
 // examples and from the CVE records the spike touched. Any drift in the
@@ -120,5 +123,18 @@ func TestCVSS2RejectsWhatItCannotScore(t *testing.T) {
 				t.Errorf("cvss2BaseScore(%q) = %.1f, want it refused", vector, score)
 			}
 		})
+	}
+}
+
+// A negative zero is equal to zero and encodes in JSON as -0, which is a score
+// nobody can explain. The arithmetic in both scorers can produce one.
+func TestScoresAreNeverNegativeZero(t *testing.T) {
+	// A v2 vector with no impact at all: the formula subtracts 1.5 and
+	// multiplies by zero, which is where the sign comes from.
+	if score, ok := cvss2BaseScore("AV:N/AC:L/Au:N/C:N/I:N/A:N"); !ok || math.Signbit(score) {
+		t.Errorf("cvss2BaseScore = %v (signbit %v), want a positive zero", score, math.Signbit(score))
+	}
+	if score, ok := cvss4BaseScore("CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:N/SC:N/SI:N/SA:N"); ok && math.Signbit(score) {
+		t.Errorf("cvss4BaseScore = %v (signbit %v), want a positive zero", score, math.Signbit(score))
 	}
 }

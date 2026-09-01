@@ -1175,3 +1175,41 @@ func TestABrokenUpstreamFetchIsNotFatal(t *testing.T) {
 		t.Errorf("fixed_version = %q, want the advisory's own answer to survive", findings[0].FixedVersion)
 	}
 }
+
+// A scanner reading an answer it will act on should not follow a redirect to
+// somewhere else, and on a POST the body travels with it. The default policy
+// would.
+func TestRedirectsToAnotherHostAreRefused(t *testing.T) {
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, batchResponse{Results: []batchResult{{}}})
+	}))
+	defer elsewhere.Close()
+
+	var agents []string
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		agents = append(agents, r.Header.Get("User-Agent"))
+		http.Redirect(w, r, elsewhere.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = redirector.URL
+	// The client is the test's, but with no policy of its own, so the package
+	// supplies one.
+	osv.HTTPClient = redirector.Client()
+
+	_, err := osv.Match(context.Background(), []model.Component{
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+	})
+	if err == nil {
+		t.Fatal("a redirect to another host was followed")
+	}
+	if !strings.Contains(err.Error(), "refusing a redirect") {
+		t.Errorf("error = %v, want it to name the refused redirect", err)
+	}
+
+	// And the request said who it was.
+	if len(agents) == 0 || !strings.HasPrefix(agents[0], "fwscan") {
+		t.Errorf("user agent = %q, want fwscan to identify itself", agents)
+	}
+}

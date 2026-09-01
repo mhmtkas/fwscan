@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -68,5 +69,21 @@ func assertContents(t *testing.T, path, want string) {
 	}
 	if string(body) != want {
 		t.Errorf("contents = %q, want %q", body, want)
+	}
+}
+
+// A mistyped --output that lands on a directory has to say so. The rename would
+// otherwise fail with "file exists", naming a temp file the user never chose.
+func TestWriteFileAtomicRefusesADirectory(t *testing.T) {
+	dir := t.TempDir()
+	err := WriteFileAtomic(dir, func(w io.Writer) error {
+		_, writeErr := io.WriteString(w, "never written")
+		return writeErr
+	})
+	if err == nil {
+		t.Fatal("writing over a directory succeeded")
+	}
+	if !strings.Contains(err.Error(), "it is a directory") {
+		t.Errorf("error = %v, want it to name the mistake", err)
 	}
 }

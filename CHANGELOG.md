@@ -112,6 +112,21 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A CycloneDX `bom-ref` is now unique within the document, which the format
+  requires. It was the purl, or the name and version where there is no purl, and
+  neither is unique: one image can carry the same package built for two
+  architectures, and two filename heuristics can land on the same name and
+  version.
+- Components with the same name and version no longer order arbitrarily between
+  runs. Architecture and purl settle it, so a multiarch image produces the same
+  report twice.
+- A CVSS score is never a negative zero, which is equal to zero and encodes in
+  JSON as `-0`.
+- `--output` pointed at a directory says so, instead of failing with a rename
+  error naming a temp file the user never chose.
+- Requests to OSV identify fwscan in the `User-Agent`, and a redirect to a
+  different host is refused rather than followed with the request body.
+
 - An interrupted scan now stops and cleans up after itself. Extraction is the
   longest thing fwscan does and the only part that writes gigabytes, and it took
   no context, so a signal killed the process where it stood: measured with
