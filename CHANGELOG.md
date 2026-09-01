@@ -46,6 +46,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Extraction and reads are now confined by `os.Root` instead of by inspecting
+  path strings. A tar archive could write outside its extraction directory
+  through a chain of relative symlinks — `a -> ..` then `b -> a/..`, where every
+  step still reads as inside but each one climbs a directory — and a scanned
+  directory could have a symlink read the host's files and report their contents
+  as the image's. `os.Root` re-resolves every path component where the kernel
+  does, so neither escape survives it. The lexical checks remain, to name the
+  offending archive entry in the error instead of a temp path the user never
+  chose.
 - A vulnerability is no longer reported twice for the same component. OSV
   returns the DSA or DLA advisory alongside the `DEBIAN-CVE-…` record for one
   issue, and both resolve to the same CVE; the advisory carries no severity and

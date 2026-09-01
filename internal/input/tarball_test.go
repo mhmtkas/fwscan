@@ -345,27 +345,44 @@ func TestTarballCorruptArchive(t *testing.T) {
 	}
 }
 
-func TestSafeJoin(t *testing.T) {
-	root := t.TempDir()
+func TestSafeName(t *testing.T) {
 	tests := []struct {
 		name    string
 		entry   string
+		want    string
 		wantErr bool
 	}{
-		{"plain", "var/lib/dpkg/status", false},
-		{"dot segments that stay inside", "var/./lib/../lib/dpkg", false},
-		{"parent escape", "../etc/passwd", true},
-		{"absolute", "/etc/passwd", true},
-		{"deep escape", "a/b/../../../etc", true},
+		{"plain", "var/lib/dpkg/status", "var/lib/dpkg/status", false},
+		{"dot segments that stay inside", "var/./lib/../lib/dpkg", "var/lib/dpkg", false},
+		// An archive written from a directory names its own root; that is not
+		// an escape, and refusing it would refuse most real tarballs.
+		{"the archive root", "./", ".", false},
+		{"parent escape", "../etc/passwd", "", true},
+		{"absolute", "/etc/passwd", "", true},
+		{"deep escape", "a/b/../../../etc", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := safeJoin(root, tt.entry)
+			got, err := safeName(tt.entry)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("safeJoin(%q) error = %v, wantErr %v", tt.entry, err, tt.wantErr)
+				t.Fatalf("safeName(%q) error = %v, wantErr %v", tt.entry, err, tt.wantErr)
+			}
+			if err == nil && got != tt.want {
+				t.Errorf("safeName(%q) = %q, want %q", tt.entry, got, tt.want)
 			}
 		})
 	}
+}
+
+// extractInto runs extractTar against a directory, the way Tarball.Open does.
+func extractInto(t *testing.T, dir string, archive []byte) error {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatalf("OpenRoot(%s): %v", dir, err)
+	}
+	defer func() { _ = root.Close() }()
+	return extractTar(tar.NewReader(bytes.NewReader(archive)), root)
 }
 
 // Extraction bounds. A crafted archive must not be able to fill the disk or
@@ -386,7 +403,7 @@ func TestExtractBounds(t *testing.T) {
 		raw := buf.Bytes()
 
 		dir := t.TempDir()
-		err := extractTar(tar.NewReader(bytes.NewReader(raw)), dir)
+		err := extractInto(t, dir, raw)
 		if err == nil {
 			t.Fatal("extractTar() error = nil, want the oversized entry refused")
 		}
@@ -411,7 +428,7 @@ func TestExtractBounds(t *testing.T) {
 		}
 
 		dir := t.TempDir()
-		if err := extractTar(tar.NewReader(bytes.NewReader(buf.Bytes())), dir); err != nil {
+		if err := extractInto(t, dir, buf.Bytes()); err != nil {
 			t.Fatalf("extractTar() error = %v, want device nodes skipped", err)
 		}
 		if _, err := os.Stat(filepath.Join(dir, "var", "lib", "dpkg", "status")); err != nil {
