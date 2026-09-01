@@ -5,3 +5,8 @@ testdata/images/mini-rootfs.lz4.squashfs
 testdata/images/mini-rootfs.zstd.squashfs
 testdata/images/mini-rootfs.xz.squashfs
 dist/
+
+# The task queue and the phase-0 planning document. Both are working documents
+# addressed to whoever is building this rather than to whoever is reading it,
+# and the repository is public.
+.private/

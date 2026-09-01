@@ -5,11 +5,12 @@ you can do before writing code is check that the change fits the scope.
 
 ## Before you start
 
-Read [`docs/mvp-scope.md`](docs/mvp-scope.md), particularly the non-goals table.
+Read [`docs/scope.md`](docs/scope.md), particularly the non-goals table.
 Binary fingerprinting, SPDX output, opkg/rpm catalogers, kernel CVE
 applicability, VEX and offline mode are deliberately excluded from v1 — a pull
-request adding one of them will be declined however good the code is. Open an
-issue first and let's talk about the version it belongs in.
+request adding one of them will be declined however good the code is.
+[`docs/roadmap.md`](docs/roadmap.md) says which are expected later and in what
+order; open an issue first and let's talk about where it belongs.
 
 The output formats are fixed by [`docs/output-spec.md`](docs/output-spec.md).
 Terminal layout, JSON schema, SBOM fields, severity mapping and exit codes come

@@ -11,12 +11,12 @@ until their task lands.
 
 ## T0.0 — Repo provisioning — DONE
 
-- Repo: `mhmtkas/fwscan`, private, default branch `main`.
+- Repo: `mhmtkas/fwscan`, private at the time, default branch `main`.
 - Topics: `sbom`, `firmware`, `security`, `cyclonedx`, `embedded-linux`,
   `vulnerability-scanning`.
-- Initial commit: `CLAUDE.md`, `TASKS.md`, `docs/output-spec.md`,
-  `docs/mvp-scope.md`, `docs/phase0-spike-and-repo-skeleton.md`, `LICENSE`
-  (Apache-2.0), plus a `.gitignore` holding only `.DS_Store`.
+- Initial commit: `CLAUDE.md`, the task queue, `docs/output-spec.md`, the scope
+  document, the phase-0 planning document, `LICENSE` (Apache-2.0), plus a
+  `.gitignore` holding only `.DS_Store`.
 - Toolchain on the dev machine: Go 1.27.0 (darwin/arm64), gh 2.98.0.
 - Repo goes public only at T19, with explicit maintainer approval. Until then
   the whole history is treated as future-public: CLAUDE.md rule 10

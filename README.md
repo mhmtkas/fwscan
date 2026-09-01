@@ -170,6 +170,14 @@ Severity comes from the record's CVSS vector, v3.1 or v4.0, scored locally: v4
 base scores match FIRST's reference calculator across the whole base metric
 space.
 
+## Roadmap
+
+The first thing after v0.1.0 is a CRA compliance report (`--report cra`), then
+VEX output, then offline vulnerability data for air-gapped builds. An opkg
+cataloger, SPDX, NVD as a second source and the rest follow.
+[`docs/roadmap.md`](docs/roadmap.md) has the order and the reasoning;
+[`docs/scope.md`](docs/scope.md) has what is excluded and why.
+
 ## Name
 
 An unrelated, low-activity `fwscan` package exists on PyPI. This is a Go tool
@@ -192,8 +200,9 @@ make third-party-licenses # regenerate THIRD_PARTY_LICENSES.txt after a dependen
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md), and
-[`docs/mvp-scope.md`](docs/mvp-scope.md) before proposing a feature — the
-non-goals above are deliberate.
+[`docs/scope.md`](docs/scope.md) before proposing a feature — the
+non-goals above are deliberate, and [`docs/roadmap.md`](docs/roadmap.md) says
+which of them are expected later.
 
 ## Security
 

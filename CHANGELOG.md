@@ -22,6 +22,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `docs/mvp-scope.md` is replaced by `docs/scope.md`. The old document was a
+  working plan as much as a specification — it carried a build schedule, launch
+  and monetisation notes and an assessment of the author, none of which is a
+  reader's business, and both the README and CONTRIBUTING pointed newcomers at
+  it as the authoritative statement of what fwscan does. The new one states the
+  problem, the audience, the goals and the non-goals, in the third person.
+  `docs/roadmap.md` says which non-goals are expected later, and in what order.
+- The task queue and the phase-0 planning document are no longer in the
+  repository. Both are addressed to whoever is building fwscan rather than to
+  whoever is reading it.
+
 - The rule for a finding's `id` and `aliases` now lives in `docs/output-spec.md`
   section 3 rather than only in a code comment: the plain CVE from OSV's
   `upstream` field is the identifier, and the `DEBIAN-CVE-…`/`ALPINE-CVE-…`
