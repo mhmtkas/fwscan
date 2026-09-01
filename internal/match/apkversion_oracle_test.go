@@ -16,14 +16,17 @@ import (
 	"testing"
 )
 
-// alpineImage pins the image so the oracle is a fixed version of apk-tools,
-// the one apkversion.go was ported from.
+// alpineImage pins the image so the oracle is a fixed version of apk-tools:
+// 2.14.4, which is what Alpine 3.19 through 3.21 ship and what the images this
+// scanner reads were built with.
 const alpineImage = "alpine:3.19"
 
-// apkCorpus covers every branch of the token ladder: plain and dotted numbers,
-// leading zeros, letter components, all four pre-suffixes and all five
-// post-suffixes with and without a number, revisions, and the combinations
-// Alpine actually ships (openssh is 9.3_p2-r0, busybox 1.36.1-r5).
+// apkCorpus covers every branch of the parser: plain and dotted numbers,
+// leading zeros at every depth, letter components and letters alternating with
+// numbers, all four pre-suffixes and all five post-suffixes with and without a
+// number, repeated suffixes, single and repeated revisions, dangling
+// separators, and the combinations Alpine actually ships (openssh is
+// 9.3_p2-r0, busybox 1.36.1-r5).
 //
 // Nothing here starts with a dash: `apk version -c` would read it as a flag.
 var apkCorpus = []string{
@@ -46,6 +49,19 @@ var apkCorpus = []string{
 	// Shapes that look malformed but parse: a trailing separator ends the
 	// version, and a leading zero outside a dotted component is just a digit.
 	"01", "1.0.", "1.0-r", "0.0", "10", "1.0.0.0",
+	"1.0_", "01.0", "1.0.0.0.0", "0.0.0",
+	// Leading zeros at more than one depth, which is where the fraction rule
+	// and the plain-integer first component have to disagree.
+	"1.0000", "1.00.0", "1.0.00", "1.0.01", "1.0.001", "0.00", "00.0", "1.001",
+	// Letters and numbers alternating, and a letter opening the version.
+	"1.0a1a", "1.0a1.2", "1.0a1.3", "1.0a0", "1.0a10", "1.0z9", "a1.0", "1a", "1_p1",
+	// Suffixes repeated, numbered zero, and combined with revisions.
+	"1.0_p0", "1.0_alpha0", "1.0_rc1_p2-r3", "1.0_alpha_beta",
+	"1.0_p1_p2", "1.0_rc1-r1",
+	// More than one revision component, which apk accepts.
+	"1.0-r1-r2", "1.0-r0-r1",
+	// The widest digit run apk still accepts; one digit more is rejected.
+	"1.0.12345678901234567",
 }
 
 // apkInvalidCorpus is checked for validity only; these do not parse, so there
@@ -53,6 +69,21 @@ var apkCorpus = []string{
 var apkInvalidCorpus = []string{
 	"1.0_foo", "1.0-x", "1.0__1", "notaversion", "1.0+1", "1.0 2", "1:1.0",
 	"1.0~rc1", "1.0-1",
+	// A separator needs what follows it: a dash needs an r, a letter needs a
+	// number before it, and nothing but another suffix or a revision may
+	// follow a suffix.
+	"1.0-", "1.0aa", "1.0a.1", "1.0_p1a", "1.0_p1.2", "1.0-r1.2", "1.0-r1a",
+	"1.0-r1_p1", "1.0_alpha1beta", "1.0_1", "1.0_p-1",
+	// The commit-hash component apk 3 introduced; 2.14 rejects it, and so must
+	// this parser while the oracle is 2.14.
+	"1.0~abc",
+	// A digit run too wide to compare without overflowing. apk draws this line
+	// at eighteen digits, and past it its own answers stop being consistent --
+	// it calls 1.0.1 the newer of 1.0.1 and 1.0.123456789012345678, but 1.0 the
+	// older of 1.0 and 1.0.1234567890123456789 -- so refusing to order these is
+	// the only defensible behaviour.
+	"1.0.123456789012345678", "1.0.1234567890123456789", "123456789012345678",
+	"12345678901234567890",
 }
 
 func TestAPKVersionCompareAgainstAPK(t *testing.T) {
@@ -109,6 +140,20 @@ func TestAPKVersionValidAgainstAPK(t *testing.T) {
 
 	for i, v := range all {
 		want := strings.TrimSpace(lines[i]) == "valid"
+
+		// The corpus split is itself an assertion: comparing versions apk
+		// rejects is meaningless, because apk's own answers for them are not
+		// even self-consistent. Check the labels against apk before checking
+		// the parser against them.
+		if inValidCorpus := i < len(apkCorpus); want != inValidCorpus {
+			list := "apkCorpus"
+			if want {
+				list = "apkInvalidCorpus"
+			}
+			t.Errorf("%q is in %s but apk says valid=%v; move it", v, list, want)
+			continue
+		}
+
 		if got := apkVersionValid(v); got != want {
 			t.Errorf("apkVersionValid(%q) = %v, apk says %v", v, got, want)
 		}

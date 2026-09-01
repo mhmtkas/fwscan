@@ -6,7 +6,7 @@ import (
 )
 
 // Every pair below was checked against `apk version -t` from apk-tools 2.14.4;
-// apkversion_oracle_test.go runs the full corpus (3844 pairs) against it. apk is
+// apkversion_oracle_test.go runs the full corpus (8464 pairs) against it. apk is
 // the oracle. If this table and apk ever disagree, apk is right.
 func TestAPKVersionCompare(t *testing.T) {
 	tests := []struct {
@@ -33,6 +33,18 @@ func TestAPKVersionCompare(t *testing.T) {
 		{"openssh patch suffix", "9.3_p1-r0", "9.3_p2-r0", -1},
 		{"openssh across releases", "9.3_p2-r0", "9.6_p1-r0", -1},
 		{"equal", "1.36.1-r5", "1.36.1-r5", 0},
+		// Shapes the documented grammar does not spell out, kept here because
+		// they are where a rewrite of this file is most likely to go wrong.
+		{"letters and numbers alternate", "1.0a1a", "1.0a1b", -1},
+		{"a number after a letter is an integer", "1.0a2", "1.0a10", -1},
+		{"a letter outranks a further component", "1.0a", "1.0.0", -1},
+		{"a suffix is older than a letter", "1.0_p1", "1.0a", -1},
+		{"a pre-release is older than a revision", "1.0_alpha1", "1.0-r1", -1},
+		{"a post-release is newer than a revision", "1.0-r1", "1.0_p1", -1},
+		{"a trailing dot adds a component", "1.0", "1.0.", -1},
+		{"a trailing -r means -r0", "1.0-r", "1.0-r0", 0},
+		{"a trailing _ is the first post-release suffix", "1.0_", "1.0_cvs", 0},
+		{"a second revision outranks one", "1.0-r1", "1.0-r1-r2", -1},
 	}
 
 	for _, tt := range tests {
@@ -62,6 +74,16 @@ func TestAPKVersionValid(t *testing.T) {
 		{"1.0.", true},
 		{"1.0-r", true},
 		{"1.0_foo", false},
+		{"1.0a1a", true},
+		{"1.0aa", false},
+		{"1.0a.1", false},
+		{"1.0_p1a", false},
+		{"1.0-r1-r2", true},
+		{"1.0-", false},
+		// apk stops at eighteen digits, and past that its own ordering stops
+		// being consistent, so a wider run is refused rather than compared.
+		{"1.0.12345678901234567", true},
+		{"1.0.123456789012345678", false},
 		{"1.0-x", false},
 		{"1.0__1", false},
 		{"notaversion", false},

@@ -550,12 +550,29 @@ README, the code and this file agree, and none of them is waiting on anyone.
    that actually fixes the issue. An earlier draft of this file claimed the
    finding was suppressed outright; that was wrong.
 
-   Resolved by T20: `internal/match/apkversion.go` is a literal port of
-   apk-tools 2.14.4 `src/version.c`, so no new dependency and CLAUDE.md rule 7
-   is untouched. `apk version -t` is the oracle, run against a 62-string corpus
-   — 3844 ordered pairs plus a validity pass — with 0 mismatches;
+   Resolved by T20 and rewritten by T23: `internal/match/apkversion.go`
+   implements the format documented in `apk-package(5)` — no new dependency, so
+   CLAUDE.md rule 7 is untouched. T20's first implementation was a literal port
+   of apk-tools `src/version.c`, which is GPL-2.0-only and so could not ship in
+   an Apache-2.0 repository; T23 replaced it with an independent implementation
+   written from the documented grammar and suffix ordering, keeping apk itself
+   as the oracle. `knqyf263/go-apk-version` was evaluated as a permissively
+   licensed dependency and rejected on measurement: it carries the same defect
+   this comparator exists to fix, ordering `1.0_alpha1` *above* `1.0` where apk
+   orders it below.
+
+   Three ordering rules the manual page does not state were taken from apk's
+   observed answers and are recorded in the oracle corpus: a dotted component
+   written with leading zeros is a fraction (`1.00` < `1.0`); letters and
+   numbers may alternate (`1.0a1a` parses, `1.0aa` does not); and a trailing
+   separator ends the version rather than invalidating it (`1.0-r` means
+   `1.0-r0`). A digit run of eighteen or more is refused, matching apk — past
+   that limit apk's own answers stop being self-consistent.
+
+   `apk version -t` is the oracle, run against a 92-string corpus — 8464
+   ordered pairs plus a validity pass over 117 strings — with 0 mismatches;
    `make test-apk-oracle` reruns it, and the curated subset is a unit test.
-   Comparison is now dispatched on the same `packageKind` that chose the query
+   Comparison is dispatched on the same `packageKind` that chose the query
    shape, so the ecosystem decides both how to ask OSV and how to read the
    answer.
 5. **Heuristic components are not matched.** T13's detectors carry no purl, so

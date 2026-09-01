@@ -32,6 +32,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `make test` now probes for race-detector support and runs without it on
   kernels that cannot provide it, instead of failing outright. CI uses the new
   `make test-race`, which still requires it.
+- The apk version comparator is now written from the format documented in
+  `apk-package(5)` rather than ported from apk-tools' implementation, which is
+  GPL-2.0-only and could not be distributed under this project's Apache-2.0
+  licence. Behaviour is unchanged and still checked against `apk version -t`
+  itself, over a corpus grown from 3844 to 8464 ordered pairs.
 
 ### Fixed
 
