@@ -41,6 +41,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- CI pins the `cyclonedx-cli` version it validates the SBOM with, installs it
+  with `sudo` rather than assuming `/usr/local/bin` is writable, and checks that
+  `go mod tidy` produces no change. The last one is otherwise invisible until a
+  tag is cut, because `.goreleaser.yaml` runs `go mod tidy` in its `before` hook
+  and refuses to release from a dirty tree.
+- `make help` lists the targets whose names contain digits, which its pattern
+  had been dropping — `test-cvss4-oracle` was invisible. `make lint` explains
+  that golangci-lint v2 is required instead of failing with a bare "no such
+  file", and `CONTRIBUTING.md` says to run `make fixtures` in a fresh clone,
+  without which three of the four squashfs decompressors are silently skipped.
+
 - `--fail-on` accepts only the four values `docs/output-spec.md` documents. It
   reached the severity parser, which is deliberately more forgiving because it
   reads OSV's own wording — so `--fail-on moderate` was a silent synonym for
@@ -81,6 +92,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   itself, over a corpus grown from 3844 to 8464 ordered pairs.
 
 ### Fixed
+
+- A binary built from source no longer calls itself `fwscan vdev`. The display
+  version prefixed a `v` to whatever it was given, and only a release binary is
+  given a tag: `go install` leaves `main.go`'s default of `dev`, and `make build`
+  stamps `git describe`, so the two most common ways to obtain this tool both
+  printed something that looks broken. The `v` now goes only in front of a
+  version number.
 
 - Two golden files described output the pipeline cannot produce: a CVSS score
   paired with no vector, which the scorer never returns, and a finding against a

@@ -159,8 +159,13 @@ func TestVersionRendering(t *testing.T) {
 	}{
 		{"v0.1.0", "0.1.0", "v0.1.0"},
 		{"0.1.0", "0.1.0", "v0.1.0"},
-		{"abc1234-dirty", "abc1234-dirty", "vabc1234-dirty"},
 		{"", "", ""},
+		// Not version numbers, so they do not get dressed as one. "dev" is
+		// main.go's default and what `go install` leaves in place; the other two
+		// are what `git describe` produces from a source build.
+		{"dev", "dev", "dev"},
+		{"abc1234", "abc1234", "abc1234"},
+		{"abc1234-dirty", "abc1234-dirty", "abc1234-dirty"},
 	}
 	for _, tt := range tests {
 		if got := PlainVersion(tt.in); got != tt.plain {

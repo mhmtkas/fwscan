@@ -27,6 +27,14 @@ jobs:
           if [ -n "$unformatted" ]; then
             echo "not gofmt-clean:"; echo "$unformatted"; exit 1
           fi
+      - name: go.mod is tidy
+        # .goreleaser.yaml runs `go mod tidy` in its before hook and refuses to
+        # release from a dirty tree, so an untidy go.mod is invisible until the
+        # moment a tag is cut. Checking it here fails on the pull request
+        # instead.
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
       - name: Third-party licence notices are current
         run: make check-third-party-licenses
       - uses: golangci/golangci-lint-action@v9
@@ -58,10 +66,16 @@ jobs:
       - run: make test-race
 
       - name: Install cyclonedx-cli
+        # Pinned, not "latest": an upstream release would otherwise change what
+        # this job validates against without a commit here. Installed under
+        # sudo, because /usr/local/bin is not the runner user's to write.
+        env:
+          CYCLONEDX_VERSION: v0.33.1
         run: |
-          curl -sSfL -o /usr/local/bin/cyclonedx \
-            https://github.com/CycloneDX/cyclonedx-cli/releases/latest/download/cyclonedx-linux-x64
-          chmod +x /usr/local/bin/cyclonedx
+          curl -sSfL -o /tmp/cyclonedx \
+            "https://github.com/CycloneDX/cyclonedx-cli/releases/download/${CYCLONEDX_VERSION}/cyclonedx-linux-x64"
+          chmod +x /tmp/cyclonedx
+          sudo mv /tmp/cyclonedx /usr/local/bin/cyclonedx
           cyclonedx --version
 
       - name: Validate the SBOM against the CycloneDX 1.6 schema

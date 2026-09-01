@@ -189,13 +189,22 @@ func PlainVersion(version string) string {
 	return strings.TrimPrefix(version, "v")
 }
 
-// DisplayVersion is the terminal form, carrying the leading "v".
+// DisplayVersion is the terminal form, carrying the leading "v" -- but only
+// where a "v" belongs.
+//
+// A release binary is stamped with a tag, so "0.1.0" becomes "v0.1.0". Anything
+// else is not a version number and must not be dressed as one: the default in
+// main.go is "dev", `go install` leaves that in place, and `make build` stamps
+// `git describe`, so the two most common ways to obtain this tool printed
+// "fwscan vdev" and "fwscan v20cc89e" before this. The first thing a new user
+// sees should not look broken.
 func DisplayVersion(version string) string {
-	if version == "" {
-		return version
-	}
-	if strings.HasPrefix(version, "v") {
+	if version == "" || !startsWithDigit(version) {
 		return version
 	}
 	return "v" + version
+}
+
+func startsWithDigit(s string) bool {
+	return s != "" && s[0] >= '0' && s[0] <= '9'
 }

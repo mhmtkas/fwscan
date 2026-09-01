@@ -8,7 +8,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 
 .PHONY: help
 help: ## List the available targets
-	@grep -hE '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
+	@grep -hE '^[a-z0-9-]+:.*?## ' $(MAKEFILE_LIST) | sort | \
 		awk -F':.*?## ' '{printf "  \033[1m%-16s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: build
@@ -60,6 +60,11 @@ check-third-party-licenses: third-party-licenses ## Fail if THIRD_PARTY_LICENSES
 
 .PHONY: lint
 lint: ## Run golangci-lint
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+		echo "golangci-lint not found, and version 2 is required:"; \
+		echo "  .golangci.yml is a v2 config and v1 rejects it."; \
+		echo "  go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2"; \
+		exit 1; }
 	golangci-lint run
 
 .PHONY: fixtures

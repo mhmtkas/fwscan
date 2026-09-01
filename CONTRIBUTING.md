@@ -20,11 +20,19 @@ update in the same pull request, called out in the description.
 ## Development
 
 ```sh
-make build   # -> bin/fwscan
-make test    # go test ./... -cover, with -race where the kernel supports it
-make lint    # golangci-lint run
-make help    # everything else
+make build    # -> bin/fwscan
+make fixtures # build the squashfs images the tests need
+make test     # go test ./... -cover, with -race where the kernel supports it
+make lint     # golangci-lint run
+make help     # everything else
 ```
+
+Run `make fixtures` once in a fresh clone. Three of the four squashfs
+decompressors are covered by images that are built rather than committed — an
+image compresses to roughly its own size, so committing four near-copies of one
+fixture is a poor trade — and without them `make test` passes with those three
+tests skipped. CI builds them, so it is honest; a contributor who has not may
+touch lz4, zstd or xz handling and see nothing.
 
 The race detector needs a 48-bit virtual address space on arm64, and several
 single-board kernels are built narrower — an Orange Pi 5 is 39-bit, a Raspberry
@@ -32,7 +40,9 @@ Pi 5 is 47. `make test` detects that and runs without it rather than dying with
 `ThreadSanitizer: unsupported VMA range`. CI runs on amd64 and uses
 `make test-race`, which insists on it.
 
-You need Go (version in `go.mod`) and `golangci-lint`. Scanning squashfs images
+You need Go (version in `go.mod`) and `golangci-lint` **version 2** —
+`.golangci.yml` is a v2 configuration and v1 refuses it. `make lint` says so
+rather than failing with a bare "no such file". Scanning squashfs images
 needs `squashfs-tools` 4.4 or newer — earlier builds lack lz4 and zstd support.
 
 ## What a good pull request looks like
