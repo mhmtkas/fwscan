@@ -8,6 +8,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `docs/comparison.md`, measured rather than asserted: fwscan next to syft and
+  grype on the two committed fixture images, with the commands to re-derive the
+  numbers. It does not flatter this tool. On the Debian 11 fixture grype reports
+  113 findings to fwscan's 16, ranks 108 of them where fwscan ranks none, and
+  names a fix for 63 where fwscan names none — and every fwscan finding is one
+  grype also has. The reasons are measured too, and two of the three are
+  fwscan's to fix; `spike/NOTES.md` T18a records them as open questions.
+
 - Tests for the three places that had assertions but no coverage. `Execute` was
   never called by the test named for its exit codes — that test built a
   `ThresholdError` by hand and checked `errors.As` matched it, which passes with
@@ -40,6 +48,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   v3, and `docs/output-spec.md` section 1 carries the rule.
 
 ### Changed
+
+- The README no longer implies that other scanners get Debian backports wrong.
+  grype handles them correctly on the same image, which the comparison document
+  measures, and the claim was the strongest thing the README said about
+  competitors. The limitations section now states plainly that on an oldstable
+  Debian image every finding reports as `unknown` with no fixed version, because
+  OSV's export for such a release carries only advisory records.
 
 - CI pins the `cyclonedx-cli` version it validates the SBOM with, installs it
   with `sudo` rather than assuming `/usr/local/bin` is writable, and checks that

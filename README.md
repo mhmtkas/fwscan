@@ -39,16 +39,24 @@ EU from 2027. The existing options are fragmented — binwalk extracts, syft and
 grype understand containers, none of them is firmware-native end to end — or they
 are enterprise platforms with a sales call attached.
 
-**fwscan is backport-aware, and that is the point.** Debian and Alpine patch
-security bugs without moving the upstream version. OpenSSL 1.1.1k looks
-vulnerable to CVE-2022-0778 and is not, if the installed package is
-`1.1.1k-1+deb11u2` — the fix was backported into the Debian revision. A scanner
-that compares upstream versions reports that as a critical finding. fwscan
-carries the release into every query, so it reports it as fixed.
+**fwscan is backport-aware.** Debian and Alpine patch security bugs without
+moving the upstream version. OpenSSL 1.1.1k looks vulnerable to CVE-2022-0778
+and is not, if the installed package is `1.1.1k-1+deb11u2` — the fix was
+backported into the Debian revision. fwscan carries the release into every
+query, so it reports that as fixed. The evidence, including what happens without
+the release qualifier, is in [`spike/NOTES.md`](spike/NOTES.md).
 
-That single detail is the difference between a report someone acts on and a
-report someone learns to ignore. The evidence behind it, including what happens
-without the release qualifier, is in [`spike/NOTES.md`](spike/NOTES.md).
+**It is not the only scanner that gets this right**, and the README used to
+imply otherwise. grype is backport-aware too, and on the fixture image in this
+repository it reports considerably more than fwscan does and ranks what it
+reports. [`docs/comparison.md`](docs/comparison.md) has the numbers, the commands
+to re-derive them, and the three specific reasons — two of which are fwscan's to
+fix. Read it before choosing this tool over those.
+
+What fwscan offers today is narrower than "a better scanner": one command from a
+firmware image to both an SBOM and a report with no database to provision,
+confidence and evidence on every component so a filename guess is visibly a
+guess, and a CRA-oriented compliance report as the next thing on the roadmap.
 
 ## Install
 
@@ -154,11 +162,19 @@ Multi-partition flash dumps, UBI, JFFS2 and cramfs are not read directly:
 extract with binwalk first and point fwscan at the resulting rootfs. It does not
 try to compete with binwalk on extraction.
 
-Two honest caveats. Roughly a fifth of Debian's OSV records carry no severity at
-all — 57 of the 292 the spike measured — and land in the `unknown` bucket, which
-`--fail-on` never triggers on. They are mostly old issues Debian itself marked
-minor, but they are visible in the report and invisible to the exit code, so
-read the output as well as the status.
+**The `unknown` bucket is larger than it should be, and on an oldstable Debian
+image it is everything.** OSV's export for Debian 11 contains only DSA and DLA
+advisory records, which carry no CVSS vector, so every finding on a bullseye
+image reports as `unknown` with no fixed version and `--fail-on` cannot fire at
+all. The vectors exist in OSV, one hop away in the per-CVE record each advisory
+names; following that hop is a change this tool has not made yet.
+[`docs/comparison.md`](docs/comparison.md) measures it against grype on the
+fixture image. On a release where OSV does carry per-CVE records, the share of
+severity-less findings is roughly a fifth — 57 of the 292 records the spike
+measured, mostly old issues Debian itself marked minor.
+
+Either way, findings that carry no severity are visible in the report and
+invisible to the exit code, so read the output as well as the status.
 
 Second: components identified by filename heuristics rather than by a package
 database are listed in the report and the SBOM, but are never looked up. A

@@ -605,6 +605,78 @@ README, the code and this file agree, and none of them is waiting on anyone.
    must never be queried. That distinction did not exist when the detectors were
    written and would have to be added to them first.
 
+## T18a — Measured comparison against syft and grype — DONE 2 Sep 2026 — **TWO OPEN QUESTIONS**
+
+Recorded in `docs/comparison.md` with the commands to re-derive it. syft 1.51.1,
+grype 0.118.0, fwscan at `a8eb612`, both committed fixture images.
+
+### The finding that matters
+
+On `mini-rootfs.tar.gz` (Debian 11), grype reports 113 findings, 108 of them
+with a severity and 63 with a fixed version. fwscan reports 16 — every one of
+them also in grype's set, none with a severity, none with a fixed version. So
+`--fail-on` cannot fire on that image at all.
+
+The cause was measured rather than guessed. For Debian 11, OSV's export contains
+**only DSA and DLA advisory records**:
+
+    POST /v1/query {"package":{"purl":"pkg:deb/debian/openssl?arch=source&distro=bullseye"},
+                    "version":"1.1.1k-1+deb11u1"}
+    -> 10 records, all DSA-… or DLA-…, none carrying a `severity` array
+
+The per-CVE `DEBIAN-CVE-…` records that carry CVSS vectors exist but list only
+Debian 12, 13 and 14. `DEBIAN-CVE-2023-0286` has a vector and no Debian 11 entry.
+
+The spike measured bookworm-era data (T0.3 used `distro=debian-12`), which is why
+this did not show up then. The fixture, and the images the target user has, are
+older.
+
+### Question 6 — severity is one hop away. **MAINTAINER DECISION.**
+
+Every advisory names its CVE in `upstream`, and that `DEBIAN-CVE-…` record has
+the vector: `DSA-5514-1` names `CVE-2023-4911`, whose record scores 7.8 high
+under this repository's own `severityOf`. fwscan already reads `upstream` to
+choose the identifier and does not follow it for the assessment.
+
+Following it would give every finding on an oldstable image a severity and make
+`--fail-on` work there. It costs one extra fetch per advisory that carries no
+severity of its own, and it changes what the scanner reports, so it is not a
+change to make unilaterally.
+
+### Question 7 — the fixed version is in the advisory. **MAINTAINER DECISION.**
+
+`DSA-5514-1`'s affected entry for glibc carries `ecosystem: "Debian:11"` and
+`fixed: 2.31-13+deb11u7` — the same version grype reports. fwscan does not see it
+because `affectedMatchesRelease` matches Debian releases on the purl's `distro`
+qualifier, and an advisory's purl carries none. Matching on the ecosystem when
+the qualifier is absent would recover it.
+
+Note this is the same shape T22 already worked around from the other side: T22
+collapsed the advisory into the CVE record so the report showed one row rather
+than two. Where the CVE record does not exist for the release, there is nothing
+to collapse into, and the advisory is all there is.
+
+### Not fwscan's to fix
+
+The count itself — 16 against 113 — is a property of the data source. OSV's
+Debian export for an oldstable release lists what received an advisory; grype
+reads the Debian Security Tracker, which carries every CVE's per-release status.
+Closing that needs a second source, which the roadmap already lists as an NVD
+secondary and which is not a v0.1.0 item.
+
+### Backport awareness is not a differentiator
+
+grype reports `CVE-2022-0778` against `libssl1.1 1.1.1k-1+deb11u1` with the fix
+at `1.1.1k-1+deb11u2` — correctly, by Debian revision. The README implied other
+scanners get this wrong. It no longer does.
+
+### Correction to an earlier measurement in this section
+
+A first pass concluded syft cannot read squashfs, from a `syft scan file:…`
+invocation that forces the wrong source type and returns zero packages. With a
+plain path syft reads the image and finds 6 packages. The claim was withdrawn
+before it reached the README.
+
 ### Surprises worth remembering
 
 - Querying **binary** package names returns zero vulnerabilities rather than an
