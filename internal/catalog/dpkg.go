@@ -33,6 +33,12 @@ const (
 	maxFieldBytes = 4 << 20 // a Description that grows without bound
 )
 
+// maxStatusBytes bounds the whole file, which the per-part limits above do not:
+// each of them can be satisfied by a file that is still arbitrarily long. A
+// real status file is a few megabytes. It is a variable so a test can lower it;
+// nothing else assigns to it.
+var maxStatusBytes int64 = 256 << 20
+
 // sourceWithVersion matches the "name (version)" form of the Source field. The
 // parenthesised version appears exactly when the source version differs from
 // the binary version — binNMUs, and binaries carrying an epoch their source
@@ -72,17 +78,33 @@ func (d Dpkg) Catalog(root fs.FS) ([]model.Component, error) {
 // parseStatus reads RFC-822-style stanzas separated by blank lines.
 func parseStatus(r io.Reader, codename string) ([]model.Component, error) {
 	var (
-		out      []model.Component
-		fields   = map[string]string{}
+		out    []model.Component
+		fields = map[string]string{}
+		// The field currently being read. Continuation lines are appended to a
+		// builder rather than to the map entry: "s += line" copies the whole
+		// field on every line, which is quadratic, and the limits here permit
+		// enough continuation lines for that to cost an hour of CPU on a few
+		// megabytes of input. A builder appends in amortised constant time.
 		lastKey  string
+		value    strings.Builder
 		stanzas  int
 		fieldLen int
+		read     int64
 	)
 
+	// commit stores the field that has just ended, if there is one.
+	commit := func() {
+		if lastKey != "" {
+			fields[lastKey] = value.String()
+		}
+		lastKey, fieldLen = "", 0
+		value.Reset()
+	}
+
 	flush := func() error {
+		commit()
 		defer func() {
 			fields = map[string]string{}
-			lastKey, fieldLen = "", 0
 		}()
 		if len(fields) == 0 {
 			return nil
@@ -102,6 +124,14 @@ func parseStatus(r io.Reader, codename string) ([]model.Component, error) {
 	sc.Buffer(make([]byte, 0, 64<<10), maxLineBytes)
 	for sc.Scan() {
 		line := sc.Text()
+
+		// A bound on the whole file, not only on its parts. Every individual
+		// limit here can be satisfied by a file that is still arbitrarily long.
+		read += int64(len(line)) + 1
+		if read > maxStatusBytes {
+			return nil, fmt.Errorf("package database is larger than %d bytes", maxStatusBytes)
+		}
+
 		switch {
 		case line == "":
 			if err := flush(); err != nil {
@@ -118,17 +148,19 @@ func parseStatus(r io.Reader, codename string) ([]model.Component, error) {
 			if fieldLen > maxFieldBytes {
 				return nil, fmt.Errorf("field %q exceeds %d bytes", lastKey, maxFieldBytes)
 			}
-			fields[lastKey] += "\n" + strings.TrimSpace(line)
+			value.WriteByte('\n')
+			value.WriteString(strings.TrimSpace(line))
 		default:
-			key, value, found := strings.Cut(line, ":")
+			key, rest, found := strings.Cut(line, ":")
 			if !found {
 				// A malformed line must not take the scan down; a hostile image
 				// would otherwise be a denial of service on the whole tool.
 				continue
 			}
+			commit()
 			lastKey = key
 			fieldLen = len(line)
-			fields[key] = strings.TrimSpace(value)
+			value.WriteString(strings.TrimSpace(rest))
 		}
 	}
 	if err := sc.Err(); err != nil {

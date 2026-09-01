@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/mhmtkas/fwscan/internal/model"
 )
@@ -306,3 +307,63 @@ func slicesContains(haystack []string, needle string) bool {
 }
 
 var _ fs.FS = fstest.MapFS{}
+
+// The continuation-line accumulator has to be linear.
+//
+// It used to append to the map entry directly, which copies the whole field on
+// every line. Measured on the machine this was written on: 100k continuation
+// lines took 4.3s, 200k took 15.3s and 400k took 56.5s -- the shape of a
+// quadratic, and the field limit permits about 1.4M such lines, so a status
+// file of a few megabytes was several minutes of CPU with no timeout anywhere
+// above it. A builder makes the same input parse in about 30ms.
+//
+// The budget is two orders of magnitude above what the linear version needs and
+// an order of magnitude below what the quadratic one took, so it fails on a
+// regression without flaking on a slow machine.
+func TestContinuationLinesParseInLinearTime(t *testing.T) {
+	const lines = 400_000
+	const budget = 5 * time.Second
+
+	var b strings.Builder
+	b.WriteString("Package: openssl\nStatus: install ok installed\n")
+	b.WriteString("Architecture: amd64\nVersion: 1.1.1k-1\nDescription: toolkit\n")
+	for i := 0; i < lines; i++ {
+		b.WriteString(" a\n")
+	}
+
+	start := time.Now()
+	comps, err := parseStatus(strings.NewReader(b.String()), "bullseye")
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("parseStatus() error = %v", err)
+	}
+	if elapsed > budget {
+		t.Errorf("%d continuation lines took %s, over the %s budget: the accumulator is quadratic again",
+			lines, elapsed.Round(time.Millisecond), budget)
+	}
+
+	// Linear and correct are separate claims.
+	if len(comps) != 1 {
+		t.Fatalf("got %d components, want 1", len(comps))
+	}
+	if comps[0].Name != "openssl" || comps[0].Version != "1.1.1k-1" {
+		t.Errorf("got %s %s, want openssl 1.1.1k-1", comps[0].Name, comps[0].Version)
+	}
+}
+
+// Every per-part limit can be satisfied by a file that is still arbitrarily
+// long, so the file itself is bounded too.
+func TestStatusFileSizeIsBounded(t *testing.T) {
+	restore := maxStatusBytes
+	t.Cleanup(func() { maxStatusBytes = restore })
+	maxStatusBytes = 4 << 10
+
+	var b strings.Builder
+	for i := 0; i < 1000; i++ {
+		b.WriteString("Package: p\nStatus: install ok installed\nVersion: 1\n\n")
+	}
+
+	if _, err := parseStatus(strings.NewReader(b.String()), "bullseye"); err == nil {
+		t.Error("a status file past the size limit parsed without complaint")
+	}
+}

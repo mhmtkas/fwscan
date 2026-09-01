@@ -46,6 +46,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Parsing a dpkg status file is now linear in its size. Continuation lines were
+  appended to the field directly, which copies the whole field each time, and
+  the field limit permits enough of them for a status file of a few megabytes to
+  cost minutes of CPU with no timeout above it. Measured before and after:
+  400,000 continuation lines took 56.5 seconds, and now take about 30
+  milliseconds. The file as a whole is also bounded at 256 MiB, which the
+  per-line, per-field and per-stanza limits did not imply.
 - Extraction is now bounded against the size of the archive it came from, not
   only by an absolute cap. The absolute caps were a formality rather than a
   bound — 16 GiB total and 8 GiB per file, when the extraction directory is a
