@@ -188,6 +188,7 @@ make test-apk-oracle  # check the apk version comparator against apk itself
 make test-cvss4-oracle # check CVSS v4 scores against FIRST's calculator
 make snapshot         # build release artifacts locally
 make demo             # scan the fixture, for an asciinema recording
+make third-party-licenses # regenerate THIRD_PARTY_LICENSES.txt after a dependency change
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md), and
@@ -203,3 +204,9 @@ directory it removes afterwards.
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE).
+
+The release binaries bundle their Go dependencies, and the CVSS v4 scoring
+tables are transcribed from FIRST's reference calculator. Those components'
+licences and notices are in
+[`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), which ships in every
+release archive.

@@ -15,8 +15,14 @@ import (
 // the vector sits from the most severe vector its MacroVector can contain. None
 // of it can be derived, so the tables below are transcribed from FIRST's
 // reference calculator (github.com/FIRSTdotorg/cvss-v4-calculator at commit
-// c5b0d409ae9f57c44264c6ce5f27d89298e1d32a, BSD-2-Clause) and checked against
-// it by the oracle test in cvss4_oracle_test.go.
+// c5b0d409ae9f57c44264c6ce5f27d89298e1d32a) and checked against it by the
+// oracle test in cvss4_oracle_test.go.
+//
+// That calculator is Copyright (c) 2023 FIRST.ORG, Inc., Red Hat, and
+// contributors, and is licensed BSD-2-Clause, which requires its copyright
+// notice, conditions and disclaimer to travel with any copy. They are in
+// THIRD_PARTY_LICENSES.txt at the root of this repository, which also ships in
+// every release archive.
 //
 // Only the base score is computed. Threat and environmental metrics are
 // validated when a vector carries them but do not contribute, exactly as the v3

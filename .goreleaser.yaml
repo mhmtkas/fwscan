@@ -37,6 +37,10 @@ archives:
     files:
       - README.md
       - LICENSE
+      # Required, not courtesy: the bundled dependencies' licences oblige a
+      # binary distribution to carry their notices. scripts/third-party-licenses.sh
+      # regenerates it and CI checks the committed copy is current.
+      - THIRD_PARTY_LICENSES.txt
       - CHANGELOG.md
 
 checksum:

@@ -2,7 +2,12 @@ package match
 
 // CVSS v4.0 MacroVector score table, transcribed from FIRST's reference
 // calculator (github.com/FIRSTdotorg/cvss-v4-calculator, cvss_lookup.js at
-// commit c5b0d409ae9f57c44264c6ce5f27d89298e1d32a, BSD-2-Clause).
+// commit c5b0d409ae9f57c44264c6ce5f27d89298e1d32a).
+//
+// Copyright (c) 2023 FIRST.ORG, Inc., Red Hat, and contributors, licensed
+// BSD-2-Clause. The notice, conditions and disclaimer that licence requires to
+// travel with a copy are in THIRD_PARTY_LICENSES.txt at the root of this
+// repository.
 //
 // v4 has no scoring formula. Every vector is reduced to a six-digit MacroVector
 // -- one digit per equivalence class -- and the score of that MacroVector is

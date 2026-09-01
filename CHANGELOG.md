@@ -8,6 +8,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `THIRD_PARTY_LICENSES.txt`, carrying the licences and notices of the Go
+  dependencies linked into the release binaries and of FIRST's CVSS v4
+  reference calculator, whose MacroVector table this project transcribes. Those
+  licences require the notices to travel with any copy; the release archives now
+  include the file, `make third-party-licenses` regenerates it from the module
+  cache, and CI fails if the committed copy has drifted.
 - CVSS v4.0 base scoring. A record carrying only a v4 vector used to report as
   `unknown`, which meant it could never trigger `--fail-on`; every such record
   in the data the spike measured was a 2025 or 2026 CVE, so the blind spot was

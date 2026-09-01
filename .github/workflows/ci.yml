@@ -27,6 +27,8 @@ jobs:
           if [ -n "$unformatted" ]; then
             echo "not gofmt-clean:"; echo "$unformatted"; exit 1
           fi
+      - name: Third-party licence notices are current
+        run: make check-third-party-licenses
       - uses: golangci/golangci-lint-action@v9
         with:
           # Pinned rather than "latest": the action's own default resolves to a

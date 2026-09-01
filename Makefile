@@ -47,6 +47,17 @@ test-apk-oracle: ## Check the apk version comparator against apk itself (needs D
 test-cvss4-oracle: ## Check the CVSS v4 base scores against FIRST's reference calculator (needs Docker)
 	$(GO) test -tags cvss4oracle -count=1 -run AgainstReference ./internal/match/
 
+.PHONY: third-party-licenses
+third-party-licenses: ## Regenerate THIRD_PARTY_LICENSES.txt from the module cache
+	./scripts/third-party-licenses.sh
+
+.PHONY: check-third-party-licenses
+check-third-party-licenses: third-party-licenses ## Fail if THIRD_PARTY_LICENSES.txt is out of date
+	@git diff --quiet -- THIRD_PARTY_LICENSES.txt || { \
+		echo "THIRD_PARTY_LICENSES.txt is out of date; run make third-party-licenses and commit it"; \
+		git --no-pager diff --stat -- THIRD_PARTY_LICENSES.txt; \
+		exit 1; }
+
 .PHONY: lint
 lint: ## Run golangci-lint
 	golangci-lint run
