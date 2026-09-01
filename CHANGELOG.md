@@ -46,6 +46,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A cancelled scan now fails instead of quietly reporting fewer vulnerabilities
+  than it found. When the context was cancelled while vulnerability records were
+  being fetched, the loop handing out work skipped the record it was holding and
+  moved to the next one, so every remaining record was dropped; no worker had
+  failed, so no error was raised either, and the report came back short with
+  nothing saying so. The fetch now stops on cancellation and reports it, refuses
+  to return fewer records than it was asked for, and the matcher treats a
+  missing record as an error rather than a finding to skip.
 - Error messages are sanitised before reaching the terminal. A message names
   the archive entry that caused it, and an entry name comes from the image, so
   escape sequences in one reached the terminal verbatim — enough to clear the

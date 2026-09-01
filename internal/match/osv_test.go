@@ -3,11 +3,13 @@ package match
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/mhmtkas/fwscan/internal/catalog"
@@ -17,6 +19,25 @@ import (
 // newFakeOSV serves the recorded responses in testdata/osv. No test in this
 // package reaches the network (CLAUDE.md rule 6).
 func newFakeOSV(t *testing.T) *OSV {
+	t.Helper()
+	batch, vuln := fakeOSVHandlers(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", batch)
+	mux.HandleFunc("GET /v1/vulns/{id}", vuln)
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+	return osv
+}
+
+// fakeOSVHandlers serves the recorded responses. It is separate from
+// newFakeOSV so a test can wrap either handler -- to count requests, or to
+// interfere partway through -- without restating how the fixtures are keyed.
+func fakeOSVHandlers(t *testing.T) (batch, vuln http.HandlerFunc) {
 	t.Helper()
 
 	byPURL := map[string]struct {
@@ -53,13 +74,11 @@ func newFakeOSV(t *testing.T) *OSV {
 		_, _ = w.Write(body)
 	})
 
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
-
-	osv := NewOSV()
-	osv.BaseURL = server.URL
-	osv.HTTPClient = server.Client()
-	return osv
+	return func(w http.ResponseWriter, r *http.Request) {
+			mux.ServeHTTP(w, r)
+		}, func(w http.ResponseWriter, r *http.Request) {
+			mux.ServeHTTP(w, r)
+		}
 }
 
 // fixtureKey mirrors how the recorded responses are keyed: by purl for the
@@ -732,5 +751,89 @@ func TestSeverityBucketBoundaries(t *testing.T) {
 		if got := bucketFromV2Score(tt.score); got != tt.want {
 			t.Errorf("bucketFromV2Score(%v) = %q, want %q", tt.score, got, tt.want)
 		}
+	}
+}
+
+// A cancellation arriving after the batch query has succeeded must not be able
+// to produce a short report. The producer used to skip the id it was holding
+// and try the next one, so a cancellation dropped every id that remained; with
+// no worker having failed there was no error either, and the scan reported
+// fewer vulnerabilities than it had found without a word about it.
+//
+// The cancellation is timed differently on each run so that more than one
+// interleaving is covered: before any record is fetched, and between two of
+// them.
+func TestCancellationNeverProducesAShortReport(t *testing.T) {
+	// zlib is the fixture entry OSV answers with several records, and the
+	// Alpine packages add ids of their own: the more records a scan fetches,
+	// the more a dropped id has to lose.
+	components := []model.Component{
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+		debComponent("zlib1g", "1:1.2.11.dfsg-2", "zlib", "1:1.2.11.dfsg-2"),
+		apkComponent("libssl1.1", "1.1.1n-r0", "openssl"),
+		apkComponent("zlib", "1.2.12-r1", "zlib"),
+	}
+
+	whole, err := newFakeOSV(t).Match(context.Background(), components)
+	if err != nil {
+		t.Fatalf("baseline Match() error = %v", err)
+	}
+	if len(whole) < 2 {
+		t.Fatalf("the fixture yields %d findings; the case needs several to have any to drop", len(whole))
+	}
+
+	for run := range 40 {
+		t.Run(fmt.Sprintf("cancel-at-%d", run), func(t *testing.T) {
+			batch, vuln := fakeOSVHandlers(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			var fetched atomic.Int64
+			mux := http.NewServeMux()
+			mux.HandleFunc("POST /v1/querybatch", batch)
+			mux.HandleFunc("GET /v1/vulns/{id}", func(w http.ResponseWriter, r *http.Request) {
+				if fetched.Add(1) == int64(run%6)+1 {
+					cancel()
+				}
+				vuln(w, r)
+			})
+			server := httptest.NewServer(mux)
+			defer server.Close()
+
+			osv := NewOSV()
+			osv.BaseURL = server.URL
+			osv.HTTPClient = server.Client()
+			osv.Concurrency = 1
+
+			findings, err := osv.Match(ctx, components)
+			if err != nil {
+				return // refusing to answer is the correct outcome
+			}
+			if len(findings) != len(whole) {
+				t.Fatalf("Match() returned %d findings and no error, want %d: "+
+					"a cancelled scan must fail rather than under-report",
+					len(findings), len(whole))
+			}
+		})
+	}
+}
+
+// The same invariant, asserted directly on the fetch rather than through a
+// timing window: whatever a cancelled context does to the work loop, a short
+// map must never come back paired with a nil error.
+func TestFetchVulnsRefusesToReturnAShortMap(t *testing.T) {
+	osv := newFakeOSV(t)
+	osv.Concurrency = 1
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	ids := []string{
+		"DEBIAN-CVE-2022-0778", "DEBIAN-CVE-2022-37434", "DSA-5218-1",
+		"ALPINE-CVE-2022-2097", "ALPINE-CVE-2022-37434",
+	}
+	records, err := osv.fetchVulns(ctx, ids)
+	if err == nil && len(records) != len(ids) {
+		t.Fatalf("fetchVulns returned %d of %d records and no error", len(records), len(ids))
 	}
 }

@@ -245,7 +245,11 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 		for _, id := range hits[key] {
 			record, ok := records[id]
 			if !ok {
-				continue
+				// fetchVulns guarantees a record for every id it was asked
+				// about, and every id here came from its input, so this cannot
+				// happen without a bug above. Dropping the finding instead
+				// would turn that bug into a quietly incomplete report.
+				return nil, fmt.Errorf("osv: no record fetched for %s", id)
 			}
 			for _, comp := range grouped[key] {
 				findings = append(findings, buildFinding(record, comp, key))
@@ -362,17 +366,40 @@ func (o *OSV) fetchVulns(ctx context.Context, ids []string) (map[string]vulnReco
 		}()
 	}
 
+	// A cancelled context ends the loop rather than skipping one id and trying
+	// the next. Skipping silently dropped every remaining id, and since no
+	// worker had failed, firstErr stayed nil and a short map was returned as a
+	// complete one -- a scan reporting fewer vulnerabilities than exist, with
+	// nothing anywhere saying so.
+	var stopped error
 	for _, id := range ids {
 		select {
 		case work <- id:
 		case <-ctx.Done():
+			stopped = ctx.Err()
+		}
+		if stopped != nil {
+			break
 		}
 	}
 	close(work)
 	wg.Wait()
 
+	// A worker's own failure is the more specific explanation, so it is
+	// preferred: cancel() above means an internal failure closes the context
+	// too, and reporting that as a cancellation would hide the cause.
 	if firstErr != nil {
 		return nil, firstErr
+	}
+	if stopped != nil {
+		return nil, fmt.Errorf("osv: %w", stopped)
+	}
+	// Nothing above should be able to produce a short map without an error, so
+	// this is the assertion that no future change quietly starts to. Returning
+	// fewer vulnerabilities than were found, without saying so, is the one
+	// outcome a vulnerability scanner must never produce.
+	if len(records) != len(ids) {
+		return nil, fmt.Errorf("osv: fetched %d of %d vulnerability records", len(records), len(ids))
 	}
 	return records, nil
 }
