@@ -64,12 +64,18 @@ Download a binary from the [releases page](https://github.com/mhmtkas/fwscan/rel
 — linux/amd64, linux/arm64, darwin/arm64:
 
 ```sh
+VERSION=0.1.0   # the release you want; see the releases page
 curl -sSfL -o fwscan.tar.gz \
-  https://github.com/mhmtkas/fwscan/releases/latest/download/fwscan_0.1.0_linux_amd64.tar.gz
+  "https://github.com/mhmtkas/fwscan/releases/download/v${VERSION}/fwscan_${VERSION}_linux_amd64.tar.gz"
 tar -xzf fwscan.tar.gz fwscan
 sudo install fwscan /usr/local/bin/
 fwscan version
 ```
+
+The URL names the release twice on purpose. `releases/latest/download/…` cannot
+be combined with a versioned file name — the path would resolve to whatever is
+newest while asking for a file called `0.1.0`, and it breaks silently on the day
+the next version ships.
 
 Or with Go:
 

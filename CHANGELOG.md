@@ -112,6 +112,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The README's download command no longer mixes `releases/latest/download/` with
+  a file name that names a version. The two cannot be combined: the path
+  resolves to whatever is newest while asking for a file called `0.1.0`, so the
+  command would have broken silently on the day the next release shipped.
+
 - A CycloneDX `bom-ref` is now unique within the document, which the format
   requires. It was the purl, or the name and version where there is no purl, and
   neither is unique: one image can carry the same package built for two
