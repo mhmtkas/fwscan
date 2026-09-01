@@ -913,3 +913,60 @@ func TestReleaseMatchingIsNotASubstringSearch(t *testing.T) {
 		t.Errorf("fixedVersion = %q, want 9.9 for the release the entry actually names", got)
 	}
 }
+
+// output-spec section 1 asks for the range whose introduced-to-fixed window
+// contains the installed version. Only the upper bound used to be tested, so a
+// record listing a window the installed version sits *below* answered with that
+// window's fix instead of the one it belongs to.
+func TestFixedVersionPrefersTheWindowThatContainsTheVersion(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "DEBIAN-CVE-2024-0005",
+	  "affected": [{
+	    "package": {"ecosystem": "Debian:11", "name": "demo",
+	                "purl": "pkg:deb/debian/demo?arch=source&distro=bullseye"},
+	    "ranges": [
+	      {"type": "ECOSYSTEM", "events": [{"introduced": "2.0"}, {"fixed": "2.5"}]},
+	      {"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "9.9"}]}
+	    ]
+	  }]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	// 1.0 is below the first window entirely; it belongs to the second.
+	key := queryKey{source: "demo", version: "1.0", distro: "bullseye", kind: kindDeb}
+	if got := fixedVersion(record, key); got != "9.9" {
+		t.Errorf("fixedVersion = %q, want 9.9: 1.0 is not inside [2.0, 2.5)", got)
+	}
+
+	// And a version that is inside the first window still gets the first fix.
+	key.version = "2.2"
+	if got := fixedVersion(record, key); got != "2.5" {
+		t.Errorf("fixedVersion = %q, want 2.5: 2.2 is inside [2.0, 2.5)", got)
+	}
+}
+
+// A GIT range's events are commit hashes, not versions. Reporting one in the
+// FIXED column tells the reader to install a commit.
+func TestFixedVersionIgnoresGitRanges(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "DEBIAN-CVE-2024-0006",
+	  "affected": [{
+	    "package": {"ecosystem": "Debian:11", "name": "demo",
+	                "purl": "pkg:deb/debian/demo?arch=source&distro=bullseye"},
+	    "ranges": [
+	      {"type": "GIT", "events": [{"introduced": "0"},
+	        {"fixed": "9f8a3c2b1d0e4f5a6b7c8d9e0f1a2b3c4d5e6f70"}]}
+	    ]
+	  }]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	key := queryKey{source: "demo", version: "1.0", distro: "bullseye", kind: kindDeb}
+	if got := fixedVersion(record, key); got != "" {
+		t.Errorf("fixedVersion = %q, want none: that is a commit hash, not a version", got)
+	}
+}

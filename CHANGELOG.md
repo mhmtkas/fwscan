@@ -63,6 +63,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The fixed version now comes from the range whose window actually contains the
+  installed version, which is what `docs/output-spec.md` section 1 asks for.
+  Only the upper bound of the window was tested, so a record listing a range the
+  installed version sits *below* answered with that range's fix rather than with
+  the one it belongs to. The `introduced` field was parsed and never read.
+- A `GIT` range no longer contributes a fixed version. Its events are commit
+  hashes, so the FIXED column could name forty characters of hex and tell the
+  reader to install a commit.
+
 - `docs/output-spec.md` section 2 now states what the `SCORE` column shows when
   no score could be derived. It was the same em dash as `FIXED`, which the spec
   described only for `FIXED`; the behaviour is unchanged and the constant behind

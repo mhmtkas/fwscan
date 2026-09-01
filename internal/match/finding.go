@@ -285,11 +285,14 @@ func bucketFromV2Score(score float64) model.Severity {
 // Where several ranges match, output-spec section 1 asks for the one whose
 // introduced-to-fixed window contains the installed version.
 func fixedVersion(record vulnRecord, key queryKey) string {
-	// Held for the case where the two versions cannot be ordered at all -- an
-	// ecosystem with no comparison, or a version neither side parses. A fix
-	// that is *known* to be older than what is installed is not a fallback,
-	// it is a wrong answer: it tells the reader to downgrade.
-	var unordered string
+	// Second and third choices, in that order. "newer" is a fix that is above
+	// the installed version but whose window does not contain it -- the right
+	// answer for a record with a single window, and the best available for one
+	// whose windows do not fit. "unordered" is for versions that cannot be
+	// compared at all: an ecosystem with no comparison, or a version neither
+	// side parses. A fix *known* to be older than what is installed is neither;
+	// it is a wrong answer that tells the reader to downgrade.
+	var newer, unordered string
 	for _, a := range record.Affected {
 		if a.Package.Name != key.source {
 			continue
@@ -304,13 +307,34 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 		}
 
 		for _, r := range a.Ranges {
+			// A GIT range's events are commit hashes rather than versions, so
+			// its "fixed" is forty characters of hex. Printing that in the
+			// FIXED column tells the reader to install a commit.
+			if strings.EqualFold(r.Type, "GIT") {
+				continue
+			}
+
+			// Events arrive in order and describe a sequence of windows: an
+			// introduced opens one, the fixed that follows closes it.
+			var introduced string
 			for _, e := range r.Events {
+				if e.Introduced != "" {
+					introduced = e.Introduced
+					continue
+				}
 				if e.Fixed == "" {
 					continue
 				}
-				// Prefer a window that actually contains the installed version.
-				if versionLess(key.kind, key.version, e.Fixed) {
+				// output-spec section 1: where several ranges match, the one
+				// whose window contains the installed version wins. Only the
+				// upper bound used to be tested, so a record carrying a window
+				// the installed version sits *below* answered with that
+				// window's fix rather than with the one it belongs to.
+				if windowContains(key.kind, key.version, introduced, e.Fixed) {
 					return e.Fixed
+				}
+				if newer == "" && versionLess(key.kind, key.version, e.Fixed) {
+					newer = e.Fixed
 				}
 				if _, ordered := compareVersions(key.kind, key.version, e.Fixed); !ordered && unordered == "" {
 					unordered = e.Fixed
@@ -318,5 +342,28 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 			}
 		}
 	}
+	// A fix that is merely newer is second best: it is the right answer for a
+	// record with one window, and the only answer available for one whose
+	// windows do not fit.
+	if newer != "" {
+		return newer
+	}
 	return unordered
+}
+
+// windowContains reports whether the installed version falls inside an
+// introduced-to-fixed window, which is half-open: the version that fixes the
+// issue is not itself affected by it.
+//
+// An ordering that cannot be established is not containment. Declining here
+// costs a preference, not the answer: the caller still has the fixed version as
+// a candidate.
+func windowContains(kind packageKind, installed, introduced, fixed string) bool {
+	if introduced != "" {
+		c, ordered := compareVersions(kind, installed, introduced)
+		if !ordered || c < 0 {
+			return false
+		}
+	}
+	return versionLess(kind, installed, fixed)
 }
