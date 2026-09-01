@@ -109,8 +109,10 @@ func mergeFindings(kept, other model.Finding) model.Finding {
 	if model.CompareFindings(other, kept) < 0 {
 		kept.Severity, kept.CVSS, kept.CVSSVector = other.Severity, other.CVSS, other.CVSSVector
 	}
-	if kept.FixedVersion == "" {
-		kept.FixedVersion = other.FixedVersion
+	// Two records can name different fixes for the same issue in the same
+	// release, and which of them arrived first is not a reason to prefer it.
+	if other.FixedVersion != "" {
+		kept.FixedVersion = preferFix(kindOf(kept.Component), kept.FixedVersion, other.FixedVersion)
 	}
 
 	seen := make(map[string]bool, len(kept.Aliases)+len(other.Aliases))
@@ -249,7 +251,18 @@ func affectedMatchesRelease(a affected, key queryKey) bool {
 	// different release with a different fixed version -- the exact confusion
 	// the release qualifier exists to prevent, arriving as a plausible-looking
 	// wrong version in the FIXED column.
-	return purlDistro(a.Package.PURL) == key.distro
+	if qualifier := purlDistro(a.Package.PURL); qualifier != "" {
+		return qualifier == key.distro
+	}
+	// No qualifier at all. That is what a DSA or DLA advisory looks like: one
+	// purl for every release it covers, with the release named in the ecosystem
+	// field instead. Matching on that is how the fixed version an advisory
+	// carries becomes reachable -- and on an oldstable image, advisories are
+	// the only records OSV has.
+	if want := key.advisoryEcosystem(); want != "" {
+		return a.Package.Ecosystem == want
+	}
+	return false
 }
 
 // purlDistro reads the distro qualifier of a purl, or "" if it carries none or
@@ -292,7 +305,7 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 	// compared at all: an ecosystem with no comparison, or a version neither
 	// side parses. A fix *known* to be older than what is installed is neither;
 	// it is a wrong answer that tells the reader to downgrade.
-	var newer, unordered string
+	var contained, newer, unordered string
 	for _, a := range record.Affected {
 		if a.Package.Name != key.source {
 			continue
@@ -331,16 +344,20 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 				// the installed version sits *below* answered with that
 				// window's fix rather than with the one it belongs to.
 				if windowContains(key.kind, key.version, introduced, e.Fixed) {
-					return e.Fixed
+					contained = preferFix(key.kind, contained, e.Fixed)
+					continue
 				}
-				if newer == "" && versionLess(key.kind, key.version, e.Fixed) {
-					newer = e.Fixed
+				if versionLess(key.kind, key.version, e.Fixed) {
+					newer = preferFix(key.kind, newer, e.Fixed)
 				}
 				if _, ordered := compareVersions(key.kind, key.version, e.Fixed); !ordered && unordered == "" {
 					unordered = e.Fixed
 				}
 			}
 		}
+	}
+	if contained != "" {
+		return contained
 	}
 	// A fix that is merely newer is second best: it is the right answer for a
 	// record with one window, and the only answer available for one whose
@@ -349,6 +366,25 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 		return newer
 	}
 	return unordered
+}
+
+// preferFix chooses between two versions that both fix the same issue, keeping
+// the lower one.
+//
+// A release can carry more than one advisory for a CVE -- Debian's DLA-3942-1
+// fixed one in openssl at 1.1.1n-0+deb11u6 and DLA-3942-2 shipped again at
+// 1.1.1w-0+deb11u2 -- and both are true. The lower is the answer to the question
+// the column asks, which is what version stops being affected, not what version
+// is newest. Without a rule the answer would depend on the order OSV happened to
+// return the records in, which is worse than either choice.
+func preferFix(kind packageKind, current, candidate string) string {
+	if current == "" {
+		return candidate
+	}
+	if versionLess(kind, candidate, current) {
+		return candidate
+	}
+	return current
 }
 
 // windowContains reports whether the installed version falls inside an

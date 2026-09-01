@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -968,5 +969,209 @@ func TestFixedVersionIgnoresGitRanges(t *testing.T) {
 	key := queryKey{source: "demo", version: "1.0", distro: "bullseye", kind: kindDeb}
 	if got := fixedVersion(record, key); got != "" {
 		t.Errorf("fixedVersion = %q, want none: that is a commit hash, not a version", got)
+	}
+}
+
+// For an oldstable Debian release, OSV returns only DSA and DLA advisories: the
+// per-CVE records that carry vectors and release-scoped fixes exist but list
+// only newer releases (spike/NOTES.md T18a). An advisory names its release in
+// the ecosystem field rather than in the purl, which carries no distro
+// qualifier because one advisory covers several releases.
+func TestAdvisoryFixIsMatchedByEcosystem(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "DSA-5514-1",
+	  "upstream": ["CVE-2023-4911", "DEBIAN-CVE-2023-4911"],
+	  "affected": [
+	    {"package": {"ecosystem": "Debian:11", "name": "glibc",
+	                 "purl": "pkg:deb/debian/glibc?arch=source"},
+	     "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2.31-13+deb11u7"}]}]},
+	    {"package": {"ecosystem": "Debian:12", "name": "glibc",
+	                 "purl": "pkg:deb/debian/glibc?arch=source"},
+	     "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2.36-9+deb12u3"}]}]}
+	  ]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	key := queryKey{
+		source: "glibc", version: "2.31-13+deb11u2",
+		distro: "bullseye", release: "11", kind: kindDeb,
+	}
+	if got := fixedVersion(record, key); got != "2.31-13+deb11u7" {
+		t.Errorf("fixedVersion = %q, want 2.31-13+deb11u7", got)
+	}
+
+	// The neighbouring release's fix is not borrowed.
+	key.release, key.distro = "12", "bookworm"
+	if got := fixedVersion(record, key); got != "2.36-9+deb12u3" {
+		t.Errorf("fixedVersion = %q, want the bookworm fix", got)
+	}
+
+	// An image that does not say which release it is gets no answer rather than
+	// an arbitrary one.
+	key.release = ""
+	if got := fixedVersion(record, key); got != "" {
+		t.Errorf("fixedVersion = %q, want none when the release is unknown", got)
+	}
+}
+
+// A release can carry more than one advisory for the same issue: Debian's
+// DLA-3942-1 fixed openssl at 1.1.1n-0+deb11u6 and DLA-3942-2 shipped again at
+// 1.1.1w-0+deb11u2. Both are true, so which one is reported must not depend on
+// the order OSV happened to return them in.
+func TestTheLowestFixWins(t *testing.T) {
+	const first, second = "1.1.1n-0+deb11u6", "1.1.1w-0+deb11u2"
+
+	build := func(a, b string) vulnRecord {
+		var record vulnRecord
+		body := `{"id":"DLA-3942-1","affected":[
+		  {"package":{"ecosystem":"Debian:11","name":"openssl","purl":"pkg:deb/debian/openssl?arch=source"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"` + a + `"}]}]},
+		  {"package":{"ecosystem":"Debian:11","name":"openssl","purl":"pkg:deb/debian/openssl?arch=source"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"` + b + `"}]}]}
+		]}`
+		if err := json.Unmarshal([]byte(body), &record); err != nil {
+			t.Fatalf("fixture: %v", err)
+		}
+		return record
+	}
+
+	key := queryKey{
+		source: "openssl", version: "1.1.1k-1+deb11u1",
+		distro: "bullseye", release: "11", kind: kindDeb,
+	}
+	for _, order := range [][2]string{{first, second}, {second, first}} {
+		if got := fixedVersion(build(order[0], order[1]), key); got != first {
+			t.Errorf("fixedVersion with %v = %q, want the lower fix %q", order, got, first)
+		}
+	}
+}
+
+// An advisory carries no severity of its own, and on an oldstable image
+// advisories are all there is -- so every finding reported as unknown, and
+// --fail-on could not fire at all. The vector is one hop away, in the record the
+// advisory names as upstream.
+func TestSeverityIsBorrowedFromTheUpstreamRecord(t *testing.T) {
+	const (
+		advisory = "DSA-5514-1"
+		upstream = "DEBIAN-CVE-2023-4911"
+		vector   = "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+	)
+
+	records := map[string]string{
+		advisory: `{"id":"` + advisory + `","upstream":["CVE-2023-4911","` + upstream + `"],
+		  "affected":[{"package":{"ecosystem":"Debian:11","name":"glibc","purl":"pkg:deb/debian/glibc?arch=source"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"2.31-13+deb11u7"}]}]}]}`,
+		// The per-CVE record: it has the vector, and no Debian 11 entry at all,
+		// which is exactly why the advisory is the only thing the query finds.
+		upstream: `{"id":"` + upstream + `","upstream":["CVE-2023-4911"],
+		  "severity":[{"type":"CVSS_V3","score":"` + vector + `"}],
+		  "affected":[{"package":{"ecosystem":"Debian:12","name":"glibc","purl":"pkg:deb/debian/glibc?arch=source&distro=bookworm"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"2.36-9+deb12u3"}]}]}]}`,
+	}
+
+	var upstreamFetches atomic.Int64
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, batchResponse{Results: []batchResult{{
+			Vulns: []struct {
+				ID string `json:"id"`
+			}{{ID: advisory}},
+		}}})
+	})
+	mux.HandleFunc("GET /v1/vulns/{id}", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if id == upstream {
+			upstreamFetches.Add(1)
+		}
+		body, ok := records[id]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, body)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+
+	component := model.Component{
+		Name: "libc6", Version: "2.31-13+deb11u2",
+		Source: "glibc", SourceVersion: "2.31-13+deb11u2",
+		Distro: "bullseye", DistroVersion: "11",
+		PURL:       catalog.BinaryPURL("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
+		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
+	}
+
+	findings, err := osv.Match(context.Background(), []model.Component{component})
+	if err != nil {
+		t.Fatalf("Match() error = %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("got %d findings, want 1", len(findings))
+	}
+	got := findings[0]
+	if got.Severity != model.SeverityHigh {
+		t.Errorf("severity = %q, want high: the advisory's own record carries none", got.Severity)
+	}
+	if got.CVSS != 7.8 || got.CVSSVector != vector {
+		t.Errorf("score/vector = %v/%q, want 7.8 and the borrowed vector", got.CVSS, got.CVSSVector)
+	}
+	if got.FixedVersion != "2.31-13+deb11u7" {
+		t.Errorf("fixed_version = %q, want 2.31-13+deb11u7", got.FixedVersion)
+	}
+	if n := upstreamFetches.Load(); n != 1 {
+		t.Errorf("the upstream record was fetched %d times, want once", n)
+	}
+}
+
+// Borrowing is an improvement, not a requirement: a scan must not fail because
+// the record an advisory names cannot be fetched.
+func TestABrokenUpstreamFetchIsNotFatal(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, batchResponse{Results: []batchResult{{
+			Vulns: []struct {
+				ID string `json:"id"`
+			}{{ID: "DSA-1-1"}},
+		}}})
+	})
+	mux.HandleFunc("GET /v1/vulns/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if r.PathValue("id") != "DSA-1-1" {
+			http.Error(w, "gone", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"DSA-1-1","upstream":["DEBIAN-CVE-2023-4911"],
+		  "affected":[{"package":{"ecosystem":"Debian:11","name":"glibc","purl":"pkg:deb/debian/glibc?arch=source"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"2.31-13+deb11u7"}]}]}]}`)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+
+	findings, err := osv.Match(context.Background(), []model.Component{{
+		Name: "libc6", Version: "2.31-13+deb11u2",
+		Source: "glibc", SourceVersion: "2.31-13+deb11u2",
+		Distro: "bullseye", DistroVersion: "11",
+		PURL:       catalog.BinaryPURL("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
+		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
+	}})
+	if err != nil {
+		t.Fatalf("Match() error = %v; a failed borrow must not fail the scan", err)
+	}
+	if len(findings) != 1 || findings[0].Severity != model.SeverityUnknown {
+		t.Fatalf("got %+v, want one finding left at unknown", findings)
+	}
+	if findings[0].FixedVersion != "2.31-13+deb11u7" {
+		t.Errorf("fixed_version = %q, want the advisory's own answer to survive", findings[0].FixedVersion)
 	}
 }

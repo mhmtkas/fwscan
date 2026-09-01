@@ -40,13 +40,18 @@ fwscan scan testdata/images/mini-rootfs.tar.gz --output report.json
 | | grype | fwscan |
 |---|---|---|
 | Findings | 113 | 16 |
-| Carrying a severity | 108 of 113 | 0 of 16 |
-| Carrying a fixed version | 63 of 113 | 0 of 16 |
+| Carrying a severity | 108 of 113 | 16 of 16 |
+| Carrying a fixed version | 63 of 113 | 16 of 16 |
 | Findings the other does not have | 97 | 0 |
 
-Every one of fwscan's 16 findings is also one of grype's 113. fwscan reports no
-finding grype misses, ranks none of them, and names a fix for none of them —
-which means `--fail-on` cannot fire on this image at all.
+Every one of fwscan's 16 findings is also one of grype's 113, so fwscan reports
+nothing grype misses. On the 16 they share, the two agree on both the severity
+and the fixed version in 15 cases; the sixteenth is a definitional difference set
+out below, not an error.
+
+The first measurement of this table read `0 of 16` in both middle rows — every
+finding unranked and unfixed. That was the state this document was written to
+record, and it is what prompted the two changes described under **Why**.
 
 ## Why
 
@@ -64,24 +69,36 @@ The per-CVE `DEBIAN-CVE-…` records that carry CVSS vectors exist — but list 
 Debian 12, 13 and 14. `DEBIAN-CVE-2023-0286` is one of many: it has a vector, and
 no Debian 11 entry at all.
 
-Three consequences, of different kinds:
+Three consequences, of different kinds. Two were fwscan's to fix and have been:
 
-1. **Severity is missing but recoverable.** Each advisory names its CVE in
-   `upstream`, and that `DEBIAN-CVE-…` record has the vector. fwscan already
-   reads `upstream` to choose the identifier; it does not follow it for the
-   assessment. This is fwscan's to fix.
+1. **Severity was missing but recoverable — fixed.** Each advisory names its CVE
+   in `upstream`, and that `DEBIAN-CVE-…` record has the vector. fwscan already
+   read `upstream` to choose the identifier and now follows it for the
+   assessment too. All sixteen findings are ranked where none were, so
+   `--fail-on` works on this image.
 
-2. **The fixed version is missing but recoverable.** `DSA-5514-1`'s affected
-   entry for glibc carries `ecosystem: "Debian:11"` and `fixed: 2.31-13+deb11u7`
-   — the same version grype reports. fwscan cannot see it because it matches the
-   release on the purl's `distro` qualifier, and an advisory's purl carries none.
-   Also fwscan's to fix.
+2. **The fixed version was missing but recoverable — fixed.** `DSA-5514-1`'s
+   affected entry for glibc carries `ecosystem: "Debian:11"` and
+   `fixed: 2.31-13+deb11u7`. fwscan matched releases only on the purl's `distro`
+   qualifier, which an advisory does not carry; it now falls back to the
+   ecosystem, compared against the image's own `VERSION_ID`. All sixteen
+   findings name a fix where none did, and fifteen match grype exactly.
 
-3. **The count is a property of the data source.** OSV's Debian export for an
-   oldstable release lists what received an advisory; grype's database is the
-   Debian Security Tracker, which carries every CVE's per-release status. No
-   change to fwscan closes that gap — it needs a second source, which is a
-   roadmap item and not a v0.1.0 one.
+3. **The count is a property of the data source, and stands.** OSV's Debian
+   export for an oldstable release lists what received an advisory; grype's
+   database is the Debian Security Tracker, which carries every CVE's
+   per-release status. No change to fwscan closes that gap — it needs a second
+   source, which the roadmap carries and v0.1.0 does not.
+
+### The one finding the two describe differently
+
+`CVE-2023-5678` on `libssl1.1`: fwscan reports the fix at `1.1.1n-0+deb11u6`,
+grype at `1.1.1w-0+deb11u2`. Both are real. Debian shipped `DLA-3942-1` at the
+first and `DLA-3942-2` at the second, and both advisories cover the CVE. fwscan
+reports the lowest version that resolves the finding, on the grounds that the
+column answers what version stops being affected; grype reports the latest
+advisory. Neither is wrong, and `docs/output-spec.md` section 1 states which one
+this tool means.
 
 ## Backport awareness
 

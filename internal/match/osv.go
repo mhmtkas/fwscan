@@ -123,6 +123,9 @@ type queryKey struct {
 	source  string
 	version string
 	distro  string
+	// release is the same release as distro, under the number OSV's advisory
+	// records use rather than the codename its per-CVE records use.
+	release string
 	kind    packageKind
 }
 
@@ -143,7 +146,13 @@ func keyFor(c model.Component) queryKey {
 	if source == "" {
 		source, version = c.Name, c.Version
 	}
-	return queryKey{source: source, version: version, distro: c.Distro, kind: kindOf(c)}
+	return queryKey{
+		source:  source,
+		version: version,
+		distro:  c.Distro,
+		release: c.DistroVersion,
+		kind:    kindOf(c),
+	}
 }
 
 // kindOf reads the package type off the component's purl. Components with no
@@ -153,6 +162,19 @@ func keyFor(c model.Component) queryKey {
 func (k queryKey) ecosystem() string {
 	if k.kind == kindApk && k.distro != "" {
 		return "Alpine:" + k.distro
+	}
+	return ""
+}
+
+// advisoryEcosystem is how a Debian advisory names this key's release. A DSA or
+// DLA record's affected purl carries no distro qualifier -- it is the same purl
+// for every release the advisory covers -- and the release is in the ecosystem
+// field instead, as "Debian:11". For an oldstable image advisories are the only
+// records OSV returns, so without this the fixed version they carry is
+// unreachable (spike/NOTES.md T18a, question 7).
+func (k queryKey) advisoryEcosystem() string {
+	if k.kind == kindDeb && k.release != "" {
+		return "Debian:" + k.release
 	}
 	return ""
 }
@@ -239,6 +261,7 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 	if err != nil {
 		return nil, err
 	}
+	o.borrowSeverities(ctx, records)
 
 	var findings []model.Finding
 	for _, key := range order {
@@ -402,6 +425,93 @@ func (o *OSV) fetchVulns(ctx context.Context, ids []string) (map[string]vulnReco
 		return nil, fmt.Errorf("osv: fetched %d of %d vulnerability records", len(records), len(ids))
 	}
 	return records, nil
+}
+
+// borrowSeverities fills in the assessment for records that have none of their
+// own, from the record they name as upstream.
+//
+// A DSA or DLA advisory carries no severity array. It names the CVE it shipped
+// a fix for in `upstream`, and that DEBIAN-CVE-… record has the CVSS vector --
+// the vector describes the vulnerability, not the release, so borrowing it says
+// nothing the data does not support. For an oldstable Debian release advisories
+// are the only records OSV returns at all, so without this every finding on
+// such an image reports as unknown, and --fail-on cannot fire on it
+// (spike/NOTES.md T18a, question 6).
+//
+// Failing to borrow is not a failure of the scan, which is why this does not
+// use fetchVulns and does not return an error: the worst case is the unknown
+// bucket the advisory would have produced anyway. fetchVulns promises to return
+// everything it was asked for or fail; this promises only to improve what it
+// can.
+func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecord) {
+	// The record each borrowed id would serve, so one fetch can fill several
+	// advisories naming the same CVE.
+	needed := map[string][]string{}
+	for id, record := range records {
+		if severity, _, _ := severityOf(record); severity != model.SeverityUnknown {
+			continue
+		}
+		if from := upstreamRecordID(record); from != "" {
+			needed[from] = append(needed[from], id)
+		}
+	}
+	if len(needed) == 0 {
+		return
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	work := make(chan string)
+
+	workers := o.Concurrency
+	if workers <= 0 {
+		workers = defaultConcurrency
+	}
+	workers = min(workers, len(needed))
+
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for from := range work {
+				var source vulnRecord
+				if err := o.getJSON(ctx, "/v1/vulns/"+url.PathEscape(from), &source); err != nil {
+					continue // an absent vector is the status quo, not a failure
+				}
+				if len(source.Severity) == 0 {
+					continue
+				}
+				mu.Lock()
+				for _, id := range needed[from] {
+					record := records[id]
+					record.Severity = source.Severity
+					records[id] = record
+				}
+				mu.Unlock()
+			}
+		}()
+	}
+
+	for from := range needed {
+		select {
+		case work <- from:
+		case <-ctx.Done():
+		}
+	}
+	close(work)
+	wg.Wait()
+}
+
+// upstreamRecordID picks the record to borrow an assessment from: the database's
+// own entry for the CVE, named as DEBIAN-CVE-… or ALPINE-CVE-…, rather than the
+// bare CVE id, which OSV does not serve for these ecosystems.
+func upstreamRecordID(record vulnRecord) string {
+	for _, id := range record.Upstream {
+		if id != record.ID && strings.Contains(id, "-CVE-") {
+			return id
+		}
+	}
+	return ""
 }
 
 func (o *OSV) postJSON(ctx context.Context, path string, body, out any) error {

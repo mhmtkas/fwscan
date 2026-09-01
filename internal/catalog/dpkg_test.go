@@ -332,7 +332,7 @@ func TestContinuationLinesParseInLinearTime(t *testing.T) {
 	}
 
 	start := time.Now()
-	comps, err := parseStatus(strings.NewReader(b.String()), "bullseye")
+	comps, err := parseStatus(strings.NewReader(b.String()), "bullseye", "")
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("parseStatus() error = %v", err)
@@ -363,7 +363,7 @@ func TestStatusFileSizeIsBounded(t *testing.T) {
 		b.WriteString("Package: p\nStatus: install ok installed\nVersion: 1\n\n")
 	}
 
-	if _, err := parseStatus(strings.NewReader(b.String()), "bullseye"); err == nil {
+	if _, err := parseStatus(strings.NewReader(b.String()), "bullseye", ""); err == nil {
 		t.Error("a status file past the size limit parsed without complaint")
 	}
 }

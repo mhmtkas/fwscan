@@ -30,6 +30,16 @@ type Component struct {
 	// They fall back to Name and Version when the database does not say.
 	Source        string
 	SourceVersion string
+	// DistroVersion is the release number the image reports for itself, e.g.
+	// "11" -- os-release's VERSION_ID. It is not part of any output; it exists
+	// because OSV names a Debian release two ways. A per-CVE record identifies
+	// it in the purl's distro qualifier, by codename; a DSA or DLA advisory
+	// carries no qualifier at all and names the release in its ecosystem field,
+	// as "Debian:11". Without this the advisories cannot be matched to a
+	// release, and for an oldstable image advisories are all OSV returns
+	// (spike/NOTES.md T18a).
+	DistroVersion string
+
 	// Distro is the release codename, e.g. "bookworm". Empty when the image did
 	// not identify itself. Without it OSV matches across every Debian release
 	// at once and reports backported fixes as vulnerable.

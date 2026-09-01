@@ -66,9 +66,9 @@ func (d Dpkg) Catalog(root fs.FS) ([]model.Component, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	codename := detectCodename(root)
+	codename, release := detectRelease(root)
 
-	comps, err := parseStatus(f, codename)
+	comps, err := parseStatus(f, codename, release)
 	if err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", DpkgStatusPath, err)
 	}
@@ -76,7 +76,7 @@ func (d Dpkg) Catalog(root fs.FS) ([]model.Component, error) {
 }
 
 // parseStatus reads RFC-822-style stanzas separated by blank lines.
-func parseStatus(r io.Reader, codename string) ([]model.Component, error) {
+func parseStatus(r io.Reader, codename, release string) ([]model.Component, error) {
 	var (
 		out    []model.Component
 		fields = map[string]string{}
@@ -116,7 +116,7 @@ func parseStatus(r io.Reader, codename string) ([]model.Component, error) {
 		if fields["Status"] != installedStatus || fields["Package"] == "" {
 			return nil
 		}
-		out = append(out, componentFrom(fields, codename))
+		out = append(out, componentFrom(fields, codename, release))
 		return nil
 	}
 
@@ -174,7 +174,7 @@ func parseStatus(r io.Reader, codename string) ([]model.Component, error) {
 }
 
 // componentFrom builds a Component from one parsed stanza.
-func componentFrom(fields map[string]string, codename string) model.Component {
+func componentFrom(fields map[string]string, codename, release string) model.Component {
 	name := fields["Package"]
 	version := fields["Version"]
 	arch := fields["Architecture"]
@@ -187,6 +187,7 @@ func componentFrom(fields map[string]string, codename string) model.Component {
 		Source:        sourceName,
 		SourceVersion: sourceVersion,
 		Distro:        codename,
+		DistroVersion: release,
 		PURL:          BinaryPURL(name, version, arch, codename),
 		Confidence:    model.ConfidenceHigh,
 		Evidence:      DpkgStatusPath,

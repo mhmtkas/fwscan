@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"io/fs"
 	"strings"
@@ -19,27 +20,36 @@ var osReleasePaths = []string{
 // larger is a hostile image, not a distro identity file.
 const maxOSReleaseSize = 64 << 10
 
-// detectCodename returns the Debian release codename for the image, e.g.
-// "bookworm". It is the distro qualifier every OSV query needs: without it OSV
-// matches across all Debian releases at once and reports backported fixes as
-// vulnerable (spike/NOTES.md T0.3).
+// detectRelease reads both names a release goes by.
 //
-// An empty string means the image did not say. Callers must treat that as "no
-// distro qualifier", not as a reason to fail: a rootfs with a dpkg database but
-// no os-release is unusual but not broken.
-func detectCodename(root fs.FS) string {
+// The codename -- "bookworm" -- is the distro qualifier every OSV query needs:
+// without it OSV matches across all Debian releases at once and reports
+// backported fixes as vulnerable (spike/NOTES.md T0.3). The version id -- "11"
+// -- is how OSV's DSA and DLA advisories name the same release, in their
+// ecosystem field, and for an oldstable image advisories are all OSV returns
+// (spike/NOTES.md T18a).
+//
+// Either may be empty, and neither is a reason to fail: a rootfs with a dpkg
+// database and no os-release is unusual but not broken. It costs the matching
+// each empty one would have done, and nothing else.
+func detectRelease(root fs.FS) (codename, version string) {
 	for _, path := range osReleasePaths {
 		f, err := root.Open(path)
 		if err != nil {
 			continue
 		}
-		codename := parseCodename(f)
+		body, err := io.ReadAll(io.LimitReader(f, maxOSReleaseSize))
 		_ = f.Close()
-		if codename != "" {
-			return codename
+		if err != nil {
+			continue
+		}
+		codename = parseCodename(bytes.NewReader(body))
+		version = parseOSReleaseField(bytes.NewReader(body), "VERSION_ID")
+		if codename != "" || version != "" {
+			return codename, version
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // parseCodename reads VERSION_CODENAME from os-release's shell-ish syntax.

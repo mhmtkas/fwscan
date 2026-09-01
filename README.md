@@ -162,19 +162,19 @@ Multi-partition flash dumps, UBI, JFFS2 and cramfs are not read directly:
 extract with binwalk first and point fwscan at the resulting rootfs. It does not
 try to compete with binwalk on extraction.
 
-**The `unknown` bucket is larger than it should be, and on an oldstable Debian
-image it is everything.** OSV's export for Debian 11 contains only DSA and DLA
-advisory records, which carry no CVSS vector, so every finding on a bullseye
-image reports as `unknown` with no fixed version and `--fail-on` cannot fire at
-all. The vectors exist in OSV, one hop away in the per-CVE record each advisory
-names; following that hop is a change this tool has not made yet.
-[`docs/comparison.md`](docs/comparison.md) measures it against grype on the
-fixture image. On a release where OSV does carry per-CVE records, the share of
-severity-less findings is roughly a fifth — 57 of the 292 records the spike
-measured, mostly old issues Debian itself marked minor.
+**fwscan finds less than grype does, and the gap is the data source.** On the
+fixture image in this repository grype reports 113 findings to fwscan's 16 —
+every one of fwscan's is also one of grype's. OSV's export for an oldstable
+Debian release lists the CVEs that received a DSA or DLA; grype reads the Debian
+Security Tracker, which carries every CVE's per-release status. A second data
+source is on the roadmap and is not in v0.1.0.
+[`docs/comparison.md`](docs/comparison.md) has the numbers and the commands.
 
-Either way, findings that carry no severity are visible in the report and
-invisible to the exit code, so read the output as well as the status.
+**Some findings carry no severity**, land in the `unknown` bucket, and so never
+trigger `--fail-on` — roughly a fifth of Debian's OSV records, 57 of the 292 the
+spike measured, mostly old issues Debian itself marked minor. They are visible in
+the report and invisible to the exit code, so read the output as well as the
+status.
 
 Second: components identified by filename heuristics rather than by a package
 database are listed in the report and the SBOM, but are never looked up. A

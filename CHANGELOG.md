@@ -108,6 +108,20 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Findings on an oldstable Debian image now carry a severity and a fixed version.
+  Both were absent, and measurement showed why: for Debian 11, OSV's export
+  contains only DSA and DLA advisory records, which have no CVSS vector, while
+  the per-CVE records that do have one list only Debian 12 and later. Every
+  finding on such an image therefore reported as `unknown` with no fix, and
+  `--fail-on` could not fire at all. The vector is one hop away in the record
+  each advisory names as `upstream`, and the fix is in the advisory itself, under
+  the `ecosystem` field rather than the purl qualifier fwscan matched on. On the
+  committed fixture this turns 16 unranked, unfixed findings into 16 ranked
+  findings with fix versions, 15 of which match grype exactly.
+- Where a release carries more than one advisory for the same issue, the fixed
+  version reported is now the lowest that resolves it rather than whichever
+  record OSV happened to return first.
+
 - A binary built from source no longer calls itself `fwscan vdev`. The display
   version prefixed a `v` to whatever it was given, and only a release binary is
   given a tag: `go install` leaves `main.go`'s default of `dev`, and `make build`

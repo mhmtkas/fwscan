@@ -13,7 +13,7 @@ func TestParseStatusBounds(t *testing.T) {
 		for i := 0; i < maxStanzas+2; i++ {
 			b.WriteString("Package: p\nStatus: install ok installed\nVersion: 1\n\n")
 		}
-		if _, err := parseStatus(strings.NewReader(b.String()), ""); err == nil {
+		if _, err := parseStatus(strings.NewReader(b.String()), "", ""); err == nil {
 			t.Fatal("parseStatus() error = nil, want a stanza-count error")
 		} else if !strings.Contains(err.Error(), "stanzas") {
 			t.Errorf("error = %v, want it to mention stanzas", err)
@@ -27,7 +27,7 @@ func TestParseStatusBounds(t *testing.T) {
 		for written := 0; written <= maxFieldBytes; written += len(line) {
 			b.WriteString(line)
 		}
-		if _, err := parseStatus(strings.NewReader(b.String()), ""); err == nil {
+		if _, err := parseStatus(strings.NewReader(b.String()), "", ""); err == nil {
 			t.Fatal("parseStatus() error = nil, want a field-size error")
 		} else if !strings.Contains(err.Error(), "exceeds") {
 			t.Errorf("error = %v, want it to mention the size limit", err)
@@ -37,14 +37,14 @@ func TestParseStatusBounds(t *testing.T) {
 	t.Run("single line longer than the scanner buffer", func(t *testing.T) {
 		status := "Package: p\nStatus: install ok installed\nVersion: " +
 			strings.Repeat("9", maxLineBytes+1) + "\n"
-		if _, err := parseStatus(strings.NewReader(status), ""); err == nil {
+		if _, err := parseStatus(strings.NewReader(status), "", ""); err == nil {
 			t.Fatal("parseStatus() error = nil, want a token-too-long error")
 		}
 	})
 
 	t.Run("continuation before any field is ignored", func(t *testing.T) {
 		status := " orphaned continuation\nPackage: p\nStatus: install ok installed\nVersion: 1\n"
-		got, err := parseStatus(strings.NewReader(status), "")
+		got, err := parseStatus(strings.NewReader(status), "", "")
 		if err != nil {
 			t.Fatalf("parseStatus() error = %v", err)
 		}
@@ -55,7 +55,7 @@ func TestParseStatusBounds(t *testing.T) {
 
 	t.Run("stanza with no Package field is skipped", func(t *testing.T) {
 		status := "Status: install ok installed\nVersion: 1\n\nPackage: real\nStatus: install ok installed\nVersion: 2\n"
-		got, err := parseStatus(strings.NewReader(status), "")
+		got, err := parseStatus(strings.NewReader(status), "", "")
 		if err != nil {
 			t.Fatalf("parseStatus() error = %v", err)
 		}
