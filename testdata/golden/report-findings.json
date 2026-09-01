@@ -13,8 +13,8 @@
   },
   "summary": {
     "packages": {
-      "total": 4,
-      "high_confidence": 3,
+      "total": 5,
+      "high_confidence": 4,
       "low_confidence": 1
     },
     "findings": {
@@ -29,10 +29,18 @@
     {
       "name": "busybox",
       "version": "1.30.1-6",
+      "arch": "arm64",
+      "purl": "pkg:deb/debian/busybox@1.30.1-6?arch=arm64&distro=bullseye",
+      "confidence": "high",
+      "evidence": "var/lib/dpkg/status"
+    },
+    {
+      "name": "linux-kernel",
+      "version": "5.10.92",
       "arch": "",
       "purl": "",
       "confidence": "low",
-      "evidence": "bin/busybox"
+      "evidence": "boot/vmlinuz-5.10.92"
     },
     {
       "name": "openssh",
@@ -80,8 +88,8 @@
       "fixed_version": "",
       "severity": "critical",
       "cvss_score": 9.1,
-      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
-      "confidence": "low",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H",
+      "confidence": "high",
       "source": "osv.dev"
     },
     {
@@ -92,7 +100,7 @@
       "fixed_version": "8.4p1-5+deb11u3",
       "severity": "high",
       "cvss_score": 8.1,
-      "cvss_vector": "",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
       "confidence": "high",
       "source": "osv.dev"
     },

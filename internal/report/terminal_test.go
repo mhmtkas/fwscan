@@ -70,15 +70,29 @@ func lowComponent(name, version, evidence string) model.Component {
 	}
 }
 
-// sampleFindings mirrors the example in output-spec section 2, including a
-// finding with no known fix and a low-confidence one.
+// sampleFindings mirrors the example in output-spec section 2: a finding with
+// no known fix, one with an unknown severity, and a low-confidence component
+// that carries no finding at all.
+//
+// Every row here has to be output the pipeline can actually produce, or the
+// golden documents a shape that cannot occur and quietly licenses it. Two rows
+// did not. One paired a score of 8.1 with no vector, which severityOf never
+// returns -- a score comes from a vector or not at all. The other attached a
+// finding to a low-confidence component, which output-spec section 2 rules out:
+// heuristically identified components carry no purl, so the matcher never
+// queries them. busybox stays as a component, because a low-confidence
+// component with no findings is exactly what the footnote is about.
 func sampleFindings() ([]model.Component, []model.Finding) {
 	openssl := highComponent("openssl", "1.1.1n-0+deb11u3")
 	openssh := highComponent("openssh", "8.4p1-5+deb11u1")
-	busybox := lowComponent("busybox", "1.30.1-6", "bin/busybox")
+	busybox := highComponent("busybox", "1.30.1-6")
 	zlib := highComponent("zlib1g", "1:1.2.11.dfsg-2")
+	// The low-confidence component the footnote is about. It carries no
+	// finding, because a component identified from a filename has no purl and
+	// so is never queried.
+	kernel := lowComponent("linux-kernel", "5.10.92", "boot/vmlinuz-5.10.92")
 
-	comps := []model.Component{busybox, openssh, openssl, zlib}
+	comps := []model.Component{busybox, kernel, openssh, openssl, zlib}
 	findings := []model.Finding{
 		{
 			Component: openssl, ID: "CVE-2022-3602", Severity: model.SeverityCritical,
@@ -87,11 +101,12 @@ func sampleFindings() ([]model.Component, []model.Finding) {
 		},
 		{
 			Component: busybox, ID: "CVE-2022-48174", Severity: model.SeverityCritical,
-			CVSS: 9.1, CVSSVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:L",
+			CVSS: 9.1, CVSSVector: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:H",
 		},
 		{
 			Component: openssh, ID: "CVE-2023-38408", Severity: model.SeverityHigh,
-			CVSS: 8.1, FixedVersion: "8.4p1-5+deb11u3",
+			CVSS: 8.1, CVSSVector: "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:H/A:H",
+			FixedVersion: "8.4p1-5+deb11u3",
 		},
 		{
 			Component: zlib, ID: "CVE-2010-4756", Severity: model.SeverityUnknown,

@@ -96,7 +96,7 @@ func TestJSONShape(t *testing.T) {
 	for _, c := range doc.Components {
 		names = append(names, c.Name)
 	}
-	want := []string{"busybox", "openssh", "openssl", "zlib1g"}
+	want := []string{"busybox", "linux-kernel", "openssh", "openssl", "zlib1g"}
 	for i := range want {
 		if names[i] != want[i] {
 			t.Fatalf("components sorted %v, want %v", names, want)
@@ -148,8 +148,8 @@ func TestJSONNoNetworkShape(t *testing.T) {
 	if doc.Summary.Findings != (jsonFindingSummary{}) {
 		t.Errorf("findings summary = %+v, want all zeros", doc.Summary.Findings)
 	}
-	if len(doc.Components) != 4 {
-		t.Errorf("got %d components, want 4", len(doc.Components))
+	if len(doc.Components) != 5 {
+		t.Errorf("got %d components, want 5", len(doc.Components))
 	}
 }
 

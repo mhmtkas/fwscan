@@ -8,6 +8,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- An end-to-end golden test. The report goldens are rendered from structs
+  written by hand, so they cover the reporters and nothing between the image and
+  them: identifier derivation, the collapse rule, severity mapping and the
+  choice of fixed version all sat outside any byte-for-byte comparison, and each
+  of those has now had a defect a golden would have shown. The new pair runs the
+  committed fixture image through the whole pipeline against the recorded OSV
+  responses and compares the terminal report and the JSON report exactly, with
+  only the start time and duration normalised.
+
 - `THIRD_PARTY_LICENSES.txt`, carrying the licences and notices of the Go
   dependencies linked into the release binaries and of FIRST's CVSS v4
   reference calculator, whose MacroVector table this project transcribes. Those
@@ -62,6 +71,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   itself, over a corpus grown from 3844 to 8464 ordered pairs.
 
 ### Fixed
+
+- Two golden files described output the pipeline cannot produce: a CVSS score
+  paired with no vector, which the scorer never returns, and a finding against a
+  low-confidence component, which `docs/output-spec.md` section 2 rules out
+  because heuristically identified components are never queried. A golden
+  showing an impossible shape licenses a defect rather than catching it. The
+  remaining scores are now the ones their vectors actually produce.
 
 - The fixed version now comes from the range whose window actually contains the
   installed version, which is what `docs/output-spec.md` section 1 asks for.

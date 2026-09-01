@@ -117,4 +117,10 @@ CycloneDX 1.6 JSON via `cyclonedx-go`. Per component: `type: "library"` (`"opera
 
 ## 6. Golden files
 
-`testdata/golden/` holds one golden terminal output and one golden JSON report generated from the committed fixture image with a recorded OSV response set. Report tests compare against these byte-for-byte (with the timestamp/duration fields normalized). Any intentional format change must update goldens in the same PR and call it out in the PR description.
+`testdata/golden/` holds two kinds of golden file, and the distinction matters.
+
+`e2e-terminal.txt` and `e2e-report.json` are produced by running the whole pipeline — the committed fixture image through input, cataloging, and the real matcher against the recorded OSV responses in `testdata/osv/` — and cover everything between the image and the page: identifier derivation, the collapse rule, severity mapping, and the choice of fixed version. Only `started_at` and `duration_ms` are normalised, because they cannot repeat; every other byte is a claim about the fixture and is compared exactly.
+
+The rest are rendered from components and findings written by hand, and cover the reporters alone: layouts the fixture image does not produce, such as a scan with no findings, a `--no-network` scan, and a report with no low-confidence footnote. Because they are written rather than produced, they must only contain output the pipeline could actually generate — a score without the vector it came from, or a finding against a low-confidence component, is a shape the code cannot reach, and a golden showing one licenses a defect rather than catching it.
+
+Both are regenerated with `-update` (`-update-e2e` for the end-to-end pair). Any intentional format change updates them in the same pull request and says so in the description.
