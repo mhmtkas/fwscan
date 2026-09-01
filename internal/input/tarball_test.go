@@ -382,7 +382,8 @@ func extractInto(t *testing.T, dir string, archive []byte) error {
 		t.Fatalf("OpenRoot(%s): %v", dir, err)
 	}
 	defer func() { _ = root.Close() }()
-	return extractTar(tar.NewReader(bytes.NewReader(archive)), root)
+	budget := &extractBudget{source: int64(len(archive))}
+	return extractTar(tar.NewReader(budget.reader(bytes.NewReader(archive))), root, budget)
 }
 
 // Extraction bounds. A crafted archive must not be able to fill the disk or

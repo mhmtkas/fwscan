@@ -3,9 +3,11 @@ package input
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -168,6 +170,141 @@ func TestHostileArchiveFailsRatherThanScanningClean(t *testing.T) {
 	if !errors.Is(err, ErrUnsafePath) {
 		t.Errorf("error %v does not wrap ErrUnsafePath", err)
 	}
+}
+
+// A decompression bomb is a few hundred bytes that unpack to gigabytes. The
+// absolute cap does not stop one on its own -- the cost is entirely on the
+// defender, and the extraction directory is a tmpfs on most systems, so the
+// bytes land in memory.
+func TestDecompressionBombIsRefused(t *testing.T) {
+	// Lowered so the test can build a bomb in memory rather than on the disk
+	// it is protecting. The shape is what matters, not the scale.
+	restore := func(ratio, floor int64) func() {
+		return func() { maxExpansionRatio, minExpansionBytes = ratio, floor }
+	}(maxExpansionRatio, minExpansionBytes)
+	t.Cleanup(restore)
+	maxExpansionRatio, minExpansionBytes = 20, 4<<10
+
+	var tarred bytes.Buffer
+	tw := tar.NewWriter(&tarred)
+	const body = 1 << 20 // a megabyte of zeros, which gzip reduces to almost nothing
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "payload", Typeflag: tar.TypeReg, Mode: 0o644, Size: body,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.Copy(tw, io.LimitReader(zeroReader{}, body)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	var bomb bytes.Buffer
+	zw := gzip.NewWriter(&bomb)
+	if _, err := zw.Write(tarred.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ratio := int64(tarred.Len()) / int64(bomb.Len())
+	if ratio <= maxExpansionRatio {
+		t.Fatalf("the fixture only expands %dx, which is inside the limit; it does not test the guard", ratio)
+	}
+
+	_, cleanup, err := Open(writeTemp(t, "bomb.tar.gz", bomb.Bytes()))
+	cleanup()
+	if err == nil {
+		t.Fatal("a decompression bomb unpacked without complaint")
+	}
+	if !errors.Is(err, ErrDecompressionBomb) {
+		t.Errorf("error %v does not wrap ErrDecompressionBomb", err)
+	}
+}
+
+// An archive does not have to compress at all to amplify. The tar reader
+// expands a GNU sparse entry to its declared length, so the bytes never travel
+// through the stream and a guard that watches only the stream never sees them.
+func TestSparseEntryExpansionIsBounded(t *testing.T) {
+	if _, err := exec.LookPath("tar"); err != nil {
+		t.Skip("tar not installed; needed to build a sparse archive")
+	}
+
+	dir := t.TempDir()
+	sparse := filepath.Join(dir, "big")
+	// truncate makes a file that is all holes: 200 MiB of nothing.
+	if err := os.Truncate(mustCreate(t, sparse), 200<<20); err != nil {
+		t.Fatalf("truncate: %v", err)
+	}
+	// posix format on purpose. GNU's own sparse format arrives with typeflag
+	// 'S', which this extractor skips like any other entry type it has no use
+	// for; the posix encoding arrives as an ordinary regular file whose holes
+	// the reader fills in, so it is the shape that can actually amplify.
+	archive := filepath.Join(dir, "sparse.tar")
+	cmd := exec.Command("tar", "--sparse", "--format=posix", "-cf", archive, "-C", dir, "big")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("tar --sparse unavailable here: %v: %s", err, out)
+	}
+
+	info, err := os.Stat(archive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Size() > 1<<20 {
+		t.Skipf("tar did not store the file sparsely (archive is %d bytes)", info.Size())
+	}
+
+	restore := func(ratio, floor int64) func() {
+		return func() { maxExpansionRatio, minExpansionBytes = ratio, floor }
+	}(maxExpansionRatio, minExpansionBytes)
+	t.Cleanup(restore)
+	maxExpansionRatio, minExpansionBytes = 20, 4<<10
+
+	_, cleanup, err := Open(archive)
+	cleanup()
+	if err == nil {
+		t.Fatalf("a %d byte archive expanded to 200 MiB without complaint", info.Size())
+	}
+	if !errors.Is(err, ErrDecompressionBomb) {
+		t.Errorf("error %v does not wrap ErrDecompressionBomb", err)
+	}
+}
+
+func mustCreate(t *testing.T, path string) string {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// The ratio is a bound on hostile input, not on real images: firmware that
+// carries a zero-filled partition compresses enormously and honestly.
+func TestOrdinaryImagesDoNotTripTheExpansionGuard(t *testing.T) {
+	for _, name := range []string{"mini-rootfs.tar.gz", "alpine-rootfs.tar.gz"} {
+		t.Run(name, func(t *testing.T) {
+			_, cleanup, err := Open(filepath.Join("..", "..", "testdata", "images", name))
+			defer cleanup()
+			if err != nil {
+				t.Errorf("Open() error = %v; a committed fixture must not trip the expansion guard", err)
+			}
+		})
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
 }
 
 // A directory containing far too many entries is an attack, not an image, and

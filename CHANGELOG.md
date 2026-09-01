@@ -46,6 +46,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Extraction is now bounded against the size of the archive it came from, not
+  only by an absolute cap. The absolute caps were a formality rather than a
+  bound — 16 GiB total and 8 GiB per file, when the extraction directory is a
+  tmpfs on most systems — and are now 4 GiB and 2 GiB. Alongside them, an
+  archive that has produced more than 64 MiB at over 5000 times its own size on
+  disk is refused. That covers the amplification a lexical size check cannot
+  see: a PAX sparse entry is expanded to its declared length by the reader, so a
+  10 KiB uncompressed tar could produce 200 MiB without a single one of those
+  bytes passing through the decompressor.
 - Scanning a squashfs image no longer fails on an ordinary absolute symlink.
   A rootfs is full of them — `bin/sh` pointing at `/bin/busybox`, and everything
   `update-alternatives` creates — and the extractor resolved every link after
