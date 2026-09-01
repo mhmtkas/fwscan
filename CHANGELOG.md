@@ -57,6 +57,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- A standalone-compressed squashfs image — `rootfs.squashfs.gz` and the other
+  shapes Yocto and OpenWrt emit — is now scanned rather than refused. Detection
+  handled it already, looking through the wrapper to find the squashfs inside;
+  dispatch ignored the wrapper and handed the still-compressed file to
+  `unsquashfs`, which answered with its own complaint about a missing
+  superblock. The scope document has listed this input as supported since the
+  beginning.
+
 - The fixed version reported for a finding is no longer sometimes a version
   older than the one installed, which read as an instruction to downgrade. It is
   only reported when it is genuinely newer, or when the two cannot be ordered at

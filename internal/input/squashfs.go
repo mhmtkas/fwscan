@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -25,17 +26,25 @@ const unsquashfsBinary = "unsquashfs"
 var lookPath = exec.LookPath
 
 // SquashFS extracts a squashfs image by running unsquashfs.
-type SquashFS struct{}
+type SquashFS struct {
+	compression Compression
+}
 
-// NewSquashFS returns the squashfs source.
-func NewSquashFS() *SquashFS { return &SquashFS{} }
+// NewSquashFS returns a squashfs source for an image with the given outer
+// compression. CompressionNone means the image is not wrapped.
+func NewSquashFS(c Compression) *SquashFS { return &SquashFS{compression: c} }
 
 // Name implements Source.
-func (SquashFS) Name() string { return "squashfs" }
+func (s SquashFS) Name() string {
+	if s.compression == CompressionNone {
+		return "squashfs"
+	}
+	return "squashfs+" + string(s.compression)
+}
 
 // Open implements Source. The image is extracted into a temp directory the
 // returned cleanup removes.
-func (SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
+func (s SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
 	binary, err := lookPath(unsquashfsBinary)
 	if err != nil {
 		// The message has to tell the user what to do. "exec: unsquashfs:
@@ -53,17 +62,33 @@ func (SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
 	}
 	cleanup := func() { _ = os.RemoveAll(dest) }
 
+	// A wrapped image -- rootfs.squashfs.gz and the rest of the shapes Yocto
+	// and OpenWrt emit -- has to be unwrapped first: unsquashfs seeks around
+	// its input, so it needs a file rather than a stream. Detection already
+	// looked through the wrapper to find the squashfs inside; without this the
+	// image reached unsquashfs still compressed and the user got the tool's own
+	// complaint about a missing superblock.
+	image := path
+	if s.compression != CompressionNone {
+		var err error
+		image, err = decompressToFile(path, s.compression, filepath.Join(dest, "image.squashfs"))
+		if err != nil {
+			cleanup()
+			return nil, noopCleanup, err
+		}
+	}
+
 	// unsquashfs refuses to write into an existing non-empty directory, and
 	// -d must therefore name a path it creates itself.
 	target := filepath.Join(dest, "rootfs")
 
 	// #nosec G204 -- binary comes from LookPath and the only variable argument
 	// is the user's own scan target. This is the one sanctioned shell-out.
-	cmd := exec.Command(binary, "-no-progress", "-quiet", "-d", target, path)
+	cmd := exec.Command(binary, "-no-progress", "-quiet", "-d", target, image)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		cleanup()
-		return nil, noopCleanup, fmt.Errorf("unsquashfs failed: %w: %s",
-			err, firstLine(string(out)))
+		return nil, noopCleanup, fmt.Errorf("unsquashfs could not read the image: %s",
+			toolMessage(string(out), image, path))
 	}
 
 	root, err := openExtracted(target)
@@ -111,6 +136,52 @@ func openExtracted(target string) (*os.Root, error) {
 		return nil, fmt.Errorf("open the extracted rootfs: %w", err)
 	}
 	return root, nil
+}
+
+// decompressToFile unwraps a compressed image into dest and returns its path.
+// The same bound applies as to an archive: an image is untrusted input, and
+// unwrapping it is exactly the step a decompression bomb is aimed at.
+func decompressToFile(path string, c Compression, dest string) (string, error) {
+	in, err := os.Open(path) //nolint:gosec // the path is the user's scan target
+	if err != nil {
+		return "", fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = in.Close() }()
+
+	info, err := in.Stat()
+	if err != nil {
+		return "", fmt.Errorf("stat %s: %w", path, err)
+	}
+
+	stream, closer, err := decompress(in, c)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = closer.Close() }()
+
+	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_EXCL, extractFilePerm) //nolint:gosec // dest is this package's own temp directory
+	if err != nil {
+		return "", fmt.Errorf("create the unwrapped image: %w", err)
+	}
+	defer func() { _ = out.Close() }()
+
+	budget := &extractBudget{source: info.Size()}
+	if _, err := io.Copy(budget.writer(out), stream); err != nil {
+		return "", fmt.Errorf("unwrapping the %s image: %w", c, err)
+	}
+	return dest, nil
+}
+
+// toolMessage turns unsquashfs's output into one line fit for a user, with the
+// temp path it was handed replaced by the path the user actually named. The
+// tool's own wording is kept: it is the most specific thing available about
+// what is wrong with the image, and paraphrasing it would lose that.
+func toolMessage(out, image, path string) string {
+	line := firstLine(out)
+	if image != path {
+		line = strings.ReplaceAll(line, image, path)
+	}
+	return strings.TrimPrefix(line, "FATAL ERROR: ")
 }
 
 func firstLine(s string) string {

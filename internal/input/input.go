@@ -63,7 +63,16 @@ func sourceFor(path string, format Format, compression Compression) (Source, err
 	case FormatTar:
 		return NewTarball(compression), nil
 	case FormatSquashFS:
-		return NewSquashFS(), nil
+		// The compression Detect reports for a squashfs image is the one
+		// recorded in its superblock -- what the image uses internally, for the
+		// header line -- which is not the same question as whether something is
+		// wrapped around the file. Only the second decides whether this has to
+		// unwrap before handing the image to unsquashfs.
+		wrapper, err := wrapperOf(path)
+		if err != nil {
+			return nil, err
+		}
+		return NewSquashFS(wrapper), nil
 	default:
 		// The message names what fwscan can read and why the file extension
 		// did not help, because that is the first thing a user checks.

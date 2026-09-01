@@ -1,6 +1,8 @@
 package input
 
 import (
+	"bytes"
+	"compress/gzip"
 	"errors"
 	"io"
 	"os"
@@ -8,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/klauspost/compress/zstd"
+	"github.com/pierrec/lz4/v4"
 
 	"github.com/mhmtkas/fwscan/internal/catalog"
 )
@@ -253,7 +258,7 @@ func TestSquashFSCorruptImage(t *testing.T) {
 }
 
 func TestSquashFSName(t *testing.T) {
-	if got := NewSquashFS().Name(); got != "squashfs" {
+	if got := NewSquashFS(CompressionNone).Name(); got != "squashfs" {
 		t.Errorf("Name() = %q, want squashfs", got)
 	}
 }
@@ -289,5 +294,80 @@ func TestSquashfsCompressionFromSuperblock(t *testing.T) {
 	}
 	if got := squashfsCompression([]byte("hsqs")); got != CompressionNone {
 		t.Errorf("truncated header = %s, want none", got)
+	}
+}
+
+// A standalone-compressed image -- rootfs.squashfs.gz and the rest of the
+// shapes Yocto and OpenWrt emit -- is listed as supported in docs/scope.md, and
+// detection handled it: it looks through the wrapper and reports the squashfs
+// inside. Dispatch did not, and handed the still-compressed file to unsquashfs,
+// which answered with its own complaint about a missing superblock.
+func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
+	requireSquashfsTools(t)
+
+	image, err := os.ReadFile(filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	bare, cleanup, err := Open(filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	if err != nil {
+		t.Fatalf("Open() on the bare image error = %v", err)
+	}
+	reference, err := catalog.NewDpkg().Catalog(bare)
+	cleanup()
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+
+	for _, tt := range []struct {
+		name string
+		wrap func(io.Writer) (io.WriteCloser, error)
+	}{
+		{"gzip", func(w io.Writer) (io.WriteCloser, error) { return gzip.NewWriter(w), nil }},
+		{"zstd", func(w io.Writer) (io.WriteCloser, error) { return zstd.NewWriter(w) }},
+		{"lz4", func(w io.Writer) (io.WriteCloser, error) { return lz4.NewWriter(w), nil }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			zw, err := tt.wrap(&buf)
+			if err != nil {
+				t.Fatalf("writer: %v", err)
+			}
+			if _, err := zw.Write(image); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			if err := zw.Close(); err != nil {
+				t.Fatalf("close: %v", err)
+			}
+
+			path := filepath.Join(t.TempDir(), "rootfs.squashfs."+tt.name)
+			if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+
+			format, _, err := Detect(path)
+			if err != nil {
+				t.Fatalf("Detect() error = %v", err)
+			}
+			if format != FormatSquashFS {
+				t.Fatalf("format = %s, want squashfs", format)
+			}
+
+			rootfs, cleanup, err := Open(path)
+			if err != nil {
+				t.Fatalf("Open() error = %v; a wrapped image is supported input", err)
+			}
+			defer cleanup()
+
+			comps, err := catalog.NewDpkg().Catalog(rootfs)
+			if err != nil {
+				t.Fatalf("Catalog() error = %v", err)
+			}
+			// The wrapper must not change what is inside it.
+			if len(comps) != len(reference) {
+				t.Fatalf("got %d components, the bare image gave %d", len(comps), len(reference))
+			}
+		})
 	}
 }

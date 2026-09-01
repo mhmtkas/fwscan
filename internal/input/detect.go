@@ -87,6 +87,16 @@ func Detect(path string) (Format, Compression, error) {
 	return detectFormat(inner), compression, nil
 }
 
+// wrapperOf reports the compression wrapped around a file, if any. It answers
+// only about the wrapper: a squashfs image compressed internally is not wrapped.
+func wrapperOf(path string) (Compression, error) {
+	header, err := peek(path)
+	if err != nil {
+		return CompressionNone, err
+	}
+	return detectCompression(header), nil
+}
+
 // peek reads the leading bytes of a file for magic-number detection.
 func peek(path string) ([]byte, error) {
 	f, err := os.Open(path) //nolint:gosec // the path is the user's scan target
