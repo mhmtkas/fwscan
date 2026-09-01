@@ -163,5 +163,7 @@ against the format's own tooling if there is any.
 
 Implement `Matcher`, put recorded responses in `testdata/osv/`, and keep the unit
 tests off the network — only the `integration`-tagged tests may reach a real API.
-`report` and `sbom` consume `[]model.Finding` and neither knows nor cares where
-the findings came from.
+`report` consumes `[]model.Finding` and does not care where they came from.
+`sbom` does not see findings at all: it serialises `[]model.Component` and is
+written before the matcher runs, so a network failure still leaves the artifact
+that does not depend on the network.

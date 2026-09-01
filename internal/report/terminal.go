@@ -9,10 +9,15 @@ import (
 	"github.com/mhmtkas/fwscan/internal/model"
 )
 
-// noFixedVersion is what the FIXED column shows when no fix is known.
+// noValue is what a column shows when there is nothing to put in it: the FIXED
+// column when no fix is known, and the SCORE column when no score was derived.
+// output-spec section 2 names both.
+//
+// It was called noFixedVersion while the SCORE column used it too, which read
+// as a bug in the score rather than as one shared glyph.
 // output-spec section 2 specifies this glyph literally, which is why it is the
 // one non-ASCII character in the output.
-const noFixedVersion = "—"
+const noValue = "—"
 
 // Terminal writes the human-readable report to w, which is stdout. Diagnostics
 // never come here: stdout carries only the report so it stays pipe-safe.
@@ -94,7 +99,7 @@ func writeTable(w io.Writer, findings []model.Finding) error {
 	for _, f := range findings {
 		fixed := f.FixedVersion
 		if fixed == "" {
-			fixed = noFixedVersion
+			fixed = noValue
 		}
 		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			Sanitize(string(f.Severity)), formatScore(f.CVSS),
@@ -111,7 +116,7 @@ func writeTable(w io.Writer, findings []model.Finding) error {
 // printing "0.0" would read as "harmless" rather than "unrated".
 func formatScore(score float64) string {
 	if score == 0 {
-		return noFixedVersion
+		return noValue
 	}
 	return strconv.FormatFloat(score, 'f', 1, 64)
 }

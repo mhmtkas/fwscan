@@ -199,8 +199,8 @@ func TestCounts(t *testing.T) {
 
 func TestFormatScore(t *testing.T) {
 	// A zero score means unrated, not harmless, so it must not print as 0.0.
-	if got := formatScore(0); got != noFixedVersion {
-		t.Errorf("formatScore(0) = %q, want %q", got, noFixedVersion)
+	if got := formatScore(0); got != noValue {
+		t.Errorf("formatScore(0) = %q, want %q", got, noValue)
 	}
 	if got := formatScore(9.8); got != "9.8" {
 		t.Errorf("formatScore(9.8) = %q", got)

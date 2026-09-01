@@ -22,6 +22,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `--fail-on` accepts only the four values `docs/output-spec.md` documents. It
+  reached the severity parser, which is deliberately more forgiving because it
+  reads OSV's own wording — so `--fail-on moderate` was a silent synonym for
+  `medium` that no document mentioned. Case and surrounding whitespace are still
+  accepted, and the spec now says so.
+
 - `docs/mvp-scope.md` is replaced by `docs/scope.md`. The old document was a
   working plan as much as a specification — it carried a build schedule, launch
   and monetisation notes and an assessment of the author, none of which is a
@@ -56,6 +62,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   itself, over a corpus grown from 3844 to 8464 ordered pairs.
 
 ### Fixed
+
+- `docs/output-spec.md` section 2 now states what the `SCORE` column shows when
+  no score could be derived. It was the same em dash as `FIXED`, which the spec
+  described only for `FIXED`; the behaviour is unchanged and the constant behind
+  it is no longer named after the fixed-version column.
+- `docs/architecture.md` said `sbom` consumes `[]model.Finding`. It consumes
+  `[]model.Component` and is written before the matcher runs, which the same
+  document says correctly sixty lines earlier.
 
 - A standalone-compressed squashfs image — `rootfs.squashfs.gz` and the other
   shapes Yocto and OpenWrt emit — is now scanned rather than refused. Detection

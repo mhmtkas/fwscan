@@ -2,6 +2,7 @@ package report
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/mhmtkas/fwscan/internal/model"
 )
@@ -35,9 +36,21 @@ func ParseFailOn(value string) (model.Severity, error) {
 	if value == "" {
 		return "", nil
 	}
-	severity, known := model.ParseSeverity(value)
-	if !known || severity == model.SeverityUnknown {
+	// The flag's vocabulary is output-spec section 5's four words, and only
+	// those. model.ParseSeverity is deliberately more forgiving because it
+	// reads OSV's own wording, where "moderate" is a real level -- but a
+	// threshold nobody documented, silently accepted, is a flag whose meaning
+	// depends on which parser it happened to reach.
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "critical":
+		return model.SeverityCritical, nil
+	case "high":
+		return model.SeverityHigh, nil
+	case "medium":
+		return model.SeverityMedium, nil
+	case "low":
+		return model.SeverityLow, nil
+	default:
 		return "", fmt.Errorf("invalid --fail-on %q: use critical, high, medium or low", value)
 	}
-	return severity, nil
 }

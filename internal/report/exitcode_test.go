@@ -101,3 +101,39 @@ func TestParseFailOn(t *testing.T) {
 		})
 	}
 }
+
+// The flag's vocabulary is output-spec section 5's, not the severity parser's.
+// The parser is deliberately more forgiving because it reads OSV's own wording,
+// where "moderate" is a real level; accepting it here made --fail-on moderate a
+// silent synonym for medium that no document mentions.
+func TestParseFailOnAcceptsOnlyTheDocumentedWords(t *testing.T) {
+	tests := []struct {
+		value string
+		want  model.Severity
+		ok    bool
+	}{
+		{"critical", model.SeverityCritical, true},
+		{"high", model.SeverityHigh, true},
+		{"medium", model.SeverityMedium, true},
+		{"low", model.SeverityLow, true},
+		// Case and surrounding space are a convenience the spec now states.
+		{"HIGH", model.SeverityHigh, true},
+		{"  high  ", model.SeverityHigh, true},
+		// Not the flag's vocabulary, whatever the severity parser makes of it.
+		{"moderate", "", false},
+		{"unknown", "", false},
+		{"none", "", false},
+		{"7.5", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			got, err := ParseFailOn(tt.value)
+			if (err == nil) != tt.ok {
+				t.Fatalf("ParseFailOn(%q) error = %v, want ok=%v", tt.value, err, tt.ok)
+			}
+			if tt.ok && got != tt.want {
+				t.Errorf("ParseFailOn(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}

@@ -44,7 +44,7 @@ Run with --output report.json for full details including aliases and evidence pa
 
 Rules:
 - Header block: tool name + version; `Target` shows path + detected format + detected compression (omit compression when none); `Packages` counts by confidence; `Findings` line always lists all five buckets even when 0.
-- Table: exactly these 7 columns in this order. `FIXED` shows `—` when no fixed version is known. Column widths sized to content per run (simple padding; no external table library beyond stdlib `text/tabwriter`).
+- Table: exactly these 7 columns in this order. `FIXED` shows `—` when no fixed version is known, and `SCORE` shows the same `—` when no score could be derived — printing `0.0` there would read as "harmless" rather than "unrated". Column widths sized to content per run (simple padding; no external table library beyond stdlib `text/tabwriter`).
 - When there are zero findings: print header block, then `No known vulnerabilities found.` — no empty table.
 - The low-confidence footnote appears only when ≥1 low-confidence component exists.
 - Low-confidence components are cataloged, counted in `Packages` and written to the SBOM and the JSON `components` array, but are **not** queried against OSV in v1, so no finding carries `low` in the `CONF` column. A version inferred from a filename has no release to scope the query to, and an unscoped query manufactures findings instead of finding them (`spike/NOTES.md` T0.3). The column still accepts `high|low` so that enabling the lookup later is a matcher change, not a format change.
@@ -113,7 +113,7 @@ CycloneDX 1.6 JSON via `cyclonedx-go`. Per component: `type: "library"` (`"opera
 | 1 | Scan completed; ≥1 finding at or above the `--fail-on` severity |
 | 2 | Scan error (unreadable input, unsupported format, extraction failure, OSV unreachable without `--no-network`) |
 
-`--fail-on` accepts `critical|high|medium|low`. `unknown`-severity findings never trigger exit 1. Usage errors (bad flags) follow cobra's default behavior and also exit 2.
+`--fail-on` accepts `critical|high|medium|low`, matched case-insensitively and ignoring surrounding whitespace. Nothing else: `moderate` is a level OSV's own data uses and the severity parser understands, but it is not a value of this flag. `unknown`-severity findings never trigger exit 1. Usage errors (bad flags) follow cobra's default behavior and also exit 2.
 
 ## 6. Golden files
 
