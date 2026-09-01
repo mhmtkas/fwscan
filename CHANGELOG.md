@@ -8,6 +8,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Tests for the three places that had assertions but no coverage. `Execute` was
+  never called by the test named for its exit codes — that test built a
+  `ThresholdError` by hand and checked `errors.As` matched it, which passes with
+  the branch in `Execute` deleted — so exit 1, the contract every CI pipeline
+  using this tool depends on, was only exercised by an integration test behind a
+  build tag. CVSS v2 scoring, which `docs/output-spec.md` makes a mandatory
+  fallback, was sixty-five lines of hand-written arithmetic with no test at all.
+  And the archive entry limit was checked by asserting that three constants were
+  positive, which passes with the counter removed from the extractor.
+
 - An end-to-end golden test. The report goldens are rendered from structs
   written by hand, so they cover the reporters and nothing between the image and
   them: identifier derivation, the collapse rule, severity mapping and the

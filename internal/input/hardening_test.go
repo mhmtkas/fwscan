@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -307,16 +308,52 @@ func (zeroReader) Read(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// A directory containing far too many entries is an attack, not an image, and
-// must not be materialised.
+// An archive holding far too many entries is an attack on the filesystem's
+// inodes rather than an image, and must not be materialised.
+//
+// This used to assert that three constants were positive and that one was
+// smaller than another, which passes with the counter deleted from extractTar
+// altogether. The bound is lowered instead so the archive that crosses it is
+// small enough for a test to build.
 func TestArchiveEntryCountIsBounded(t *testing.T) {
-	// extractTar counts entries as it goes, so this is checked directly rather
-	// than by building a million-entry archive.
-	if maxEntries <= 0 || maxTotalBytes <= 0 || maxSingleFile <= 0 {
-		t.Fatal("extraction bounds are not set")
+	restore := maxEntries
+	t.Cleanup(func() { maxEntries = restore })
+	maxEntries = 16
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for i := range maxEntries + 4 {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: fmt.Sprintf("f%03d", i), Typeflag: tar.TypeReg, Mode: 0o644,
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if maxSingleFile > maxTotalBytes {
-		t.Errorf("a single file (%d) may exceed the total budget (%d)", maxSingleFile, maxTotalBytes)
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	err := extractInto(t, dir, buf.Bytes())
+	if err == nil {
+		t.Fatal("an archive past the entry limit extracted without complaint")
+	}
+	if !strings.Contains(err.Error(), "entries") {
+		t.Errorf("error = %v, want it to name the entry limit", err)
+	}
+
+	// The extraction stops where the bound is, rather than after finishing.
+	written, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(written) > maxEntries {
+		t.Errorf("%d files were written past a limit of %d", len(written), maxEntries)
+	}
+
+	// And an archive inside the limit is untouched by it.
+	if err := extractInto(t, t.TempDir(), buf.Bytes()[:0]); err != nil {
+		t.Errorf("an empty archive was refused: %v", err)
 	}
 }
 

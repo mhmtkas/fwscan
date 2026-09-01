@@ -62,3 +62,63 @@ func TestRoundUp(t *testing.T) {
 		}
 	}
 }
+
+// CVSS v2 is output-spec section 1's third step and the fallback the spec makes
+// mandatory, and it was sixty-five lines of hand-written arithmetic with no test
+// at all. v3 and v4 each have both a table and an oracle; v2 had neither, so
+// nothing but luck stood between the formula and a transposed constant.
+//
+// Every expected score below is the published base score for the CVE named
+// beside it, taken from the vector in its own NVD record.
+func TestCVSS2BaseScore(t *testing.T) {
+	tests := []struct {
+		name   string
+		vector string
+		want   float64
+	}{
+		{"CVE-2014-0160 heartbleed", "AV:N/AC:L/Au:N/C:P/I:N/A:N", 5.0},
+		{"CVE-2014-6271 shellshock", "AV:N/AC:L/Au:N/C:C/I:C/A:C", 10.0},
+		{"CVE-2011-3389 beast", "AV:N/AC:M/Au:N/C:P/I:N/A:N", 4.3},
+		{"CVE-2016-5195 dirty cow", "AV:L/AC:L/Au:N/C:C/I:C/A:C", 7.2},
+		{"CVE-2010-4756", "AV:N/AC:M/Au:S/C:N/I:N/A:P", 3.5},
+		{"complete availability only", "AV:N/AC:L/Au:N/C:N/I:N/A:C", 7.8},
+		{"no impact at all scores zero", "AV:N/AC:L/Au:N/C:N/I:N/A:N", 0.0},
+		// Not a published CVE: the corners of the metric space the ones above
+		// do not reach. Worked through the v2.0 formula by hand -- impact
+		// 10.41 * (1 - (1 - 0.275)^3) = 6.443, exploitability
+		// 20 * 0.395 * 0.35 * 0.45 = 1.244, and
+		// (0.6 * 6.443 + 0.4 * 1.244 - 1.5) * 1.176 = 3.37.
+		{"local, hard, multiple auth", "AV:L/AC:H/Au:M/C:P/I:P/A:P", 3.4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := cvss2BaseScore(tt.vector)
+			if !ok {
+				t.Fatalf("cvss2BaseScore(%q) refused a valid vector", tt.vector)
+			}
+			if got != tt.want {
+				t.Errorf("cvss2BaseScore(%q) = %.1f, want %.1f", tt.vector, got, tt.want)
+			}
+		})
+	}
+}
+
+// A vector this cannot score must be refused rather than scored as something
+// else: output-spec section 1 falls through to the next step when a vector does
+// not parse, and a silently wrong number would stop that happening.
+func TestCVSS2RejectsWhatItCannotScore(t *testing.T) {
+	for _, vector := range []string{
+		"AV:X/AC:L/Au:N/C:P/I:N/A:N",                   // no such access vector
+		"AV:N/AC:L/Au:N/C:P/I:N/A:Z",                   // no such impact
+		"AV:N/AC:L/Au:N/C:P/I:N",                       // a metric missing
+		"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", // a v3 vector
+		"",
+	} {
+		t.Run(vector, func(t *testing.T) {
+			if score, ok := cvss2BaseScore(vector); ok {
+				t.Errorf("cvss2BaseScore(%q) = %.1f, want it refused", vector, score)
+			}
+		})
+	}
+}

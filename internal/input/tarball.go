@@ -24,13 +24,18 @@ var ErrUnsafePath = errors.New("archive entry escapes the extraction directory")
 // them, and on most systems the extraction directory is a tmpfs, so the ceiling
 // is really the machine's memory.
 const (
-	maxEntries       = 1 << 20 // one million files
 	maxTotalBytes    = 4 << 30 // 4 GiB written in total
 	maxSingleFile    = 2 << 30 // 2 GiB for any one file
 	extractDirPerm   = 0o755
 	extractFilePerm  = 0o644
 	tempDirNamespace = "fwscan-extract-"
 )
+
+// maxEntries bounds the number of entries an archive may hold: a million files
+// is an attack on the filesystem's inodes rather than a rootfs. A variable so a
+// test can lower it and reach the bound with an archive it can build; nothing
+// else assigns to it.
+var maxEntries = 1 << 20
 
 // ErrDecompressionBomb reports an archive whose contents are wildly out of
 // proportion to its size.
