@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"os"
 	"path/filepath"
@@ -165,4 +166,49 @@ func TestMissingUnsquashfsMessage(t *testing.T) {
 	if strings.Contains(stderr, "executable file not found") {
 		t.Errorf("the raw exec error leaked:\n%s", stderr)
 	}
+}
+
+// An error message quotes the image's own words back at the reader: the
+// offending archive entry is named so the reader knows which one it was. An
+// entry name is as attacker-controlled as anything else in an image, and
+// escape sequences in one reach the terminal verbatim -- where they can clear
+// the screen, recolour it, or scroll a fabricated "0 vulnerabilities" into
+// view. The report has been sanitised since it was written; the error path had
+// not been.
+func TestErrorMessagesCannotDriveTheTerminal(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a binary")
+	}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	// Absolute, so extraction refuses it and reports the name; and carrying
+	// the sequences that clear the screen and move the cursor home.
+	if err := tw.WriteHeader(&tar.Header{
+		Name:     "/\x1b[2J\x1b[Hevil",
+		Typeflag: tar.TypeReg,
+		Mode:     0o644,
+	}); err != nil {
+		t.Fatalf("header: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "escape.tar")
+	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	_, stderr, code := runFwscan(t, "scan", path)
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2", code)
+	}
+	if strings.ContainsRune(stderr, 0x1b) {
+		t.Errorf("stderr carries a raw escape: %q", stderr)
+	}
+	if !strings.Contains(stderr, "�") {
+		t.Errorf("stderr = %q, want the escape replaced visibly rather than dropped", stderr)
+	}
+	assertUserFacingMessage(t, stderr)
 }

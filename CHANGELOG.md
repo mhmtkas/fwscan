@@ -46,6 +46,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Error messages are sanitised before reaching the terminal. A message names
+  the archive entry that caused it, and an entry name comes from the image, so
+  escape sequences in one reached the terminal verbatim — enough to clear the
+  screen and scroll a fabricated result into view. The report has been sanitised
+  since it was written; the error path had not been. Sanitising also now covers
+  bidirectional overrides and zero-width characters, which do not garble a
+  terminal but do make one name read as another.
 - Parsing a dpkg status file is now linear in its size. Continuation lines were
   appended to the field directly, which copies the whole field each time, and
   the field limit permits enough of them for a status file of a few megabytes to

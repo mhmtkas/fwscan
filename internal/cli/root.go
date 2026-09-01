@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/mhmtkas/fwscan/internal/report"
 )
 
 // Exit codes, per docs/output-spec.md section 5.
@@ -57,6 +59,10 @@ func Execute(version string) int {
 	if errors.As(err, &threshold) {
 		return ExitFound
 	}
-	fmt.Fprintf(os.Stderr, "fwscan: %v\n", err)
+	// The message may quote the image's own words -- an archive entry name, a
+	// path from a package database -- and those are as attacker-controlled as
+	// anything in the report. Sanitising here covers every error that reaches
+	// the terminal, rather than each place one is built.
+	fmt.Fprintf(os.Stderr, "fwscan: %s\n", report.Sanitize(err.Error()))
 	return ExitError
 }

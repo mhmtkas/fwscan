@@ -34,8 +34,8 @@ func TestSanitize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := sanitize(tt.in); got != tt.want {
-				t.Errorf("sanitize(%q) = %q, want %q", tt.in, got, tt.want)
+			if got := Sanitize(tt.in); got != tt.want {
+				t.Errorf("Sanitize(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 		})
 	}
@@ -76,5 +76,35 @@ func TestTerminalNeverEmitsControlCharacters(t *testing.T) {
 	// The package is still reported, just defanged.
 	if !strings.Contains(out, "openssl") {
 		t.Errorf("the package name was lost entirely:\n%s", out)
+	}
+}
+
+// The trick these two ranges enable is not garbling the terminal but making a
+// name read as a different name, which for a tool whose whole output is names
+// the reader is asked to trust is the more damaging one.
+func TestSanitizeRemovesInvisibleReorderingCharacters(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		// Written as escapes on purpose: pasted verbatim they are invisible in
+		// the source too, which is the whole point of them.
+		{"right-to-left override", "libssl\u202egnp.so"},
+		{"left-to-right override", "libssl\u202dx"},
+		{"first strong isolate", "libssl\u2066x\u2069"},
+		{"zero width space", "open\u200bssl"},
+		{"zero width joiner", "open\u200dssl"},
+		{"byte order mark", "\ufeffopenssl"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Sanitize(tt.input)
+			if got == tt.input {
+				t.Errorf("Sanitize(%q) left it unchanged", tt.input)
+			}
+			if !strings.ContainsRune(got, replacementRune) {
+				t.Errorf("Sanitize(%q) = %q, want the character replaced visibly", tt.input, got)
+			}
+		})
 	}
 }
