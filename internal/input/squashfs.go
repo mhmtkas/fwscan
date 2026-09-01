@@ -66,43 +66,51 @@ func (SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
 			err, firstLine(string(out)))
 	}
 
-	if err := verifyExtraction(dest, target); err != nil {
+	root, err := openExtracted(target)
+	if err != nil {
 		cleanup()
 		return nil, noopCleanup, err
 	}
-	return os.DirFS(target), cleanup, nil
+	return root.FS(), func() {
+		_ = root.Close()
+		cleanup()
+	}, nil
 }
 
-// verifyExtraction re-checks that nothing landed outside the temp directory.
-// unsquashfs sanitises archive paths itself, but this tool's promise is that it
-// never writes outside its own temp dir, and that promise should not rest on
-// another program's behaviour (spike/NOTES.md T0.4).
-func verifyExtraction(dest, target string) error {
-	root, err := filepath.EvalSymlinks(dest)
-	if err != nil {
-		return fmt.Errorf("resolve temp dir: %w", err)
-	}
+// openExtracted opens what unsquashfs produced and confines every later read to
+// it.
+//
+// This used to walk the extracted tree, resolve every symlink, and abort the
+// scan if one pointed outside. That check was wrong in both directions.
+//
+// It aborted on ordinary images. A rootfs is full of absolute symlinks --
+// bin/sh pointing at /bin/busybox, and everything update-alternatives creates
+// -- and when the machine running the scan happened to have that path too,
+// which on Linux it usually does, the link resolved outside the temp directory
+// and the scan died accusing the user's own image of being hostile. The first
+// real OpenWrt or Yocto image anyone scanned hit it.
+//
+// And it never checked what it claimed to. unsquashfs does the writing here, so
+// the promise at stake is that nothing lands outside the temp directory -- and
+// walking the inside of that directory cannot discover what was written beyond
+// it. The check read as a guarantee while providing none.
+//
+// What can be guaranteed is what fwscan itself reads. os.Root refuses to
+// resolve a path out of the extracted tree, so a link aimed at the host is not
+// readable, which is the same guarantee the tar and directory inputs give.
+func openExtracted(target string) (*os.Root, error) {
 	info, err := os.Stat(target)
 	if err != nil {
-		return fmt.Errorf("unsquashfs produced no output: %w", err)
+		return nil, fmt.Errorf("unsquashfs produced no output: %w", err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("unsquashfs produced %s, which is not a directory", target)
+		return nil, fmt.Errorf("unsquashfs produced %s, which is not a directory", target)
 	}
-	return filepath.WalkDir(target, func(path string, _ os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		resolved, err := filepath.EvalSymlinks(path)
-		if err != nil {
-			// A dangling symlink cannot escape anywhere; it resolves to nothing.
-			return nil //nolint:nilerr // a broken link is not an escape
-		}
-		if !isInside(root, resolved) {
-			return fmt.Errorf("%w: %s", ErrUnsafePath, path)
-		}
-		return nil
-	})
+	root, err := os.OpenRoot(target)
+	if err != nil {
+		return nil, fmt.Errorf("open the extracted rootfs: %w", err)
+	}
+	return root, nil
 }
 
 func firstLine(s string) string {

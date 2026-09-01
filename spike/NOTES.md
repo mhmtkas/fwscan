@@ -418,6 +418,16 @@ Two traps worth stating plainly:
   verify after extraction that nothing landed outside the temp dir — the same
   check T5 applies to tar. T15 re-verifies this.
 
+  **Revised by T26.** That instruction was not implementable as written, and the
+  implementation it produced was worse than nothing. Walking the extracted tree
+  cannot discover what was written *outside* it, so the check never tested its
+  own claim; and implemented as "resolve every symlink, refuse anything landing
+  outside", it aborted on the absolute symlinks every real rootfs carries
+  whenever the target happened to exist on the scanning machine. What fwscan can
+  actually guarantee is what fwscan reads, so all three inputs now read through
+  `os.Root`, which refuses to resolve a path out of the tree at the point the
+  kernel resolves it (T25, T26).
+
 ## T0.5 — Decision log — DONE — Phase 0 closed
 
 ### Verdict: continue. Both kill-risks retired, no change to the MVP scope.

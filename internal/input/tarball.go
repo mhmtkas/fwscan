@@ -208,15 +208,6 @@ func mkdirParent(root *os.Root, name string) error {
 	return root.MkdirAll(dir, extractDirPerm)
 }
 
-// isInside reports whether path is root itself or lives beneath it.
-func isInside(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		return false
-	}
-	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
-}
-
 // writeFile creates one regular file, bounded so a single entry cannot fill the
 // disk however large the archive claims it is.
 func writeFile(r io.Reader, root *os.Root, name string, size int64) (int64, error) {

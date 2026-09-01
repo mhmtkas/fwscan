@@ -2,6 +2,7 @@ package input
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +17,95 @@ import (
 func requireSquashfsTools(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("unsquashfs"); err != nil {
-		t.Skip("unsquashfs not installed; run make fixtures notes in CONTRIBUTING.md")
+		t.Skip("unsquashfs not installed; see the development section of CONTRIBUTING.md")
+	}
+}
+
+// requireMksquashfs skips when the image builder is missing. It comes from the
+// same squashfs-tools package as unsquashfs, so CI has both.
+func requireMksquashfs(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("mksquashfs"); err != nil {
+		t.Skip("mksquashfs not installed; see the development section of CONTRIBUTING.md")
+	}
+}
+
+// buildSquashFS packs a directory into an image and returns its path.
+func buildSquashFS(t *testing.T, src string) string {
+	t.Helper()
+	image := filepath.Join(t.TempDir(), "built.squashfs")
+	cmd := exec.Command("mksquashfs", src, image,
+		"-noappend", "-all-root", "-no-xattrs", "-quiet", "-no-progress")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("mksquashfs: %v: %s", err, out)
+	}
+	return image
+}
+
+// Every real rootfs image carries absolute symlinks: bin/sh pointing at
+// /bin/busybox, and everything update-alternatives creates. Scanning one has to
+// work -- and the links must not become a way to read the host.
+//
+// This is the case that used to abort the scan. The extractor resolved every
+// symlink after extraction and refused the image if one landed outside the temp
+// directory, which an absolute link does whenever its target exists on the
+// machine running the scan.
+func TestSquashFSWithAbsoluteSymlinks(t *testing.T) {
+	requireSquashfsTools(t)
+	requireMksquashfs(t)
+
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret")
+	if err := os.WriteFile(secret, []byte("HOST-FILE-LEAKED\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	src := t.TempDir()
+	for name, body := range map[string]string{
+		"var/lib/dpkg/status": testStatus,
+		"usr/lib/os-release":  testOSRelease,
+		"bin/busybox":         "BusyBox\n",
+	} {
+		full := filepath.Join(src, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The shape every image has, and the same shape aimed at a file that really
+	// exists outside the image -- which is what made the old check fire.
+	if err := os.Symlink("/bin/busybox", filepath.Join(src, "bin", "sh")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secret, filepath.Join(src, "etc-leak")); err != nil {
+		t.Fatal(err)
+	}
+
+	rootfs, cleanup, err := Open(buildSquashFS(t, src))
+	if err != nil {
+		t.Fatalf("Open() error = %v; a rootfs with absolute symlinks is an ordinary image, not a hostile one", err)
+	}
+	defer cleanup()
+
+	comps, err := catalog.NewDpkg().Catalog(rootfs)
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if len(comps) == 0 {
+		t.Error("no packages cataloged from an image that has a dpkg database")
+	}
+
+	// The links are present but lead nowhere reachable: reads stay inside.
+	for _, name := range []string{"etc-leak", "bin/sh"} {
+		f, err := rootfs.Open(name)
+		if err != nil {
+			continue
+		}
+		body, _ := io.ReadAll(f)
+		_ = f.Close()
+		t.Errorf("%s is readable and yields %q; an absolute link must not resolve on the host", name, body)
 	}
 }
 

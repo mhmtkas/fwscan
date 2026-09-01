@@ -46,6 +46,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Scanning a squashfs image no longer fails on an ordinary absolute symlink.
+  A rootfs is full of them — `bin/sh` pointing at `/bin/busybox`, and everything
+  `update-alternatives` creates — and the extractor resolved every link after
+  extraction and refused the image if one landed outside its temp directory,
+  which an absolute link does whenever the scanning machine has that path too.
+  The first real OpenWrt or Yocto image would have hit it. Reads are confined by
+  `os.Root` instead, so such a link is simply not readable.
 - Extraction and reads are now confined by `os.Root` instead of by inspecting
   path strings. A tar archive could write outside its extraction directory
   through a chain of relative symlinks — `a -> ..` then `b -> a/..`, where every
