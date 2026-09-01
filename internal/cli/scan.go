@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -80,11 +81,16 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		return err
 	}
 
-	rootfs, cleanup, err := input.Open(target)
+	rootfs, cleanup, err := input.Open(cmd.Context(), target)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
+	// Also on cancellation, not only on return. An extracted rootfs is
+	// gigabytes, and a scan interrupted at the keyboard used to leave every one
+	// of them behind; cleanup is safe to call more than once, so the two paths
+	// do not conflict.
+	defer context.AfterFunc(cmd.Context(), cleanup)()
 
 	comps, err := catalogAll(rootfs)
 	if err != nil {

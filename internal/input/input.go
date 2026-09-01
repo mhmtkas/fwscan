@@ -7,6 +7,7 @@
 package input
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 )
@@ -21,7 +22,12 @@ type Source interface {
 	// Name identifies the source in error messages, e.g. "directory".
 	Name() string
 	// Open exposes the rootfs at path as an fs.FS.
-	Open(path string) (fs.FS, CleanupFunc, error)
+	//
+	// The context bounds the work. Extraction is the longest thing fwscan does
+	// and the only part that writes gigabytes, so a cancelled scan has to be
+	// able to stop it -- otherwise interrupting a scan leaves the temp
+	// directory behind and the process running.
+	Open(ctx context.Context, path string) (fs.FS, CleanupFunc, error)
 }
 
 // noopCleanup is the cleanup for sources that allocate nothing.
@@ -31,7 +37,7 @@ func noopCleanup() {}
 //
 // The returned cleanup is never nil, including on the error path, so
 // `defer cleanup()` immediately after the call is always correct.
-func Open(path string) (fs.FS, CleanupFunc, error) {
+func Open(ctx context.Context, path string) (fs.FS, CleanupFunc, error) {
 	format, compression, err := Detect(path)
 	if err != nil {
 		return nil, noopCleanup, err
@@ -40,7 +46,7 @@ func Open(path string) (fs.FS, CleanupFunc, error) {
 	if err != nil {
 		return nil, noopCleanup, err
 	}
-	rootfs, cleanup, err := src.Open(path)
+	rootfs, cleanup, err := src.Open(ctx, path)
 	if err != nil {
 		if cleanup != nil {
 			cleanup()

@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -47,9 +48,9 @@ func writeRootfs(t *testing.T) string {
 func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 	root := writeRootfs(t)
 
-	rootfs, cleanup, err := Open(root)
+	rootfs, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open() error = %v", err)
+		t.Fatalf("Open(context.Background(), ) error = %v", err)
 	}
 	defer cleanup()
 
@@ -74,9 +75,9 @@ func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 
 func TestOpenCleanupIsNoopForDirectories(t *testing.T) {
 	root := writeRootfs(t)
-	_, cleanup, err := Open(root)
+	_, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open() error = %v", err)
+		t.Fatalf("Open(context.Background(), ) error = %v", err)
 	}
 	if cleanup == nil {
 		t.Fatal("cleanup is nil; callers defer it unconditionally")
@@ -107,13 +108,13 @@ func TestOpenErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, cleanup, err := Open(tt.path)
+			_, cleanup, err := Open(context.Background(), tt.path)
 			if cleanup == nil {
 				t.Fatal("cleanup is nil on the error path")
 			}
 			cleanup()
 			if err == nil {
-				t.Fatal("Open() error = nil, want an error")
+				t.Fatal("Open(context.Background(), ) error = nil, want an error")
 			}
 			if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
 				t.Errorf("error %v does not wrap %v", err, tt.wantErrIs)
@@ -133,10 +134,10 @@ func TestDirOpenRejectsNonDirectory(t *testing.T) {
 	if err := os.WriteFile(file, nil, 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	if _, _, err := NewDir().Open(file); err == nil {
+	if _, _, err := NewDir().Open(context.Background(), file); err == nil {
 		t.Error("Dir.Open() on a regular file returned no error")
 	}
-	if _, _, err := NewDir().Open(filepath.Join(t.TempDir(), "absent")); err == nil {
+	if _, _, err := NewDir().Open(context.Background(), filepath.Join(t.TempDir(), "absent")); err == nil {
 		t.Error("Dir.Open() on a missing path returned no error")
 	}
 	if got := NewDir().Name(); got != "directory" {
@@ -148,9 +149,9 @@ func TestDirOpenRejectsNonDirectory(t *testing.T) {
 // the image by a crafted path.
 func TestDirFSConfinesReads(t *testing.T) {
 	root := writeRootfs(t)
-	rootfs, cleanup, err := Open(root)
+	rootfs, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open() error = %v", err)
+		t.Fatalf("Open(context.Background(), ) error = %v", err)
 	}
 	defer cleanup()
 

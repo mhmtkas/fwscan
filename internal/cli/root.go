@@ -2,9 +2,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -51,7 +54,15 @@ func NewRootCmd(version string) *cobra.Command {
 // errors are lowercase one-liners on stderr; a Go stack trace never reaches the
 // user (CLAUDE.md conventions).
 func Execute(version string) int {
-	err := NewRootCmd(version).Execute()
+	// A scan writes an extracted rootfs to a temp directory and can spend
+	// minutes in it. Without this, Ctrl-C killed the process where it stood and
+	// left those gigabytes behind; with it, the signal cancels the scan, which
+	// unwinds and removes them. A second signal still kills, because the
+	// default handler is restored once this stops.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	err := NewRootCmd(version).ExecuteContext(ctx)
 	if err == nil {
 		return ExitOK
 	}

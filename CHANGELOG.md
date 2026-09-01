@@ -49,6 +49,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `input.Open` and every input source take a `context.Context`, which
+  `CLAUDE.md` has asked of anything doing I/O since the beginning and this layer
+  did not do.
+
 - The README no longer implies that other scanners get Debian backports wrong.
   grype handles them correctly on the same image, which the comparison document
   measures, and the claim was the strongest thing the README said about
@@ -107,6 +111,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   itself, over a corpus grown from 3844 to 8464 ordered pairs.
 
 ### Fixed
+
+- An interrupted scan now stops and cleans up after itself. Extraction is the
+  longest thing fwscan does and the only part that writes gigabytes, and it took
+  no context, so a signal killed the process where it stood: measured with
+  `SIGTERM` part-way through an extraction, the previous build left the
+  extraction directory behind and the new one leaves nothing. `Ctrl-C` now
+  cancels the scan rather than killing it, and a second signal still kills.
+- `unsquashfs` runs under a ten-minute deadline and the caller's cancellation
+  instead of neither, so a malformed image cannot hang a CI job with no error to
+  show for it. Its output is bounded too — only the first line is ever displayed,
+  and the rest comes from the image.
 
 - Findings on an oldstable Debian image now carry a severity and a fixed version.
   Both were absent, and measurement showed why: for Debian 11, OSV's export

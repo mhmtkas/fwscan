@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -177,9 +178,9 @@ func TestTarballAllCompressions(t *testing.T) {
 				t.Errorf("Detect() compression = %s, want %s", compression, tt.wantCompression)
 			}
 
-			rootfs, cleanup, err := Open(path)
+			rootfs, cleanup, err := Open(context.Background(), path)
 			if err != nil {
-				t.Fatalf("Open() error = %v", err)
+				t.Fatalf("Open(context.Background(), ) error = %v", err)
 			}
 			defer cleanup()
 
@@ -201,9 +202,9 @@ func TestTarballAllCompressions(t *testing.T) {
 
 func TestTarballCleanupRemovesTempDir(t *testing.T) {
 	path := writeTemp(t, "rootfs.tar", buildTar(t))
-	rootfs, cleanup, err := Open(path)
+	rootfs, cleanup, err := Open(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open() error = %v", err)
+		t.Fatalf("Open(context.Background(), ) error = %v", err)
 	}
 	if _, err := rootfs.Open(catalog.DpkgStatusPath); err != nil {
 		t.Fatalf("status not readable before cleanup: %v", err)
@@ -241,10 +242,10 @@ func TestTarballRejectsEscapingEntries(t *testing.T) {
 			}
 			path := writeTemp(t, "hostile.tar", buf.Bytes())
 
-			_, cleanup, err := Open(path)
+			_, cleanup, err := Open(context.Background(), path)
 			cleanup()
 			if err == nil {
-				t.Fatal("Open() error = nil, want the entry rejected")
+				t.Fatal("Open(context.Background(), ) error = nil, want the entry rejected")
 			}
 			if !errors.Is(err, ErrUnsafePath) {
 				t.Errorf("error %v does not wrap ErrUnsafePath", err)
@@ -275,9 +276,9 @@ func TestTarballDropsEscapingSymlinks(t *testing.T) {
 	}
 
 	path := writeTemp(t, "links.tar", buf.Bytes())
-	rootfs, cleanup, err := Open(path)
+	rootfs, cleanup, err := Open(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open() error = %v, want escaping symlinks to be dropped rather than fatal", err)
+		t.Fatalf("Open(context.Background(), ) error = %v, want escaping symlinks to be dropped rather than fatal", err)
 	}
 	defer cleanup()
 
@@ -313,9 +314,9 @@ func TestTarballKeepsInternalSymlinks(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	rootfs, cleanup, err := Open(writeTemp(t, "links.tar", buf.Bytes()))
+	rootfs, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
 	if err != nil {
-		t.Fatalf("Open() error = %v", err)
+		t.Fatalf("Open(context.Background(), ) error = %v", err)
 	}
 	defer cleanup()
 
@@ -383,7 +384,7 @@ func extractInto(t *testing.T, dir string, archive []byte) error {
 	}
 	defer func() { _ = root.Close() }()
 	budget := &extractBudget{source: int64(len(archive))}
-	return extractTar(tar.NewReader(budget.reader(bytes.NewReader(archive))), root, budget)
+	return extractTar(context.Background(), tar.NewReader(budget.reader(bytes.NewReader(archive))), root, budget)
 }
 
 // Extraction bounds. A crafted archive must not be able to fill the disk or
@@ -440,10 +441,10 @@ func TestExtractBounds(t *testing.T) {
 	t.Run("truncated archive fails cleanly", func(t *testing.T) {
 		raw := buildTar(t)
 		path := writeTemp(t, "truncated.tar", raw[:len(raw)/2])
-		_, cleanup, err := Open(path)
+		_, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
-			t.Error("Open() on a truncated archive returned no error")
+			t.Error("Open(context.Background(), ) on a truncated archive returned no error")
 		}
 	})
 }

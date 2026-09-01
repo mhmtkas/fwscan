@@ -2,6 +2,7 @@ package input
 
 import (
 	"archive/tar"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -94,7 +95,7 @@ func (t Tarball) Name() string {
 
 // Open implements Source. The archive is extracted into a temp directory that
 // the returned cleanup removes; nothing is ever written outside it.
-func (t Tarball) Open(path string) (fs.FS, CleanupFunc, error) {
+func (t Tarball) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, error) {
 	f, err := os.Open(path) //nolint:gosec // the path is the user's scan target
 	if err != nil {
 		return nil, noopCleanup, fmt.Errorf("open %s: %w", path, err)
@@ -137,7 +138,7 @@ func (t Tarball) Open(path string) (fs.FS, CleanupFunc, error) {
 	defer func() { _ = closer.Close() }()
 
 	budget := &extractBudget{source: info.Size()}
-	if err := extractTar(tar.NewReader(budget.reader(stream)), root, budget); err != nil {
+	if err := extractTar(ctx, tar.NewReader(budget.reader(stream)), root, budget); err != nil {
 		cleanup()
 		return nil, noopCleanup, err
 	}
@@ -228,9 +229,15 @@ func (w *budgetWriter) Write(p []byte) (int, error) {
 
 // extractTar writes the archive into root, refusing anything that would land
 // outside it.
-func extractTar(tr *tar.Reader, root *os.Root, budget *extractBudget) error {
+func extractTar(ctx context.Context, tr *tar.Reader, root *os.Root, budget *extractBudget) error {
 	var entries int
 	for {
+		// Between entries rather than inside one: an interrupted extraction
+		// should stop promptly, and an entry is bounded already.
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("extraction stopped: %w", err)
+		}
+
 		header, err := tr.Next()
 		if errors.Is(err, io.EOF) {
 			return nil

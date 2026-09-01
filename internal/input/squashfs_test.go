@@ -3,6 +3,7 @@ package input
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -88,9 +89,9 @@ func TestSquashFSWithAbsoluteSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rootfs, cleanup, err := Open(buildSquashFS(t, src))
+	rootfs, cleanup, err := Open(context.Background(), buildSquashFS(t, src))
 	if err != nil {
-		t.Fatalf("Open() error = %v; a rootfs with absolute symlinks is an ordinary image, not a hostile one", err)
+		t.Fatalf("Open(context.Background(), ) error = %v; a rootfs with absolute symlinks is an ordinary image, not a hostile one", err)
 	}
 	defer cleanup()
 
@@ -154,9 +155,9 @@ func TestSquashFSCompressionMatrix(t *testing.T) {
 				t.Errorf("compression = %s, want %s", compression, tt.wantCompression)
 			}
 
-			rootfs, cleanup, err := Open(path)
+			rootfs, cleanup, err := Open(context.Background(), path)
 			if err != nil {
-				t.Fatalf("Open() error = %v", err)
+				t.Fatalf("Open(context.Background(), ) error = %v", err)
 			}
 			defer cleanup()
 
@@ -192,9 +193,9 @@ func TestSquashFSCleanupRemovesTempDir(t *testing.T) {
 	requireSquashfsTools(t)
 
 	path := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")
-	rootfs, cleanup, err := Open(path)
+	rootfs, cleanup, err := Open(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open() error = %v", err)
+		t.Fatalf("Open(context.Background(), ) error = %v", err)
 	}
 	if _, err := rootfs.Open(catalog.DpkgStatusPath); err != nil {
 		t.Fatalf("status not readable before cleanup: %v", err)
@@ -212,11 +213,11 @@ func TestSquashFSMissingUnsquashfs(t *testing.T) {
 	t.Cleanup(func() { lookPath = original })
 
 	path := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")
-	_, cleanup, err := Open(path)
+	_, cleanup, err := Open(context.Background(), path)
 	cleanup()
 
 	if err == nil {
-		t.Fatal("Open() returned no error with unsquashfs missing")
+		t.Fatal("Open(context.Background(), ) returned no error with unsquashfs missing")
 	}
 	if !errors.Is(err, ErrUnsquashfsMissing) {
 		t.Errorf("error %v does not wrap ErrUnsquashfsMissing", err)
@@ -247,10 +248,10 @@ func TestSquashFSCorruptImage(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	_, cleanup, err := Open(path)
+	_, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
-		t.Fatal("Open() on a corrupt image returned no error")
+		t.Fatal("Open(context.Background(), ) on a corrupt image returned no error")
 	}
 	if strings.Count(err.Error(), "\n") > 0 {
 		t.Errorf("error spans multiple lines: %q", err)
@@ -310,9 +311,9 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 		t.Fatalf("read fixture: %v", err)
 	}
 
-	bare, cleanup, err := Open(filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	bare, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
 	if err != nil {
-		t.Fatalf("Open() on the bare image error = %v", err)
+		t.Fatalf("Open(context.Background(), ) on the bare image error = %v", err)
 	}
 	reference, err := catalog.NewDpkg().Catalog(bare)
 	cleanup()
@@ -354,9 +355,9 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 				t.Fatalf("format = %s, want squashfs", format)
 			}
 
-			rootfs, cleanup, err := Open(path)
+			rootfs, cleanup, err := Open(context.Background(), path)
 			if err != nil {
-				t.Fatalf("Open() error = %v; a wrapped image is supported input", err)
+				t.Fatalf("Open(context.Background(), ) error = %v; a wrapped image is supported input", err)
 			}
 			defer cleanup()
 
@@ -396,7 +397,7 @@ func TestSquashFSWrapperFailures(t *testing.T) {
 		if err := os.WriteFile(path, whole.Bytes()[:len(whole.Bytes())/2], 0o644); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		_, cleanup, err := Open(path)
+		_, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
 			t.Fatal("a truncated image opened without complaint")
@@ -417,7 +418,7 @@ func TestSquashFSWrapperFailures(t *testing.T) {
 		if err := os.WriteFile(path, whole.Bytes(), 0o644); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		_, cleanup, err := Open(path)
+		_, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
 			t.Fatal("unwrapping ignored the expansion bound")

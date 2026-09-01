@@ -1,6 +1,8 @@
 package input
 
 import (
+	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ErrUnsquashfsMissing reports that the external tool is not installed. The
@@ -20,6 +23,31 @@ var ErrUnsquashfsMissing = errors.New("unsquashfs not found")
 
 // unsquashfsBinary is the tool fwscan shells out to.
 const unsquashfsBinary = "unsquashfs"
+
+// unsquashfsTimeout bounds the shell-out. Extracting a real rootfs takes
+// seconds; ten minutes is far past any of them and well short of a CI job's
+// patience.
+const unsquashfsTimeout = 10 * time.Minute
+
+// maxToolOutput bounds what is kept of the tool's own output. Only the first
+// line is ever shown, and the rest comes from the image.
+const maxToolOutput = 64 << 10
+
+// boundedBuffer collects at most maxToolOutput bytes and silently drops the
+// rest.
+type boundedBuffer struct{ buf bytes.Buffer }
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	if room := maxToolOutput - b.buf.Len(); room > 0 {
+		b.buf.Write(p[:min(room, len(p))])
+	}
+	// The writer reports everything consumed: a full buffer is not the tool's
+	// problem, and an error here would show as a broken pipe rather than as
+	// whatever went wrong with the image.
+	return len(p), nil
+}
+
+func (b *boundedBuffer) String() string { return b.buf.String() }
 
 // lookPath is a variable so a test can simulate the tool being absent without
 // touching the real PATH.
@@ -44,7 +72,7 @@ func (s SquashFS) Name() string {
 
 // Open implements Source. The image is extracted into a temp directory the
 // returned cleanup removes.
-func (s SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
+func (s SquashFS) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, error) {
 	binary, err := lookPath(unsquashfsBinary)
 	if err != nil {
 		// The message has to tell the user what to do. "exec: unsquashfs:
@@ -82,13 +110,32 @@ func (s SquashFS) Open(path string) (fs.FS, CleanupFunc, error) {
 	// -d must therefore name a path it creates itself.
 	target := filepath.Join(dest, "rootfs")
 
+	// The tool is given a deadline of its own as well as the caller's context.
+	// unsquashfs is handed an untrusted image and has been known to sit on a
+	// malformed one; without a bound, a scan in CI hangs rather than fails, and
+	// a hang is the failure nobody gets an error message for.
+	ctx, cancel := context.WithTimeout(ctx, unsquashfsTimeout)
+	defer cancel()
+
 	// #nosec G204 -- binary comes from LookPath and the only variable argument
 	// is the user's own scan target. This is the one sanctioned shell-out.
-	cmd := exec.Command(binary, "-no-progress", "-quiet", "-d", target, image)
-	if out, err := cmd.CombinedOutput(); err != nil {
+	cmd := exec.CommandContext(ctx, binary, "-no-progress", "-quiet", "-d", target, image)
+	// Bounded rather than CombinedOutput: the output belongs to the image too,
+	// and only the first line of it is ever shown.
+	var out boundedBuffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+
+	if err := cmd.Run(); err != nil {
 		cleanup()
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, noopCleanup, fmt.Errorf(
+				"unsquashfs did not finish within %s; the image may be malformed", unsquashfsTimeout)
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, noopCleanup, fmt.Errorf("extraction stopped: %w", ctxErr)
+		}
 		return nil, noopCleanup, fmt.Errorf("unsquashfs could not read the image: %s",
-			toolMessage(string(out), image, path))
+			toolMessage(out.String(), image, path))
 	}
 
 	root, err := openExtracted(target)

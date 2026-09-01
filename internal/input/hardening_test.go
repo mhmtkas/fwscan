@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -76,10 +77,10 @@ func TestNoTempDirsLeakOnFailure(t *testing.T) {
 	for _, tt := range hostile {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.build(t)
-			rootfs, cleanup, err := Open(path)
+			rootfs, cleanup, err := Open(context.Background(), path)
 			if err == nil {
 				cleanup()
-				t.Fatalf("Open() accepted a hostile archive, returning %v", rootfs)
+				t.Fatalf("Open(context.Background(), ) accepted a hostile archive, returning %v", rootfs)
 			}
 			if cleanup == nil {
 				t.Fatal("cleanup is nil on the error path")
@@ -135,9 +136,9 @@ func TestSymlinkEscapesAreNeverReadable(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	rootfs, cleanup, err := Open(writeTemp(t, "links.tar", buf.Bytes()))
+	rootfs, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
 	if err != nil {
-		t.Fatalf("Open() error = %v; escaping links should be dropped, not fatal", err)
+		t.Fatalf("Open(context.Background(), ) error = %v; escaping links should be dropped, not fatal", err)
 	}
 	defer cleanup()
 
@@ -163,7 +164,7 @@ func TestSymlinkEscapesAreNeverReadable(t *testing.T) {
 // producing an empty rootfs that scans clean.
 func TestHostileArchiveFailsRatherThanScanningClean(t *testing.T) {
 	path := writeTar(t, tar.Header{Name: "../../etc/cron.d/backdoor", Typeflag: tar.TypeReg, Mode: 0o644})
-	_, cleanup, err := Open(path)
+	_, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
 		t.Fatal("a hostile archive produced a usable rootfs")
@@ -215,7 +216,7 @@ func TestDecompressionBombIsRefused(t *testing.T) {
 		t.Fatalf("the fixture only expands %dx, which is inside the limit; it does not test the guard", ratio)
 	}
 
-	_, cleanup, err := Open(writeTemp(t, "bomb.tar.gz", bomb.Bytes()))
+	_, cleanup, err := Open(context.Background(), writeTemp(t, "bomb.tar.gz", bomb.Bytes()))
 	cleanup()
 	if err == nil {
 		t.Fatal("a decompression bomb unpacked without complaint")
@@ -263,7 +264,7 @@ func TestSparseEntryExpansionIsBounded(t *testing.T) {
 	t.Cleanup(restore)
 	maxExpansionRatio, minExpansionBytes = 20, 4<<10
 
-	_, cleanup, err := Open(archive)
+	_, cleanup, err := Open(context.Background(), archive)
 	cleanup()
 	if err == nil {
 		t.Fatalf("a %d byte archive expanded to 200 MiB without complaint", info.Size())
@@ -290,10 +291,10 @@ func mustCreate(t *testing.T, path string) string {
 func TestOrdinaryImagesDoNotTripTheExpansionGuard(t *testing.T) {
 	for _, name := range []string{"mini-rootfs.tar.gz", "alpine-rootfs.tar.gz"} {
 		t.Run(name, func(t *testing.T) {
-			_, cleanup, err := Open(filepath.Join("..", "..", "testdata", "images", name))
+			_, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", name))
 			defer cleanup()
 			if err != nil {
-				t.Errorf("Open() error = %v; a committed fixture must not trip the expansion guard", err)
+				t.Errorf("Open(context.Background(), ) error = %v; a committed fixture must not trip the expansion guard", err)
 			}
 		})
 	}
@@ -401,7 +402,7 @@ func TestSquashFSNoTempDirLeakOnFailure(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	_, cleanup, err := Open(path)
+	_, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
 		t.Fatal("a corrupt squashfs produced a usable rootfs")
@@ -502,9 +503,9 @@ func TestDirectoryInputCannotReadThroughASymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rootfs, cleanup, err := Open(root)
+	rootfs, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open() error = %v; a directory holding an escaping link is still scannable", err)
+		t.Fatalf("Open(context.Background(), ) error = %v; a directory holding an escaping link is still scannable", err)
 	}
 	defer cleanup()
 
@@ -553,5 +554,73 @@ func TestHardLinkToDroppedSourceIsNotFatal(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "var", "lib", "dpkg", "status")); err != nil {
 		t.Errorf("the rest of the archive was not extracted: %v", err)
+	}
+}
+
+// An interrupted scan must stop, and must not leave an extracted rootfs behind.
+// Extraction is the only part of fwscan that writes gigabytes, so it is the one
+// place where not honouring a cancellation is expensive.
+func TestExtractionStopsWhenTheContextIsCancelled(t *testing.T) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for i := range 64 {
+		body := strings.Repeat("x", 1024)
+		if err := tw.WriteHeader(&tar.Header{
+			Name: fmt.Sprintf("f%03d", i), Typeflag: tar.TypeReg,
+			Mode: 0o644, Size: int64(len(body)),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := io.WriteString(tw, body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	dir := t.TempDir()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+
+	budget := &extractBudget{source: int64(buf.Len())}
+	err = extractTar(ctx, tar.NewReader(budget.reader(bytes.NewReader(buf.Bytes()))), root, budget)
+	if err == nil {
+		t.Fatal("extraction ran to completion under a cancelled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error %v does not wrap context.Canceled", err)
+	}
+
+	written, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(written) != 0 {
+		t.Errorf("%d files were written after cancellation", len(written))
+	}
+}
+
+// The cleanup a caller is handed has to be safe on both paths, because a
+// cancelled scan runs it from the cancellation and again on the way out.
+func TestCleanupIsSafeToCallTwice(t *testing.T) {
+	count := isolateTempRoot(t)
+	before := count()
+
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	_, cleanup, err := Open(context.Background(), image)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	cleanup()
+	cleanup()
+	if after := count(); after != before {
+		t.Errorf("%d extraction directories left behind", after-before)
 	}
 }

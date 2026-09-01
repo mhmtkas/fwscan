@@ -1,6 +1,7 @@
 package input
 
 import (
+	"context"
 	"fmt"
 	"io/fs"
 	"os"
@@ -28,7 +29,7 @@ func (Dir) Name() string { return "directory" }
 // since binwalk -e produces a directory, so it is the one most likely to be
 // pointed at a tree the user did not build themselves. os.Root resolves every
 // component within the directory and refuses one that leaves it.
-func (Dir) Open(path string) (fs.FS, CleanupFunc, error) {
+func (Dir) Open(_ context.Context, path string) (fs.FS, CleanupFunc, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, noopCleanup, fmt.Errorf("stat %s: %w", path, err)
