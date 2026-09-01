@@ -837,3 +837,79 @@ func TestFetchVulnsRefusesToReturnAShortMap(t *testing.T) {
 		t.Fatalf("fetchVulns returned %d of %d records and no error", len(records), len(ids))
 	}
 }
+
+// A fix older than what is installed is never an answer. It reads as an
+// instruction to downgrade, and the version it names is one the reader already
+// passed.
+//
+// The existing property test asserts this over the committed fixture, which
+// happens not to contain a record shaped this way; this one builds the shape.
+func TestFixedVersionRefusesToNameAnOlderVersion(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "DEBIAN-CVE-2024-0002",
+	  "affected": [{
+	    "package": {"ecosystem": "Debian:11", "name": "demo",
+	                "purl": "pkg:deb/debian/demo?arch=source&distro=bullseye"},
+	    "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "0.9"}]}]
+	  }]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	key := queryKey{source: "demo", version: "1.0", distro: "bullseye", kind: kindDeb}
+	if got := fixedVersion(record, key); got != "" {
+		t.Errorf("fixedVersion = %q, want none: 0.9 is older than the installed 1.0", got)
+	}
+}
+
+// The fallback exists for versions that cannot be ordered at all -- an
+// ecosystem with no comparison of its own -- and that case must keep working,
+// or the fix above would be a silent loss of the FIXED column everywhere the
+// ordering is unknown.
+func TestFixedVersionStillAnswersWhenOrderingIsUnknown(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "OSV-2024-0003",
+	  "affected": [{
+	    "package": {"ecosystem": "Whatever", "name": "demo"},
+	    "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2024-07-01"}]}]
+	  }]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	key := queryKey{source: "demo", version: "2024-01-01", kind: kindUnknown}
+	if got := fixedVersion(record, key); got != "2024-07-01" {
+		t.Errorf("fixedVersion = %q, want 2024-07-01", got)
+	}
+}
+
+// bullseye and bullseye-backports are different releases with different fixed
+// versions. Searching the purl for "distro=bullseye" reads the first out of the
+// second, and the result is a plausible-looking wrong version in the FIXED
+// column -- the exact confusion the release qualifier exists to prevent.
+func TestReleaseMatchingIsNotASubstringSearch(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "DEBIAN-CVE-2024-0004",
+	  "affected": [{
+	    "package": {"ecosystem": "Debian:11", "name": "demo",
+	                "purl": "pkg:deb/debian/demo?arch=source&distro=bullseye-backports"},
+	    "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "9.9"}]}]
+	  }]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	key := queryKey{source: "demo", version: "1.0", distro: "bullseye", kind: kindDeb}
+	if got := fixedVersion(record, key); got != "" {
+		t.Errorf("fixedVersion = %q, want none: 9.9 is the backports fix, not bullseye's", got)
+	}
+
+	// And the release it does name still matches.
+	key.distro = "bullseye-backports"
+	if got := fixedVersion(record, key); got != "9.9" {
+		t.Errorf("fixedVersion = %q, want 9.9 for the release the entry actually names", got)
+	}
+}

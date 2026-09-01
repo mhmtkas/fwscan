@@ -3,6 +3,8 @@ package match
 import (
 	"strings"
 
+	"github.com/package-url/packageurl-go"
+
 	"github.com/mhmtkas/fwscan/internal/model"
 )
 
@@ -242,7 +244,22 @@ func affectedMatchesRelease(a affected, key queryKey) bool {
 	if key.distro == "" {
 		return true
 	}
-	return strings.Contains(a.Package.PURL, "distro="+key.distro)
+	// The qualifier is compared, not searched for. A substring search reads
+	// "distro=bullseye" out of "distro=bullseye-backports", and backports is a
+	// different release with a different fixed version -- the exact confusion
+	// the release qualifier exists to prevent, arriving as a plausible-looking
+	// wrong version in the FIXED column.
+	return purlDistro(a.Package.PURL) == key.distro
+}
+
+// purlDistro reads the distro qualifier of a purl, or "" if it carries none or
+// does not parse. A purl this cannot read is not one to draw a release from.
+func purlDistro(purl string) string {
+	parsed, err := packageurl.FromString(purl)
+	if err != nil {
+		return ""
+	}
+	return parsed.Qualifiers.Map()["distro"]
 }
 
 // bucketFromV2Score maps a v2 base score. v2 has no critical band, so 7.0 and
@@ -268,7 +285,11 @@ func bucketFromV2Score(score float64) model.Severity {
 // Where several ranges match, output-spec section 1 asks for the one whose
 // introduced-to-fixed window contains the installed version.
 func fixedVersion(record vulnRecord, key queryKey) string {
-	var fallback string
+	// Held for the case where the two versions cannot be ordered at all -- an
+	// ecosystem with no comparison, or a version neither side parses. A fix
+	// that is *known* to be older than what is installed is not a fallback,
+	// it is a wrong answer: it tells the reader to downgrade.
+	var unordered string
 	for _, a := range record.Affected {
 		if a.Package.Name != key.source {
 			continue
@@ -291,11 +312,11 @@ func fixedVersion(record vulnRecord, key queryKey) string {
 				if versionLess(key.kind, key.version, e.Fixed) {
 					return e.Fixed
 				}
-				if fallback == "" {
-					fallback = e.Fixed
+				if _, ordered := compareVersions(key.kind, key.version, e.Fixed); !ordered && unordered == "" {
+					unordered = e.Fixed
 				}
 			}
 		}
 	}
-	return fallback
+	return unordered
 }

@@ -46,6 +46,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The fixed version reported for a finding is no longer sometimes a version
+  older than the one installed, which read as an instruction to downgrade. It is
+  only reported when it is genuinely newer, or when the two cannot be ordered at
+  all — an ecosystem with no version comparison of its own, where declining to
+  answer would lose the column entirely.
+- A finding's fixed version is no longer taken from a neighbouring release.
+  Release matching searched the affected package's purl for `distro=<release>`,
+  and a substring search reads `distro=bullseye` out of `distro=bullseye-backports`;
+  the qualifier is now parsed and compared. Backports is a different release with
+  a different fixed version, which is the confusion the qualifier exists to
+  prevent.
 - A cancelled scan now fails instead of quietly reporting fewer vulnerabilities
   than it found. When the context was cancelled while vulnerability records were
   being fetched, the loop handing out work skipped the record it was holding and
