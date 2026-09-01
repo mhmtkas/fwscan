@@ -371,3 +371,68 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 		})
 	}
 }
+
+// Unwrapping is a step that can fail on its own, before unsquashfs is reached,
+// and its failures are as user-facing as any other.
+func TestSquashFSWrapperFailures(t *testing.T) {
+	requireSquashfsTools(t)
+
+	image, err := os.ReadFile(filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	var whole bytes.Buffer
+	zw := gzip.NewWriter(&whole)
+	if _, err := zw.Write(image); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	t.Run("truncated wrapper", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "rootfs.squashfs.gz")
+		// Enough to detect as a wrapped squashfs, not enough to unwrap.
+		if err := os.WriteFile(path, whole.Bytes()[:len(whole.Bytes())/2], 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		_, cleanup, err := Open(path)
+		cleanup()
+		if err == nil {
+			t.Fatal("a truncated image opened without complaint")
+		}
+		assertNoStackTrace(t, err)
+	})
+
+	t.Run("the unwrapped image is bounded", func(t *testing.T) {
+		restore := func(ratio, floor int64) func() {
+			return func() { maxExpansionRatio, minExpansionBytes = ratio, floor }
+		}(maxExpansionRatio, minExpansionBytes)
+		t.Cleanup(restore)
+		// The fixture is 4 KiB and gzips to about 3 KiB, so the bound has to be
+		// set below "any expansion at all" for this small an image to cross it.
+		maxExpansionRatio, minExpansionBytes = 0, 1<<10
+
+		path := filepath.Join(t.TempDir(), "rootfs.squashfs.gz")
+		if err := os.WriteFile(path, whole.Bytes(), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		_, cleanup, err := Open(path)
+		cleanup()
+		if err == nil {
+			t.Fatal("unwrapping ignored the expansion bound")
+		}
+		if !errors.Is(err, ErrDecompressionBomb) {
+			t.Errorf("error %v does not wrap ErrDecompressionBomb", err)
+		}
+	})
+}
+
+// assertNoStackTrace guards the CLI convention: a user-facing failure is a
+// message, never a dump.
+func assertNoStackTrace(t *testing.T, err error) {
+	t.Helper()
+	if strings.Contains(err.Error(), "goroutine ") || strings.Contains(err.Error(), ".go:") {
+		t.Errorf("error looks like a stack trace: %v", err)
+	}
+}
