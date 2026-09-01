@@ -4,283 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- `docs/comparison.md`, measured rather than asserted: fwscan next to syft and
-  grype on the two committed fixture images, with the commands to re-derive the
-  numbers. It does not flatter this tool. On the Debian 11 fixture grype reports
-  113 findings to fwscan's 16, ranks 108 of them where fwscan ranks none, and
-  names a fix for 63 where fwscan names none — and every fwscan finding is one
-  grype also has. The reasons are measured too, and two of the three are
-  fwscan's to fix; `spike/NOTES.md` T18a records them as open questions.
-
-- Tests for the three places that had assertions but no coverage. `Execute` was
-  never called by the test named for its exit codes — that test built a
-  `ThresholdError` by hand and checked `errors.As` matched it, which passes with
-  the branch in `Execute` deleted — so exit 1, the contract every CI pipeline
-  using this tool depends on, was only exercised by an integration test behind a
-  build tag. CVSS v2 scoring, which `docs/output-spec.md` makes a mandatory
-  fallback, was sixty-five lines of hand-written arithmetic with no test at all.
-  And the archive entry limit was checked by asserting that three constants were
-  positive, which passes with the counter removed from the extractor.
-
-- An end-to-end golden test. The report goldens are rendered from structs
-  written by hand, so they cover the reporters and nothing between the image and
-  them: identifier derivation, the collapse rule, severity mapping and the
-  choice of fixed version all sat outside any byte-for-byte comparison, and each
-  of those has now had a defect a golden would have shown. The new pair runs the
-  committed fixture image through the whole pipeline against the recorded OSV
-  responses and compares the terminal report and the JSON report exactly, with
-  only the start time and duration normalised.
-
-- `THIRD_PARTY_LICENSES.txt`, carrying the licences and notices of the Go
-  dependencies linked into the release binaries and of FIRST's CVSS v4
-  reference calculator, whose MacroVector table this project transcribes. Those
-  licences require the notices to travel with any copy; the release archives now
-  include the file, `make third-party-licenses` regenerates it from the module
-  cache, and CI fails if the committed copy has drifted.
-- CVSS v4.0 base scoring. A record carrying only a v4 vector used to report as
-  `unknown`, which meant it could never trigger `--fail-on`; every such record
-  in the data the spike measured was a 2025 or 2026 CVE, so the blind spot was
-  growing with each release. v4 scores now map to the same severity bands as
-  v3, and `docs/output-spec.md` section 1 carries the rule.
-
-### Changed
-
-- `input.Open` and every input source take a `context.Context`, which
-  `CLAUDE.md` has asked of anything doing I/O since the beginning and this layer
-  did not do.
-
-- The README no longer implies that other scanners get Debian backports wrong.
-  grype handles them correctly on the same image, which the comparison document
-  measures, and the claim was the strongest thing the README said about
-  competitors. The limitations section now states plainly that on an oldstable
-  Debian image every finding reports as `unknown` with no fixed version, because
-  OSV's export for such a release carries only advisory records.
-
-- CI pins the `cyclonedx-cli` version it validates the SBOM with, installs it
-  with `sudo` rather than assuming `/usr/local/bin` is writable, and checks that
-  `go mod tidy` produces no change. The last one is otherwise invisible until a
-  tag is cut, because `.goreleaser.yaml` runs `go mod tidy` in its `before` hook
-  and refuses to release from a dirty tree.
-- `make help` lists the targets whose names contain digits, which its pattern
-  had been dropping — `test-cvss4-oracle` was invisible. `make lint` explains
-  that golangci-lint v2 is required instead of failing with a bare "no such
-  file", and `CONTRIBUTING.md` says to run `make fixtures` in a fresh clone,
-  without which three of the four squashfs decompressors are silently skipped.
-
-- `--fail-on` accepts only the four values `docs/output-spec.md` documents. It
-  reached the severity parser, which is deliberately more forgiving because it
-  reads OSV's own wording — so `--fail-on moderate` was a silent synonym for
-  `medium` that no document mentioned. Case and surrounding whitespace are still
-  accepted, and the spec now says so.
-
-- `docs/mvp-scope.md` is replaced by `docs/scope.md`. The old document was a
-  working plan as much as a specification — it carried a build schedule, launch
-  and monetisation notes and an assessment of the author, none of which is a
-  reader's business, and both the README and CONTRIBUTING pointed newcomers at
-  it as the authoritative statement of what fwscan does. The new one states the
-  problem, the audience, the goals and the non-goals, in the third person.
-  `docs/roadmap.md` says which non-goals are expected later, and in what order.
-- The task queue and the phase-0 planning document are no longer in the
-  repository. Both are addressed to whoever is building fwscan rather than to
-  whoever is reading it.
-
-- The rule for a finding's `id` and `aliases` now lives in `docs/output-spec.md`
-  section 3 rather than only in a code comment: the plain CVE from OSV's
-  `upstream` field is the identifier, and the `DEBIAN-CVE-…`/`ALPINE-CVE-…`
-  record id is kept as an alias. No behaviour change — the matcher already did
-  this.
-- `docs/output-spec.md` section 2 no longer shows a finding against a
-  low-confidence component, and states instead that components identified by
-  filename heuristics are cataloged and reported but never queried against OSV.
-  The example implied a lookup the scanner deliberately does not perform.
-- The README's limitations section gives the combined share of findings that
-  `--fail-on` cannot see — severity-less records and CVSS v4-only records
-  together — instead of describing the two separately, and now also says that
-  heuristically identified components are never looked up.
-- `make test` now probes for race-detector support and runs without it on
-  kernels that cannot provide it, instead of failing outright. CI uses the new
-  `make test-race`, which still requires it.
-- The apk version comparator is now written from the format documented in
-  `apk-package(5)` rather than ported from apk-tools' implementation, which is
-  GPL-2.0-only and could not be distributed under this project's Apache-2.0
-  licence. Behaviour is unchanged and still checked against `apk version -t`
-  itself, over a corpus grown from 3844 to 8464 ordered pairs.
-
-### Fixed
-
-- The README's download command no longer mixes `releases/latest/download/` with
-  a file name that names a version. The two cannot be combined: the path
-  resolves to whatever is newest while asking for a file called `0.1.0`, so the
-  command would have broken silently on the day the next release shipped.
-
-- A CycloneDX `bom-ref` is now unique within the document, which the format
-  requires. It was the purl, or the name and version where there is no purl, and
-  neither is unique: one image can carry the same package built for two
-  architectures, and two filename heuristics can land on the same name and
-  version.
-- Components with the same name and version no longer order arbitrarily between
-  runs. Architecture and purl settle it, so a multiarch image produces the same
-  report twice.
-- A CVSS score is never a negative zero, which is equal to zero and encodes in
-  JSON as `-0`.
-- `--output` pointed at a directory says so, instead of failing with a rename
-  error naming a temp file the user never chose.
-- Requests to OSV identify fwscan in the `User-Agent`, and a redirect to a
-  different host is refused rather than followed with the request body.
-
-- An interrupted scan now stops and cleans up after itself. Extraction is the
-  longest thing fwscan does and the only part that writes gigabytes, and it took
-  no context, so a signal killed the process where it stood: measured with
-  `SIGTERM` part-way through an extraction, the previous build left the
-  extraction directory behind and the new one leaves nothing. `Ctrl-C` now
-  cancels the scan rather than killing it, and a second signal still kills.
-- `unsquashfs` runs under a ten-minute deadline and the caller's cancellation
-  instead of neither, so a malformed image cannot hang a CI job with no error to
-  show for it. Its output is bounded too — only the first line is ever displayed,
-  and the rest comes from the image.
-
-- Findings on an oldstable Debian image now carry a severity and a fixed version.
-  Both were absent, and measurement showed why: for Debian 11, OSV's export
-  contains only DSA and DLA advisory records, which have no CVSS vector, while
-  the per-CVE records that do have one list only Debian 12 and later. Every
-  finding on such an image therefore reported as `unknown` with no fix, and
-  `--fail-on` could not fire at all. The vector is one hop away in the record
-  each advisory names as `upstream`, and the fix is in the advisory itself, under
-  the `ecosystem` field rather than the purl qualifier fwscan matched on. On the
-  committed fixture this turns 16 unranked, unfixed findings into 16 ranked
-  findings with fix versions, 15 of which match grype exactly.
-- Where a release carries more than one advisory for the same issue, the fixed
-  version reported is now the lowest that resolves it rather than whichever
-  record OSV happened to return first.
-
-- A binary built from source no longer calls itself `fwscan vdev`. The display
-  version prefixed a `v` to whatever it was given, and only a release binary is
-  given a tag: `go install` leaves `main.go`'s default of `dev`, and `make build`
-  stamps `git describe`, so the two most common ways to obtain this tool both
-  printed something that looks broken. The `v` now goes only in front of a
-  version number.
-
-- Two golden files described output the pipeline cannot produce: a CVSS score
-  paired with no vector, which the scorer never returns, and a finding against a
-  low-confidence component, which `docs/output-spec.md` section 2 rules out
-  because heuristically identified components are never queried. A golden
-  showing an impossible shape licenses a defect rather than catching it. The
-  remaining scores are now the ones their vectors actually produce.
-
-- The fixed version now comes from the range whose window actually contains the
-  installed version, which is what `docs/output-spec.md` section 1 asks for.
-  Only the upper bound of the window was tested, so a record listing a range the
-  installed version sits *below* answered with that range's fix rather than with
-  the one it belongs to. The `introduced` field was parsed and never read.
-- A `GIT` range no longer contributes a fixed version. Its events are commit
-  hashes, so the FIXED column could name forty characters of hex and tell the
-  reader to install a commit.
-
-- `docs/output-spec.md` section 2 now states what the `SCORE` column shows when
-  no score could be derived. It was the same em dash as `FIXED`, which the spec
-  described only for `FIXED`; the behaviour is unchanged and the constant behind
-  it is no longer named after the fixed-version column.
-- `docs/architecture.md` said `sbom` consumes `[]model.Finding`. It consumes
-  `[]model.Component` and is written before the matcher runs, which the same
-  document says correctly sixty lines earlier.
-
-- A standalone-compressed squashfs image — `rootfs.squashfs.gz` and the other
-  shapes Yocto and OpenWrt emit — is now scanned rather than refused. Detection
-  handled it already, looking through the wrapper to find the squashfs inside;
-  dispatch ignored the wrapper and handed the still-compressed file to
-  `unsquashfs`, which answered with its own complaint about a missing
-  superblock. The scope document has listed this input as supported since the
-  beginning.
-
-- The fixed version reported for a finding is no longer sometimes a version
-  older than the one installed, which read as an instruction to downgrade. It is
-  only reported when it is genuinely newer, or when the two cannot be ordered at
-  all — an ecosystem with no version comparison of its own, where declining to
-  answer would lose the column entirely.
-- A finding's fixed version is no longer taken from a neighbouring release.
-  Release matching searched the affected package's purl for `distro=<release>`,
-  and a substring search reads `distro=bullseye` out of `distro=bullseye-backports`;
-  the qualifier is now parsed and compared. Backports is a different release with
-  a different fixed version, which is the confusion the qualifier exists to
-  prevent.
-- A cancelled scan now fails instead of quietly reporting fewer vulnerabilities
-  than it found. When the context was cancelled while vulnerability records were
-  being fetched, the loop handing out work skipped the record it was holding and
-  moved to the next one, so every remaining record was dropped; no worker had
-  failed, so no error was raised either, and the report came back short with
-  nothing saying so. The fetch now stops on cancellation and reports it, refuses
-  to return fewer records than it was asked for, and the matcher treats a
-  missing record as an error rather than a finding to skip.
-- Error messages are sanitised before reaching the terminal. A message names
-  the archive entry that caused it, and an entry name comes from the image, so
-  escape sequences in one reached the terminal verbatim — enough to clear the
-  screen and scroll a fabricated result into view. The report has been sanitised
-  since it was written; the error path had not been. Sanitising also now covers
-  bidirectional overrides and zero-width characters, which do not garble a
-  terminal but do make one name read as another.
-- Parsing a dpkg status file is now linear in its size. Continuation lines were
-  appended to the field directly, which copies the whole field each time, and
-  the field limit permits enough of them for a status file of a few megabytes to
-  cost minutes of CPU with no timeout above it. Measured before and after:
-  400,000 continuation lines took 56.5 seconds, and now take about 30
-  milliseconds. The file as a whole is also bounded at 256 MiB, which the
-  per-line, per-field and per-stanza limits did not imply.
-- Extraction is now bounded against the size of the archive it came from, not
-  only by an absolute cap. The absolute caps were a formality rather than a
-  bound — 16 GiB total and 8 GiB per file, when the extraction directory is a
-  tmpfs on most systems — and are now 4 GiB and 2 GiB. Alongside them, an
-  archive that has produced more than 64 MiB at over 5000 times its own size on
-  disk is refused. That covers the amplification a lexical size check cannot
-  see: a PAX sparse entry is expanded to its declared length by the reader, so a
-  10 KiB uncompressed tar could produce 200 MiB without a single one of those
-  bytes passing through the decompressor.
-- Scanning a squashfs image no longer fails on an ordinary absolute symlink.
-  A rootfs is full of them — `bin/sh` pointing at `/bin/busybox`, and everything
-  `update-alternatives` creates — and the extractor resolved every link after
-  extraction and refused the image if one landed outside its temp directory,
-  which an absolute link does whenever the scanning machine has that path too.
-  The first real OpenWrt or Yocto image would have hit it. Reads are confined by
-  `os.Root` instead, so such a link is simply not readable.
-- Extraction and reads are now confined by `os.Root` instead of by inspecting
-  path strings. A tar archive could write outside its extraction directory
-  through a chain of relative symlinks — `a -> ..` then `b -> a/..`, where every
-  step still reads as inside but each one climbs a directory — and a scanned
-  directory could have a symlink read the host's files and report their contents
-  as the image's. `os.Root` re-resolves every path component where the kernel
-  does, so neither escape survives it. The lexical checks remain, to name the
-  offending archive entry in the error instead of a temp path the user never
-  chose.
-- A vulnerability is no longer reported twice for the same component. OSV
-  returns the DSA or DLA advisory alongside the `DEBIAN-CVE-…` record for one
-  issue, and both resolve to the same CVE; the advisory carries no severity and
-  no release-scoped fix, so the second row was the emptier one. On the fixture
-  image this was 17 of 114 findings, and it inflated the `unknown` bucket from 7
-  to 24.
-- An Alpine package whose version carries a pre-release suffix — `_alpha`,
-  `_beta`, `_pre` or `_rc` — is now ordered by apk's rules rather than Debian's.
-  The two disagree on exactly those suffixes, and the Debian library does not
-  reject an apk version, it answers wrongly. Where an advisory records more than
-  one fix window for a release, that named a later release's fix than the one
-  that actually resolves the issue. Version comparison is now chosen by the same
-  ecosystem that chooses the query shape.
-- A vulnerability unfixed in the scanned release no longer reports another
-  release's fixed version, which pointed at a package that does not exist for
-  that image.
-- Control characters from a package name or version are replaced before
-  reaching the terminal, so a crafted image cannot write escape sequences to
-  the reader's screen.
-- A paginated OSV result is reported as an error rather than silently
-  truncating the findings.
-- A hard link whose source was a dropped absolute symlink no longer aborts the
-  whole scan.
-- A CVSS vector scoring exactly zero no longer produces an `unknown` severity
-  that still carries a vector.
-
-## [0.1.0] — 2026-08-30
+## [0.1.0] — 2026-09-02
 
 First release. Scans a Linux firmware rootfs, emits a CycloneDX SBOM, and
 reports known vulnerabilities from OSV.dev.
@@ -297,6 +21,13 @@ reports known vulnerabilities from OSV.dev.
   data is keyed on.
 - Heuristic detectors for the kernel version, the busybox version and versioned
   shared libraries, reported at low confidence with the path they came from.
+- Standalone-compressed images: `rootfs.squashfs.gz` and the other shapes Yocto
+  and OpenWrt emit are unwrapped before extraction.
+- Severity from CVSS v3.1, v4.0 or v2 vectors, scored locally. The v4 path
+  matches FIRST's reference calculator across the whole base metric space; where
+  a record carries no vector of its own but names the CVE it fixed, the vector is
+  taken from that record, which is what makes `--fail-on` usable on an oldstable
+  Debian image.
 
 **Vulnerability matching**
 
@@ -327,15 +58,37 @@ reports known vulnerabilities from OSV.dev.
   schema validation.
 - `spike/NOTES.md`, the evidence behind the query formats and the squashfs
   strategy, including the checks that failed before they passed.
+- `THIRD_PARTY_LICENSES.txt` in every release archive, carrying the licences and
+  notices of the dependencies the binaries link and of the CVSS v4 reference
+  calculator this project transcribes. `make third-party-licenses` regenerates
+  it from the module cache and CI fails if the committed copy has drifted.
+- `docs/scope.md`, `docs/roadmap.md`, `docs/architecture.md`,
+  `docs/output-spec.md` and `docs/comparison.md` — what fwscan is for, what is
+  coming, how it is built, exactly what it emits, and how it measures against
+  syft and grype.
 
 ### Known limitations
 
+- fwscan finds less than grype does on the same image, and the gap is the data
+  source rather than the matching: OSV's export for an oldstable Debian release
+  lists the CVEs that received an advisory, while the Debian Security Tracker
+  carries every CVE's per-release status. `docs/comparison.md` measures it — 113
+  findings to 16 on the fixture image, with every fwscan finding also one of
+  grype's. A second data source is on the roadmap.
 - Roughly a fifth of Debian's OSV records carry no severity and land in the
   `unknown` bucket, which `--fail-on` never triggers on.
-- Records carrying only a CVSS v4 vector also report as `unknown`.
-- Heuristic components are reported but not looked up.
+- Heuristic components are reported but not looked up: a version read off a
+  filename carries no release to scope a query to.
 - No offline mode, no SPDX output, no opkg or rpm support, no VEX. See the
   limitations table in the README.
 
-[Unreleased]: https://github.com/mhmtkas/fwscan/compare/v0.1.0...HEAD
+### Note on this changelog
+
+An earlier draft of this section was dated 30 August and never tagged. A
+pre-publication review followed, and the twenty-odd defects it found — a GPL
+port that could not ship, two ways out of the extraction directory, a quadratic
+parser, findings that were dropped or left unranked — were fixed before anything
+was released. None of them ever reached a user, so none is a changelog entry;
+they are in the commit history, each with the measurement that found it.
+
 [0.1.0]: https://github.com/mhmtkas/fwscan/releases/tag/v0.1.0
