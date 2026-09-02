@@ -99,7 +99,7 @@ func (s SquashFS) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, er
 	image := path
 	if s.compression != CompressionNone {
 		var err error
-		image, err = decompressToFile(path, s.compression, filepath.Join(dest, "image.squashfs"))
+		image, err = decompressToFile(ctx, path, s.compression, filepath.Join(dest, "image.squashfs"))
 		if err != nil {
 			cleanup()
 			return nil, noopCleanup, err
@@ -188,7 +188,7 @@ func openExtracted(target string) (*os.Root, error) {
 // decompressToFile unwraps a compressed image into dest and returns its path.
 // The same bound applies as to an archive: an image is untrusted input, and
 // unwrapping it is exactly the step a decompression bomb is aimed at.
-func decompressToFile(path string, c Compression, dest string) (string, error) {
+func decompressToFile(ctx context.Context, path string, c Compression, dest string) (string, error) {
 	in, err := os.Open(path) //nolint:gosec // the path is the user's scan target
 	if err != nil {
 		return "", fmt.Errorf("open %s: %w", path, err)
@@ -213,10 +213,28 @@ func decompressToFile(path string, c Compression, dest string) (string, error) {
 	defer func() { _ = out.Close() }()
 
 	budget := &extractBudget{source: info.Size()}
-	if _, err := io.Copy(budget.writer(out), stream); err != nil {
+	if _, err := io.Copy(budget.writer(out), &cancellableReader{ctx: ctx, reader: stream}); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", fmt.Errorf("extraction stopped: %w", ctxErr)
+		}
 		return "", fmt.Errorf("unwrapping the %s image: %w", c, err)
 	}
 	return dest, nil
+}
+
+// cancellableReader stops a copy when its context ends. An image can be
+// gigabytes and io.Copy would otherwise run to the end of it after the scan
+// was told to stop.
+type cancellableReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r *cancellableReader) Read(p []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return r.reader.Read(p)
 }
 
 // toolMessage turns unsquashfs's output into one line fit for a user, with the

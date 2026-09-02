@@ -2,6 +2,8 @@ package catalog
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -204,7 +206,7 @@ func TestHeuristicInvariants(t *testing.T) {
 		"lib/libc-2.31.so":      &fstest.MapFile{},
 		"usr/lib/libssl.so.1.1": &fstest.MapFile{},
 	}
-	comps, err := NewHeuristic().Catalog(fsys)
+	comps, err := NewHeuristic().Catalog(context.Background(), fsys)
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
 	}
@@ -237,7 +239,7 @@ func TestHeuristicInvariants(t *testing.T) {
 }
 
 func TestHeuristicEmptyRootfs(t *testing.T) {
-	comps, err := NewHeuristic().Catalog(fstest.MapFS{})
+	comps, err := NewHeuristic().Catalog(context.Background(), fstest.MapFS{})
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
 	}
@@ -254,6 +256,30 @@ func assertComponents(t *testing.T, got, want []model.Component) {
 	for i := range got {
 		if got[i] != want[i] {
 			t.Errorf("component %d:\n got  %+v\n want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+// A cancelled scan must not turn into an image with nothing in it. Every
+// cataloger answers a cancelled context with the error, never with an empty
+// result that reads as "no package database" and exits 0.
+func TestCatalogersRefuseACancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	root := fstest.MapFS{
+		"var/lib/dpkg/status":  &fstest.MapFile{Data: []byte("Package: x\nStatus: install ok installed\nVersion: 1\n")},
+		"lib/apk/db/installed": &fstest.MapFile{Data: []byte("P:x\nV:1\n\n")},
+		"bin/busybox":          &fstest.MapFile{Data: []byte("BusyBox v1.36.1\n")},
+	}
+	for _, c := range All() {
+		comps, err := c.Catalog(ctx, root)
+		if err == nil {
+			t.Errorf("%s: a cancelled context produced %d components and no error", c.Name(), len(comps))
+			continue
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("%s: error %v does not wrap context.Canceled", c.Name(), err)
 		}
 	}
 }

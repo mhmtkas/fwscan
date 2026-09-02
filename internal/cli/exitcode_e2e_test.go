@@ -2,11 +2,11 @@ package cli_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -15,27 +15,32 @@ import (
 // error.
 
 var (
-	buildOnce  sync.Once
 	binaryPath string
 	buildErr   error
 )
 
+// TestMain builds the binary once for every test in the package and removes it
+// afterwards. It used to be built lazily under a sync.Once into a temp
+// directory nothing removed, which left one directory per test run behind.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "fwscan-e2e-")
+	if err != nil {
+		buildErr = err
+		os.Exit(m.Run())
+	}
+	binaryPath = filepath.Join(dir, "fwscan")
+	cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/fwscan")
+	cmd.Dir = filepath.Join("..", "..")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		buildErr = fmt.Errorf("%w: %s", err, out)
+	}
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 func fwscanBinary(t *testing.T) string {
 	t.Helper()
-	buildOnce.Do(func() {
-		dir, err := os.MkdirTemp("", "fwscan-e2e-")
-		if err != nil {
-			buildErr = err
-			return
-		}
-		binaryPath = filepath.Join(dir, "fwscan")
-		cmd := exec.Command("go", "build", "-o", binaryPath, "./cmd/fwscan")
-		cmd.Dir = filepath.Join("..", "..")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			buildErr = err
-			t.Logf("build output: %s", out)
-		}
-	})
 	if buildErr != nil {
 		t.Fatalf("building fwscan: %v", buildErr)
 	}

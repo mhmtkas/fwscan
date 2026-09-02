@@ -85,14 +85,15 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 	if err != nil {
 		return err
 	}
+	// Cleanup runs on the way out, and every stage below returns promptly on
+	// a cancelled context, so a scan interrupted at the keyboard unwinds to
+	// here rather than being killed with the extracted rootfs still on disk.
+	// Running cleanup from the cancellation itself, in parallel with a stage
+	// still reading the rootfs, would race that stage into a misleading
+	// failure -- or into an empty result and exit 0.
 	defer cleanup()
-	// Also on cancellation, not only on return. An extracted rootfs is
-	// gigabytes, and a scan interrupted at the keyboard used to leave every one
-	// of them behind; cleanup is safe to call more than once, so the two paths
-	// do not conflict.
-	defer context.AfterFunc(cmd.Context(), cleanup)()
 
-	comps, err := catalogAll(rootfs)
+	comps, err := catalogAll(cmd.Context(), rootfs)
 	if err != nil {
 		return err
 	}
@@ -169,10 +170,10 @@ func writeSBOM(path string, comps []model.Component, version string, started tim
 
 // catalogAll runs every cataloger over the rootfs and returns the union,
 // sorted by name so the output is stable run to run.
-func catalogAll(rootfs fs.FS) ([]model.Component, error) {
+func catalogAll(ctx context.Context, rootfs fs.FS) ([]model.Component, error) {
 	var comps []model.Component
 	for _, c := range catalog.All() {
-		found, err := c.Catalog(rootfs)
+		found, err := c.Catalog(ctx, rootfs)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", c.Name(), err)
 		}

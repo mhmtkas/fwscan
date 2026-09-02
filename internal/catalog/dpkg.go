@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -56,7 +57,10 @@ func (Dpkg) Name() string { return "dpkg" }
 
 // Catalog implements Cataloger. A rootfs with no dpkg database yields no
 // components and no error.
-func (d Dpkg) Catalog(root fs.FS) ([]model.Component, error) {
+func (d Dpkg) Catalog(ctx context.Context, root fs.FS) ([]model.Component, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	f, err := root.Open(DpkgStatusPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

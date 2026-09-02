@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -176,7 +177,7 @@ func TestDpkgCatalog(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDpkg().Catalog(statusFS(tt.status, tt.codename))
+			got, err := NewDpkg().Catalog(context.Background(), statusFS(tt.status, tt.codename))
 			if err != nil {
 				t.Fatalf("Catalog() error = %v", err)
 			}
@@ -194,7 +195,7 @@ func TestDpkgCatalog(t *testing.T) {
 
 func TestDpkgCatalogNoDatabase(t *testing.T) {
 	// An image without dpkg is not an error; it is an image without dpkg.
-	got, err := NewDpkg().Catalog(fstest.MapFS{"etc/hostname": &fstest.MapFile{Data: []byte("box\n")}})
+	got, err := NewDpkg().Catalog(context.Background(), fstest.MapFS{"etc/hostname": &fstest.MapFile{Data: []byte("box\n")}})
 	if err != nil {
 		t.Fatalf("Catalog() error = %v, want nil", err)
 	}
@@ -227,7 +228,7 @@ func TestDpkgRealFixture(t *testing.T) {
 		DpkgStatusPath:       &fstest.MapFile{Data: status},
 		"usr/lib/os-release": &fstest.MapFile{Data: osRelease},
 	}
-	comps, err := NewDpkg().Catalog(root)
+	comps, err := NewDpkg().Catalog(context.Background(), root)
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
 	}

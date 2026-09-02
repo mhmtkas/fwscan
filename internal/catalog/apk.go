@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -36,7 +37,10 @@ func (Apk) Name() string { return "apk" }
 
 // Catalog implements Cataloger. A rootfs with no apk database yields no
 // components and no error.
-func (Apk) Catalog(root fs.FS) ([]model.Component, error) {
+func (Apk) Catalog(ctx context.Context, root fs.FS) ([]model.Component, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	f, err := root.Open(ApkInstalledPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {

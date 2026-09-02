@@ -54,7 +54,7 @@ func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 	}
 	defer cleanup()
 
-	comps, err := catalog.NewDpkg().Catalog(rootfs)
+	comps, err := catalog.NewDpkg().Catalog(context.Background(), rootfs)
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
 	}

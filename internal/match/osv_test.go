@@ -3,6 +3,7 @@ package match
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -300,6 +301,14 @@ func TestMatchContextCancellation(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Match() with a cancelled context returned no error")
+	}
+	// The error says what happened. It used to be wrapped as a transport
+	// failure, and told whoever pressed Ctrl-C to check their network.
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error %v does not wrap context.Canceled", err)
+	}
+	if strings.Contains(err.Error(), "check the network") {
+		t.Errorf("a cancellation is reported as a network failure: %v", err)
 	}
 }
 

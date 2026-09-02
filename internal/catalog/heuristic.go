@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"bufio"
+	"context"
 	"io"
 	"io/fs"
 	"path"
@@ -34,11 +35,17 @@ func (Heuristic) Name() string { return "heuristic" }
 
 // Catalog implements Cataloger. Detectors are independent: one finding nothing
 // does not stop the others, and a rootfs where none match is not an error.
-func (Heuristic) Catalog(root fs.FS) ([]model.Component, error) {
+func (Heuristic) Catalog(ctx context.Context, root fs.FS) ([]model.Component, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	var comps []model.Component
-	comps = append(comps, detectKernel(root)...)
-	comps = append(comps, detectBusybox(root)...)
-	comps = append(comps, detectSharedLibraries(root)...)
+	for _, detect := range []func(fs.FS) []model.Component{detectKernel, detectBusybox, detectSharedLibraries} {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		comps = append(comps, detect(root)...)
+	}
 
 	slices.SortFunc(comps, model.CompareComponents)
 	return comps, nil

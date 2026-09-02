@@ -95,7 +95,7 @@ func TestSquashFSWithAbsoluteSymlinks(t *testing.T) {
 	}
 	defer cleanup()
 
-	comps, err := catalog.NewDpkg().Catalog(rootfs)
+	comps, err := catalog.NewDpkg().Catalog(context.Background(), rootfs)
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
 	}
@@ -161,7 +161,7 @@ func TestSquashFSCompressionMatrix(t *testing.T) {
 			}
 			defer cleanup()
 
-			comps, err := catalog.NewDpkg().Catalog(rootfs)
+			comps, err := catalog.NewDpkg().Catalog(context.Background(), rootfs)
 			if err != nil {
 				t.Fatalf("Catalog() error = %v", err)
 			}
@@ -315,7 +315,7 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open(context.Background(), ) on the bare image error = %v", err)
 	}
-	reference, err := catalog.NewDpkg().Catalog(bare)
+	reference, err := catalog.NewDpkg().Catalog(context.Background(), bare)
 	cleanup()
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
@@ -361,7 +361,7 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 			}
 			defer cleanup()
 
-			comps, err := catalog.NewDpkg().Catalog(rootfs)
+			comps, err := catalog.NewDpkg().Catalog(context.Background(), rootfs)
 			if err != nil {
 				t.Fatalf("Catalog() error = %v", err)
 			}
@@ -435,5 +435,39 @@ func assertNoStackTrace(t *testing.T, err error) {
 	t.Helper()
 	if strings.Contains(err.Error(), "goroutine ") || strings.Contains(err.Error(), ".go:") {
 		t.Errorf("error looks like a stack trace: %v", err)
+	}
+}
+
+// Unwrapping a compressed image is a copy that can run for gigabytes, and a
+// scan told to stop must not finish it first.
+func TestUnwrappingStopsWhenTheContextIsCancelled(t *testing.T) {
+	requireSquashfsTools(t)
+
+	image, err := os.ReadFile(filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	var wrapped bytes.Buffer
+	zw := gzip.NewWriter(&wrapped)
+	if _, err := zw.Write(image); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "rootfs.squashfs.gz")
+	if err := os.WriteFile(path, wrapped.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, cleanup, err := Open(ctx, path)
+	cleanup()
+	if err == nil {
+		t.Fatal("a cancelled context unwrapped and extracted the image")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error %v does not wrap context.Canceled", err)
 	}
 }

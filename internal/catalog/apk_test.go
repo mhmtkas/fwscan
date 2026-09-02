@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -147,7 +148,7 @@ func TestApkCatalog(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewApk().Catalog(apkFS(tt.installed, tt.release))
+			got, err := NewApk().Catalog(context.Background(), apkFS(tt.installed, tt.release))
 			if err != nil {
 				t.Fatalf("Catalog() error = %v", err)
 			}
@@ -164,7 +165,7 @@ func TestApkCatalog(t *testing.T) {
 }
 
 func TestApkCatalogNoDatabase(t *testing.T) {
-	got, err := NewApk().Catalog(fstest.MapFS{"etc/hostname": &fstest.MapFile{Data: []byte("box\n")}})
+	got, err := NewApk().Catalog(context.Background(), fstest.MapFS{"etc/hostname": &fstest.MapFile{Data: []byte("box\n")}})
 	if err != nil {
 		t.Fatalf("Catalog() error = %v, want nil", err)
 	}
@@ -248,7 +249,7 @@ func TestApkRealFixture(t *testing.T) {
 		ApkInstalledPath:     &fstest.MapFile{Data: installed},
 		"usr/lib/os-release": &fstest.MapFile{Data: osRelease},
 	}
-	comps, err := NewApk().Catalog(root)
+	comps, err := NewApk().Catalog(context.Background(), root)
 	if err != nil {
 		t.Fatalf("Catalog() error = %v", err)
 	}

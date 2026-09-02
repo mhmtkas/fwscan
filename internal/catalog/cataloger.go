@@ -4,6 +4,7 @@
 package catalog
 
 import (
+	"context"
 	"io/fs"
 
 	"github.com/mhmtkas/fwscan/internal/model"
@@ -17,8 +18,10 @@ import (
 type Cataloger interface {
 	// Name identifies the cataloger in error messages, e.g. "dpkg".
 	Name() string
-	// Catalog reads root and returns everything it recognises.
-	Catalog(root fs.FS) ([]model.Component, error)
+	// Catalog reads root and returns everything it recognises. A cancelled
+	// context is an error, not an empty result: a scan that stops must say so
+	// rather than report an image with nothing in it.
+	Catalog(ctx context.Context, root fs.FS) ([]model.Component, error)
 }
 
 // All returns the catalogers a scan runs, in order.

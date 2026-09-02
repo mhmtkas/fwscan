@@ -605,8 +605,13 @@ func (o *OSV) do(req *http.Request, out any) error {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		// Whatever the transport said, the actionable part is the same: the
-		// lookup needs the network, and there is a flag to skip it.
+		// A cancelled or expired context is not a network problem, and telling
+		// whoever pressed Ctrl-C to check their network is wrong twice over.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return fmt.Errorf("lookup stopped: %w", err)
+		}
+		// Whatever else the transport said, the actionable part is the same:
+		// the lookup needs the network, and there is a flag to skip it.
 		return fmt.Errorf("cannot reach %s for the vulnerability lookup: %w. "+
 			"check the network, or rerun with --no-network to produce the SBOM only",
 			req.URL.Host, err)
