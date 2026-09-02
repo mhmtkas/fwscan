@@ -4,21 +4,6 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- `--cra <file>` writes the scan as a Markdown evidence report for Annex I,
-  Part II of Regulation (EU) 2024/2847, the Cyber Resilience Act: scan
-  provenance, a reference to the SBOM rather than a second copy of the
-  inventory, one row per finding split by whether a fix exists for the
-  installed release, an empty `Justification` column for the manufacturer to
-  fill, and the scan's own stderr warnings filed as limitations. It names the
-  five obligations it cannot evidence, in its own body, every time it is
-  generated, and says at the top that it is not a compliance statement. A
-  generated file that let a reader assume otherwise would be worse than no
-  file.
-
 ## [0.1.0] — 2026-09-03
 
 First release. Reads the dpkg or apk database in a Linux root filesystem, emits
@@ -73,6 +58,17 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 - `--fail-on` and the exit codes from `docs/output-spec.md` section 5: 0 clean,
   1 findings at or above the threshold, 2 the scan could not complete.
 - `--no-network` to produce the SBOM without any vulnerability lookup.
+- `--cra <file>` writes the scan as a Markdown evidence report for Annex I,
+  Part II of Regulation (EU) 2024/2847, the Cyber Resilience Act: scan
+  provenance, a reference to the SBOM rather than a second copy of the
+  inventory, one row per finding split by whether a fix exists for the
+  installed release, an empty `Justification` column for the manufacturer to
+  fill, and the scan's own stderr warnings filed as limitations. It names the
+  five obligations it cannot evidence, in its own body, every time it is
+  generated, and says at the top that it is not a compliance statement. A
+  generated file that let a reader assume otherwise would be worse than no
+  file.
+
 
 **Project**
 

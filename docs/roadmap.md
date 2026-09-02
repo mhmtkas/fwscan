@@ -4,7 +4,7 @@ What is expected next, in the order it is expected. This is a statement of
 direction rather than a commitment to dates. Everything here is currently a
 non-goal; `docs/scope.md` explains why each one is excluded today.
 
-The first item on this list, a CRA evidence report, shipped in v0.2.0 as
+The first item on this list, a CRA evidence report, shipped in v0.1.0 as
 `--cra`. It is written up in `docs/output-spec.md` section 5 rather than here.
 
 ## v1.x
