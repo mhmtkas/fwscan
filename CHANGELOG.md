@@ -4,21 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] — 2026-09-02
+## [0.1.0] — 2026-09-03
 
-First release. Scans a Linux firmware rootfs, emits a CycloneDX SBOM, and
-reports known vulnerabilities from OSV.dev.
+First release. Reads the dpkg or apk database in a Linux root filesystem, emits
+a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 
 ### Added
 
 **Scanning**
 
-- Ubuntu images are queried against OSV's Ubuntu data, not Debian's. The two are
-  keyed separately and a query under the wrong one returns nothing rather than
-  an error, so an Ubuntu image cataloged perfectly well and reported no findings
-  at all. On a real Ubuntu 22.04 rootfs that is the difference between 0
-  findings and 140. Entries for the Ubuntu Pro and FIPS tiers, which share a
-  release number with the main archive and sometimes carry no fix, are not
+- Debian, Ubuntu and Alpine packages, each queried against its own OSV dataset.
+  Debian and Ubuntu are keyed separately and a query under the wrong one returns
+  nothing rather than an error, so the distribution travels from os-release into
+  every purl. Entries for the Ubuntu Pro and FIPS tiers, which share a release
+  number with the main archive and sometimes carry no fix at all, are not
   reported: a fix only a subscriber can install is not an answer.
 
 - `fwscan scan` reading extracted rootfs directories, tar archives with gzip, xz,
@@ -41,7 +40,7 @@ reports known vulnerabilities from OSV.dev.
 
 **Vulnerability matching**
 
-- OSV.dev matcher, release-aware for both Debian and Alpine, so a package
+- OSV.dev matcher, release-aware for Debian, Ubuntu and Alpine, so a package
   patched by a security backport is reported as fixed rather than vulnerable.
 - Lookups batched and deduplicated by source package; vulnerability details
   fetched through a bounded worker pool.
