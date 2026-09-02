@@ -1,24 +1,20 @@
 # Roadmap
 
-What is expected after v0.1.0, in the order it is expected. This is a statement
-of direction rather than a commitment to dates. Everything here is currently a
+What is expected next, in the order it is expected. This is a statement of
+direction rather than a commitment to dates. Everything here is currently a
 non-goal; `docs/scope.md` explains why each one is excluded today.
+
+The first item on this list, a CRA evidence report, shipped in v0.2.0 as
+`--cra`. It is written up in `docs/output-spec.md` section 5 rather than here.
 
 ## v1.x
 
-1. **CRA compliance report (`--report cra`).** A reporter that renders scan
-   results as a compliance-oriented document mapped to the EU Cyber Resilience
-   Act's vulnerability-handling obligations: the component inventory by
-   reference to the SBOM, known-vulnerability status with severity and fix
-   availability, placeholders for justifying unresolved findings, and scan
-   provenance — tool version, date, data source. This is the item that moves
-   fwscan from a scanner to a compliance tool, and it needs no changes to the
-   core: it is a new reporter over the results that already exist.
+1. **VEX output.** The natural companion to the evidence report, and the format
+   the same audience will be asked for next. It is also what fills the
+   `Justification` column that report leaves empty: a reason recorded against an
+   unresolved finding is a VEX statement in everything but format.
 
-2. **VEX output.** The natural companion to the CRA report, and the format the
-   same audience will be asked for next.
-
-3. **Offline vulnerability data.** For air-gapped build environments, where the
+2. **Offline vulnerability data.** For air-gapped build environments, where the
    scan cannot reach OSV.dev at all.
 
 ## Later

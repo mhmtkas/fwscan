@@ -121,8 +121,9 @@ Stated narrowly, because the numbers above do not support a broad claim:
   database to provision first.
 - Confidence and evidence on every component, so a filename guess is visibly a
   filename guess rather than an inventory entry like any other.
-- A CRA-oriented compliance report, which is the first roadmap item and the
-  reason this tool exists separately at all.
+- `--cra`, which renders the scan as evidence toward the Cyber Resilience Act's
+  vulnerability-handling obligations, and names the five obligations it cannot
+  speak to rather than leaving a reader to assume they are covered.
 
 ## On real images
 

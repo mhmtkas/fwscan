@@ -60,6 +60,9 @@ func highComponent(name, version string) model.Component {
 		// becomes %2B.
 		PURL:       "pkg:deb/debian/" + name + "@" + strings.ReplaceAll(version, "+", "%2B") + "?arch=arm64&distro=bullseye",
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+		// Carried by every dpkg component the pipeline produces, and rendered
+		// by the CRA report's inventory section.
+		DistroID: "debian", Distro: "bullseye", DistroVersion: "11",
 	}
 }
 

@@ -557,3 +557,90 @@ func TestEmptyResultWarnings(t *testing.T) {
 		})
 	}
 }
+
+func TestScanWritesCRAReport(t *testing.T) {
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	dir := t.TempDir()
+	bom := filepath.Join(dir, "bom.cdx.json")
+	evidence := filepath.Join(dir, "evidence.md")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--sbom", bom, "--cra", evidence, image})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("scan failed: %v (stderr: %s)", err, stderr.String())
+	}
+
+	body, err := os.ReadFile(evidence)
+	if err != nil {
+		t.Fatalf("cra report not written: %v", err)
+	}
+	got := string(body)
+	for _, want := range []string{
+		"# Vulnerability handling evidence",
+		"Regulation (EU) 2024/2847",
+		// The document names the SBOM the same run produced, so the two are
+		// filed together rather than as two unrelated files.
+		bom,
+		// --no-network was given, and the document has to say the lookup did
+		// not happen rather than present an empty section as a clean result.
+		"no vulnerability lookup was performed",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the evidence report does not contain %q", want)
+		}
+	}
+}
+
+// The stderr warnings are the limitations section. A scan that warned and a
+// document that does not carry the warning would be a document that overstates
+// what was checked.
+func TestCRAReportCarriesTheScanWarnings(t *testing.T) {
+	// A directory with no package database at all: the scan warns, and the
+	// warning is the only thing that explains an empty inventory.
+	image := t.TempDir()
+	evidence := filepath.Join(t.TempDir(), "evidence.md")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--cra", evidence, image})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("scan failed: %v (stderr: %s)", err, stderr.String())
+	}
+
+	body, err := os.ReadFile(evidence)
+	if err != nil {
+		t.Fatalf("cra report not written: %v", err)
+	}
+	if !strings.Contains(string(body), "no package database found") {
+		t.Errorf("the warning on stderr is not in the report:\n%s", body)
+	}
+	if !strings.Contains(string(body), "No SBOM was written by this run") {
+		t.Errorf("the report does not say the inventory is missing:\n%s", body)
+	}
+}
+
+func TestScanCRAPathUnwritable(t *testing.T) {
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+	unwritable := filepath.Join(t.TempDir(), "no-such-dir", "evidence.md")
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCmd("v0.1.0")
+	root.SetOut(&stdout)
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"scan", "--no-network", "--cra", unwritable, image})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected an error writing to a missing directory")
+	}
+	if !strings.Contains(err.Error(), "cra") {
+		t.Errorf("error = %q, want it to name the cra report", err)
+	}
+}

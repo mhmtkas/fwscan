@@ -41,7 +41,10 @@ deep binary analysis, and RTOS, bare-metal, Windows or VxWorks images.
 2. Emit a valid CycloneDX 1.6 JSON SBOM.
 3. Match components against known vulnerabilities via OSV.dev.
 4. Produce a human-readable, severity-sorted terminal report.
-5. Run as a single installable binary, with no configuration for the ordinary
+5. Render the scan as evidence toward the vulnerability-handling obligations in
+   Annex I, Part II of the Cyber Resilience Act — the three of the eight a
+   scanner can speak to, and an explicit statement of the five it cannot.
+6. Run as a single installable binary, with no configuration for the ordinary
    case.
 
 ## Non-goals
@@ -58,7 +61,7 @@ everything", and each row below is a place that creep would start.
 | opkg and rpm package databases | Start narrow: dpkg and apk cover the images this was built for |
 | Kernel configuration and kernel CVE applicability | Genuinely hard, and config-dependent in ways a scanner cannot see |
 | Web dashboard, continuous monitoring, hosted service | A different product |
-| VEX exploitability statements | Valuable for the CRA, but needs a stable core underneath it |
+| VEX exploitability statements | Valuable alongside the evidence report, but needs a stable core underneath it |
 | False-positive suppression configuration | Worth adding when real users report false positives, not before |
 | Offline operation | Vulnerability data comes from OSV.dev at scan time; `--no-network` skips the lookup rather than substituting a local database |
 

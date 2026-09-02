@@ -115,6 +115,9 @@ fwscan scan --sbom bom.cdx.json --output report.json --fail-on high rootfs.squas
 
 # SBOM only, no network
 fwscan scan --no-network --sbom bom.cdx.json ./rootfs
+
+# the SBOM plus a CRA evidence report that references it
+fwscan scan --sbom bom.cdx.json --cra evidence.md rootfs.squashfs
 ```
 
 ### The whole command surface
@@ -123,6 +126,7 @@ fwscan scan --no-network --sbom bom.cdx.json ./rootfs
 fwscan scan <path-to-rootfs|tarball|squashfs>
     --output <file.json>      # machine-readable report
     --sbom <file.cdx.json>    # CycloneDX 1.6 SBOM
+    --cra <file.md>           # Cyber Resilience Act evidence report
     --fail-on <low|medium|high|critical>
     --no-network              # SBOM only, skip the CVE lookup
 fwscan version
@@ -159,6 +163,38 @@ findings rather than find them. `libssl.so.3` names an ABI, not a release.
 - **`--sbom bom.cdx.json`** — CycloneDX 1.6, validated against the official
   schema in CI. Components only: an SBOM that changes every time a CVE is
   published cannot be shared or diffed, so vulnerabilities stay in the report.
+- **`--cra evidence.md`** — the scan written up as evidence toward the Cyber
+  Resilience Act's vulnerability-handling obligations. See below.
+
+## Cyber Resilience Act evidence
+
+Annex I, Part II of Regulation (EU) 2024/2847 lists eight vulnerability-handling
+obligations. Three of them are things a scan can produce evidence for:
+identifying and documenting the components a product contains, establishing
+which carry known vulnerabilities, and recording whether a fix exists. The other
+five are about testing, disclosure and update distribution, and no tool can
+observe them from a filesystem.
+
+`--cra evidence.md` writes a Markdown document covering the three and naming the
+five it does not cover, in its own body, every time. It has the scan's
+provenance — target, tool version, data source, timestamp — a reference to the
+SBOM rather than a second copy of the inventory, one row per finding split by
+whether a fix exists for the installed release, and a `Justification` column
+left deliberately empty, because the reason an unresolved finding is acceptable
+belongs to whoever ships the product.
+
+It is not a compliance statement and says so at the top. A generated file that
+let a reader assume the other five obligations were covered would be worse than
+no file at all.
+
+```sh
+fwscan scan --sbom bom.cdx.json --cra evidence.md rootfs.squashfs
+```
+
+The exact structure is fixed by
+[`docs/output-spec.md`](docs/output-spec.md) section 5, and
+[`testdata/golden/cra-findings.md`](testdata/golden/cra-findings.md) is a
+complete example.
 
 ## Limitations
 
@@ -224,9 +260,8 @@ across the whole base metric space.
 
 ## Roadmap
 
-The first thing after v0.1.0 is a CRA compliance report (`--report cra`), then
-VEX output, then offline vulnerability data for air-gapped builds. An opkg
-cataloger, SPDX, NVD as a second source and the rest follow.
+Next is VEX output, then offline vulnerability data for air-gapped builds. An
+opkg cataloger, SPDX, NVD as a second source and the rest follow.
 [`docs/roadmap.md`](docs/roadmap.md) has the order and the reasoning;
 [`docs/scope.md`](docs/scope.md) has what is excluded and why.
 

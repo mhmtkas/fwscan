@@ -30,6 +30,7 @@ type scanOptions struct {
 	noNetwork  bool
 	sbomPath   string
 	outputPath string
+	craPath    string
 	failOn     string
 }
 
@@ -52,7 +53,9 @@ func newScanCmd(version string) *cobra.Command {
 			"  # produce both artifacts and fail the build on anything high or worse\n" +
 			"  fwscan scan --sbom bom.cdx.json --output report.json --fail-on high rootfs.tar.gz\n\n" +
 			"  # SBOM only, no network\n" +
-			"  fwscan scan --no-network --sbom bom.cdx.json ./extracted-rootfs",
+			"  fwscan scan --no-network --sbom bom.cdx.json ./extracted-rootfs\n\n" +
+			"  # evidence toward the CRA's vulnerability-handling obligations\n" +
+			"  fwscan scan --sbom bom.cdx.json --cra evidence.md rootfs.squashfs",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runScan(cmd, args[0], version, opts)
@@ -64,6 +67,8 @@ func newScanCmd(version string) *cobra.Command {
 		"write a CycloneDX 1.6 SBOM to this file")
 	cmd.Flags().StringVar(&opts.outputPath, "output", "",
 		"write the full machine-readable report to this file")
+	cmd.Flags().StringVar(&opts.craPath, "cra", "",
+		"write a Cyber Resilience Act evidence report to this file (Markdown)")
 	cmd.Flags().StringVar(&opts.failOn, "fail-on", "",
 		"exit 1 when a finding is at or above this severity (critical|high|medium|low)")
 	return cmd
@@ -100,7 +105,12 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 	// attacker-controlled as a package name, and an escape sequence in one
 	// reaches the terminal exactly as it would in the report. A failed write
 	// is not worth failing the scan over.
+	// Warnings are kept as well as printed: --cra files them under the
+	// document's limitations section, where a warning that scrolled past in a
+	// CI log becomes part of the record (output-spec section 5).
+	var warnings []string
 	diagnostic := func(message string) {
+		warnings = append(warnings, message)
 		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "fwscan: "+report.Sanitize(message))
 	}
 	if len(comps) == 0 {
@@ -146,6 +156,16 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 			return err
 		}
 	}
+	if opts.craPath != "" {
+		craOpts := report.CRAOptions{
+			SBOMPath:  opts.sbomPath,
+			Warnings:  warnings,
+			NoNetwork: opts.noNetwork,
+		}
+		if err := writeCRAReport(opts.craPath, version, info, comps, findings, craOpts); err != nil {
+			return err
+		}
+	}
 
 	if err := report.Terminal(cmd.OutOrStdout(), version, info, comps, findings, opts.noNetwork); err != nil {
 		return err
@@ -165,6 +185,16 @@ func writeJSONReport(path, version string, info report.ScanInfo, comps []model.C
 	})
 	if err != nil {
 		return fmt.Errorf("write report: %w", err)
+	}
+	return nil
+}
+
+func writeCRAReport(path, version string, info report.ScanInfo, comps []model.Component, findings []model.Finding, opts report.CRAOptions) error {
+	err := report.WriteFileAtomic(path, func(w io.Writer) error {
+		return report.CRA(w, version, info, comps, findings, opts)
+	})
+	if err != nil {
+		return fmt.Errorf("write cra report: %w", err)
 	}
 	return nil
 }

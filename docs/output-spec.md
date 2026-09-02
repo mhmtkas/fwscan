@@ -115,7 +115,24 @@ Rules: keys snake_case; timestamps RFC 3339 UTC; purl percent-encoding per the p
 
 CycloneDX 1.6 JSON via `cyclonedx-go`. Per component: `type: "library"` (`"operating-system"` for the detected distro pseudo-component if one is emitted — optional, not required in v1), `name`, `version`, `purl`, and two custom properties: `fwscan:confidence`, `fwscan:evidence`. Metadata: tool name/version + timestamp. Output must validate against the official CycloneDX 1.6 schema; `make validate-sbom` enforces this in CI. The SBOM contains **components only** — never findings (vulnerability data belongs to the report, keeping the SBOM stable and shareable).
 
-## 5. Exit codes
+## 5. CRA evidence report (`--cra <file>`)
+
+A Markdown document rendering the scan as evidence toward the vulnerability-handling obligations in Annex I Part II of Regulation (EU) 2024/2847, the Cyber Resilience Act. It is a third artifact alongside the report and the SBOM, not a different rendering of stdout: `--cra` writes a file and changes nothing else about the run.
+
+**What this document is, and what it is not.** It is a record of what a scan found, phrased so that it can be filed against the obligations it speaks to. It is not a compliance statement, an audit, or an assessment of a product, and it must never read as one. Three of the eight obligations in Annex I Part II are ones a scanner can produce evidence for; the other five are process obligations about disclosure, testing, and update distribution, which no tool can observe from a filesystem. The document says which is which, in its own body, every time it is generated. A generated file that let a reader believe the remaining five were covered would be worse than no file.
+
+Structure, in order. Every heading is fixed; a section with nothing to report is present and says so.
+
+1. **Title and scope.** The regulation by name and number, what the document covers, and the paragraph above in the document's own words, including the list of obligations it does not evidence.
+2. **Scan identification.** Target as given, format and compression, scan start in RFC 3339 UTC, tool name and version, and the vulnerability data source with the date it was queried. This is the provenance an auditor needs to decide how old the evidence is.
+3. **Component inventory.** The package counts by confidence, the distributions the packages came from, and a reference to the CycloneDX SBOM. The inventory itself is not repeated here: the SBOM is the machine-readable inventory the obligation asks for, and a second hand-rendered copy in a different format would be a second thing to keep true. If `--sbom` was given in the same run, the document names that file; if it was not, the document says the inventory was not written and names the flag.
+4. **Known vulnerabilities.** One table row per finding, in the section 1 severity order: identifier, component, installed version, severity, and remediation status. Status is `fix available` with the fixed version when the record names one for the installed release, `no fix published` when it does not, and the split is summarised in counts above the table, because "how many of these can I actually fix today" is the question the obligation turns on. A final column, `Justification`, is written empty for every row: an unresolved finding needs a reason recorded against it, and that reason is the manufacturer's to give, not the tool's to guess.
+5. **Low-confidence components.** Those identified by filename heuristics, listed with their evidence paths, under a statement that they were not looked up and why. Omitted entirely when there are none.
+6. **Limitations.** What the scan could not see: package databases found but not read, distributions with no data behind them, findings with no severity, and the fact that unmanaged binaries are not fingerprinted. Each of these already reaches stderr as a warning during the scan; this section is where they end up in the file, because a warning that scrolled past is not evidence.
+
+Rules: Markdown, no HTML; ATX headings; tables in GitHub-flavored pipe syntax; every string that came from the image passes through the same sanitiser as the terminal report, since a package name is attacker-controlled and this file will be opened in an editor; written atomically; trailing newline at EOF. Given the same scan, the bytes are identical apart from the timestamps in section 2.
+
+## 6. Exit codes
 
 | Code | Meaning |
 |---|---|
@@ -125,7 +142,7 @@ CycloneDX 1.6 JSON via `cyclonedx-go`. Per component: `type: "library"` (`"opera
 
 `--fail-on` accepts `critical|high|medium|low`, matched case-insensitively and ignoring surrounding whitespace. Nothing else: `moderate` is a level OSV's own data uses and the severity parser understands, but it is not a value of this flag. `unknown`-severity findings never trigger exit 1. Usage errors (bad flags) follow cobra's default behavior and also exit 2.
 
-## 6. Golden files
+## 7. Golden files
 
 `testdata/golden/` holds two kinds of golden file, and the distinction matters.
 
