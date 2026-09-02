@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -707,10 +708,9 @@ func TestPaginatedResultIsRefused(t *testing.T) {
 // did not come from CVSS. A vector that parses but scores exactly 0 falls
 // outside every band in section 1, so it must not leave a vector behind.
 func TestZeroScoringVectorLeavesNoVector(t *testing.T) {
-	record := vulnRecord{Severity: []struct {
-		Type  string `json:"type"`
-		Score string `json:"score"`
-	}{{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N"}}}
+	record := vulnRecord{Severity: []severityEntry{
+		{Type: "CVSS_V3", Score: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:N"},
+	}}
 
 	severity, score, vector := severityOf(record)
 	if severity != model.SeverityUnknown {
@@ -1211,5 +1211,144 @@ func TestRedirectsToAnotherHostAreRefused(t *testing.T) {
 	// And the request said who it was.
 	if len(agents) == 0 || !strings.HasPrefix(agents[0], "fwscan") {
 		t.Errorf("user agent = %q, want fwscan to identify itself", agents)
+	}
+}
+
+// A DSA or DLA advisory names every CVE the upload fixed, and one upload
+// routinely fixes several. That is several vulnerabilities, each with an
+// assessment of its own, and output-spec section 1 asks for one finding per
+// vulnerability. Reported as one finding under the first CVE's name, the rest
+// sat inside aliases -- where a 9.1 critical could hide under a 5.3 medium and
+// never reach --fail-on.
+func TestAnAdvisoryNamingSeveralCVEsIsSeveralFindings(t *testing.T) {
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "DLA-9999-1",
+	  "upstream": ["CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003",
+	               "DEBIAN-CVE-2024-0001", "DEBIAN-CVE-2024-0002", "DEBIAN-CVE-2024-0003"],
+	  "affected": [{"package": {"ecosystem": "Debian:11", "name": "demo",
+	                            "purl": "pkg:deb/debian/demo?arch=source"},
+	    "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "2.0-1"}]}]}]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	got := identities(record)
+	if len(got) != 3 {
+		t.Fatalf("got %d identities, want 3: %+v", len(got), got)
+	}
+	for i, want := range []string{"CVE-2024-0001", "CVE-2024-0002", "CVE-2024-0003"} {
+		ident := got[i]
+		if ident.id != want {
+			t.Errorf("identity %d = %q, want %q", i, ident.id, want)
+		}
+		// The advisory and the database's own record for this CVE are its
+		// names. The sibling CVEs are not: they are other vulnerabilities.
+		wantAliases := []string{"DLA-9999-1", "DEBIAN-" + want}
+		if !slices.Equal(ident.aliases, wantAliases) {
+			t.Errorf("aliases of %s = %v, want %v", want, ident.aliases, wantAliases)
+		}
+		if ident.borrowFrom != "DEBIAN-"+want {
+			t.Errorf("%s borrows from %q, want its own record", want, ident.borrowFrom)
+		}
+	}
+
+	// And a record that names one CVE is one identity, exactly as before.
+	single := vulnRecord{ID: "DEBIAN-CVE-2022-0778", Upstream: []string{"CVE-2022-0778"}}
+	got = identities(single)
+	if len(got) != 1 || got[0].id != "CVE-2022-0778" ||
+		!slices.Equal(got[0].aliases, []string{"DEBIAN-CVE-2022-0778"}) || got[0].borrowFrom != "" {
+		t.Errorf("single-CVE identity = %+v", got)
+	}
+
+	// A record naming no CVE at all is its own identity.
+	bare := vulnRecord{ID: "GHSA-xxxx", Aliases: []string{"OTHER-1"}}
+	got = identities(bare)
+	if len(got) != 1 || got[0].id != "GHSA-xxxx" || !slices.Equal(got[0].aliases, []string{"OTHER-1"}) {
+		t.Errorf("bare identity = %+v", got)
+	}
+}
+
+// Through Match: each expanded finding carries the vector of its own CVE, and
+// where the database's own record for one of them also came back from the
+// query, the two merge into one finding rather than two rows.
+func TestExpandedFindingsCarryTheirOwnAssessments(t *testing.T) {
+	records := map[string]string{
+		"DLA-9999-1": `{"id":"DLA-9999-1",
+		  "upstream":["CVE-2024-0001","CVE-2024-0002","DEBIAN-CVE-2024-0001","DEBIAN-CVE-2024-0002"],
+		  "affected":[{"package":{"ecosystem":"Debian:11","name":"demo","purl":"pkg:deb/debian/demo?arch=source"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"2.0-1"}]}]}]}`,
+		// Critical, and only reachable by borrowing.
+		"DEBIAN-CVE-2024-0001": `{"id":"DEBIAN-CVE-2024-0001","upstream":["CVE-2024-0001"],
+		  "severity":[{"type":"CVSS_V3","score":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"}],
+		  "affected":[{"package":{"ecosystem":"Debian:12","name":"demo","purl":"pkg:deb/debian/demo?arch=source&distro=bookworm"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"3.0-1"}]}]}]}`,
+		// Low, and also returned by the query in its own right, so it merges.
+		"DEBIAN-CVE-2024-0002": `{"id":"DEBIAN-CVE-2024-0002","upstream":["CVE-2024-0002"],
+		  "severity":[{"type":"CVSS_V3","score":"CVSS:3.1/AV:L/AC:H/PR:H/UI:R/S:U/C:L/I:N/A:N"}],
+		  "affected":[{"package":{"ecosystem":"Debian:11","name":"demo","purl":"pkg:deb/debian/demo?arch=source&distro=bullseye"},
+		   "ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0"},{"fixed":"1.5-1"}]}]}]}`,
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, batchResponse{Results: []batchResult{{
+			Vulns: []struct {
+				ID string `json:"id"`
+			}{{ID: "DLA-9999-1"}, {ID: "DEBIAN-CVE-2024-0002"}},
+		}}})
+	})
+	mux.HandleFunc("GET /v1/vulns/{id}", func(w http.ResponseWriter, r *http.Request) {
+		body, ok := records[r.PathValue("id")]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, body)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+
+	findings, err := osv.Match(context.Background(), []model.Component{{
+		Name: "demo", Version: "1.0-1", Source: "demo", SourceVersion: "1.0-1",
+		Distro: "bullseye", DistroVersion: "11",
+		PURL:       catalog.BinaryPURL("demo", "1.0-1", "arm64", "bullseye"),
+		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
+	}})
+	if err != nil {
+		t.Fatalf("Match() error = %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("got %d findings, want 2 (one per CVE, the duplicate merged): %+v", len(findings), findings)
+	}
+
+	first := findings[0]
+	if first.ID != "CVE-2024-0001" || first.Severity != model.SeverityCritical || first.CVSS != 9.8 {
+		t.Errorf("first = %s %s %.1f, want CVE-2024-0001 critical 9.8 borrowed from its own record", first.ID, first.Severity, first.CVSS)
+	}
+	if first.FixedVersion != "2.0-1" {
+		t.Errorf("first fixed = %q, want the advisory's 2.0-1 (the CVE record has no bullseye entry)", first.FixedVersion)
+	}
+	if slices.Contains(first.Aliases, "CVE-2024-0002") {
+		t.Errorf("CVE-2024-0002 listed as an alias of CVE-2024-0001; they are different vulnerabilities")
+	}
+
+	second := findings[1]
+	if second.ID != "CVE-2024-0002" || second.Severity != model.SeverityLow {
+		t.Errorf("second = %s %s, want CVE-2024-0002 low", second.ID, second.Severity)
+	}
+	// Merged: the advisory's fix (2.0-1) and the record's own (1.5-1) -- the
+	// lower wins -- and both record ids survive as aliases.
+	if second.FixedVersion != "1.5-1" {
+		t.Errorf("second fixed = %q, want 1.5-1", second.FixedVersion)
+	}
+	for _, want := range []string{"DLA-9999-1", "DEBIAN-CVE-2024-0002"} {
+		if !slices.Contains(second.Aliases, want) {
+			t.Errorf("aliases of CVE-2024-0002 = %v, missing %s", second.Aliases, want)
+		}
 	}
 }

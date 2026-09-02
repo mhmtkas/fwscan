@@ -18,18 +18,24 @@ fwscan v0.1.0
 
   Target      rootfs.tar.gz (tar, gzip)
   Packages    7 (6 high confidence, 1 low)
-  Findings    97   critical: 9  high: 44  medium: 36  low: 1  unknown: 7
+  Findings    9   critical: 2  high: 2  medium: 5  low: 0  unknown: 0
 
-SEVERITY  SCORE  PACKAGE      INSTALLED         FIXED                    VULN ID           CONF
-critical  9.8    zlib1g       1:1.2.11.dfsg-2   1:1.2.11.dfsg-2+deb11u2  CVE-2022-37434    high
-critical  9.1    libssl1.1    1.1.1k-1+deb11u1  1.1.1w-0+deb11u2         CVE-2024-5535     high
-high      8.1    libc6        2.31-13+deb11u2   2.31-13+deb11u10         CVE-2024-33599    high
-high      7.8    bash         5.1-2+b3          —                        CVE-2022-3715     high
+SEVERITY  SCORE  PACKAGE    INSTALLED         FIXED                    VULN ID         CONF
+critical  9.8    zlib1g     1:1.2.11.dfsg-2   1:1.2.11.dfsg-2+deb11u2  CVE-2022-37434  high
+critical  9.1    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-5535   high
+high      7.5    libssl1.1  1.1.1k-1+deb11u1  1.1.1k-1+deb11u2         CVE-2022-0778   high
+high      7.5    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-4741   high
+medium    5.9    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-2511   high
 ...
 
 1 low-confidence component was identified by filename heuristics and may be a false positive.
 Run with --output report.json for full details including aliases and evidence paths.
 ```
+
+That is the fixture image in `testdata/images/` against the OSV responses
+recorded in `testdata/osv/`, byte for byte what the end-to-end test compares
+against. A live scan of the same image finds more, because OSV has more; the
+shape is the same.
 
 ## Why another scanner
 
@@ -46,12 +52,11 @@ backported into the Debian revision. fwscan carries the release into every
 query, so it reports that as fixed. The evidence, including what happens without
 the release qualifier, is in [`spike/NOTES.md`](spike/NOTES.md).
 
-**It is not the only scanner that gets this right**, and the README used to
-imply otherwise. grype is backport-aware too, and on the fixture image in this
-repository it reports considerably more than fwscan does and ranks what it
-reports. [`docs/comparison.md`](docs/comparison.md) has the numbers, the commands
-to re-derive them, and the three specific reasons — two of which are fwscan's to
-fix. Read it before choosing this tool over those.
+**It is not the only scanner that gets this right.** grype is backport-aware
+too, and on the fixture image in this repository it reports three times as many
+findings as fwscan does. [`docs/comparison.md`](docs/comparison.md) has the
+numbers, the commands to re-derive them, and the reason, which is the data
+source rather than the matching. Read it before choosing this tool over those.
 
 What fwscan offers today is narrower than "a better scanner": one command from a
 firmware image to both an SBOM and a report with no database to provision,
@@ -169,12 +174,13 @@ extract with binwalk first and point fwscan at the resulting rootfs. It does not
 try to compete with binwalk on extraction.
 
 **fwscan finds less than grype does, and the gap is the data source.** On the
-fixture image in this repository grype reports 113 findings to fwscan's 16 —
-every one of fwscan's is also one of grype's. OSV's export for an oldstable
-Debian release lists the CVEs that received a DSA or DLA; grype reads the Debian
-Security Tracker, which carries every CVE's per-release status. A second data
-source is on the roadmap and is not in v0.1.0.
-[`docs/comparison.md`](docs/comparison.md) has the numbers and the commands.
+fixture image in this repository grype reports 113 findings to fwscan's 38 —
+every one of fwscan's is also one of grype's, and on those the two agree. OSV's
+export for an oldstable Debian release lists the CVEs that received a DSA or
+DLA; grype reads the Debian Security Tracker, which carries every CVE's
+per-release status. A second data source is on the roadmap and is not in
+v0.1.0. [`docs/comparison.md`](docs/comparison.md) has the numbers and the
+commands.
 
 **Some findings carry no severity**, land in the `unknown` bucket, and so never
 trigger `--fail-on` — roughly a fifth of Debian's OSV records, 57 of the 292 the

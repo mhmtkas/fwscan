@@ -90,15 +90,18 @@ type batchResult struct {
 
 // vulnRecord is the part of an OSV vulnerability document fwscan reads.
 type vulnRecord struct {
-	ID       string   `json:"id"`
-	Aliases  []string `json:"aliases"`
-	Upstream []string `json:"upstream"`
-	Severity []struct {
-		Type  string `json:"type"`
-		Score string `json:"score"`
-	} `json:"severity"`
-	DatabaseSpecific map[string]any `json:"database_specific"`
-	Affected         []affected     `json:"affected"`
+	ID               string          `json:"id"`
+	Aliases          []string        `json:"aliases"`
+	Upstream         []string        `json:"upstream"`
+	Severity         []severityEntry `json:"severity"`
+	DatabaseSpecific map[string]any  `json:"database_specific"`
+	Affected         []affected      `json:"affected"`
+}
+
+// severityEntry is one assessment on a record: a CVSS vector under its type.
+type severityEntry struct {
+	Type  string `json:"type"`
+	Score string `json:"score"`
 }
 
 type affected struct {
@@ -262,7 +265,28 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 	if err != nil {
 		return nil, err
 	}
-	o.borrowSeverities(ctx, records)
+	borrowed := o.borrowSeverities(ctx, records)
+	if err := ctx.Err(); err != nil {
+		// Borrowing tolerates its own failures, so a cancellation during it
+		// would otherwise pass through as a complete-looking report with
+		// every advisory left at unknown.
+		return nil, fmt.Errorf("osv: %w", err)
+	}
+
+	// assessed returns the record with the assessment a finding should carry:
+	// its own if it has one, otherwise the one borrowed from the record named
+	// for that CVE, which may already be among the fetched records.
+	assessed := func(record vulnRecord, from string) vulnRecord {
+		if len(record.Severity) > 0 || from == "" {
+			return record
+		}
+		if source, ok := records[from]; ok && len(source.Severity) > 0 {
+			record.Severity = source.Severity
+		} else if severity, ok := borrowed[from]; ok {
+			record.Severity = severity
+		}
+		return record
+	}
 
 	var findings []model.Finding
 	for _, key := range order {
@@ -275,8 +299,14 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 				// would turn that bug into a quietly incomplete report.
 				return nil, fmt.Errorf("osv: no record fetched for %s", id)
 			}
-			for _, comp := range grouped[key] {
-				findings = append(findings, buildFinding(record, comp, key))
+			// An advisory that shipped one upload for several CVEs is several
+			// findings: output-spec section 1 is one finding per vulnerability,
+			// and each CVE has an assessment of its own.
+			for _, ident := range identities(record) {
+				source := assessed(record, ident.borrowFrom)
+				for _, comp := range grouped[key] {
+					findings = append(findings, buildFinding(source, ident, comp, key))
+				}
 			}
 		}
 	}
@@ -428,36 +458,45 @@ func (o *OSV) fetchVulns(ctx context.Context, ids []string) (map[string]vulnReco
 	return records, nil
 }
 
-// borrowSeverities fills in the assessment for records that have none of their
-// own, from the record they name as upstream.
+// borrowSeverities fetches the assessments for records that have none of
+// their own, from the records they name as upstream, and returns them keyed by
+// the id they were fetched under.
 //
-// A DSA or DLA advisory carries no severity array. It names the CVE it shipped
-// a fix for in `upstream`, and that DEBIAN-CVE-… record has the CVSS vector --
-// the vector describes the vulnerability, not the release, so borrowing it says
-// nothing the data does not support. For an oldstable Debian release advisories
-// are the only records OSV returns at all, so without this every finding on
-// such an image reports as unknown, and --fail-on cannot fire on it
-// (spike/NOTES.md T18a, question 6).
+// A DSA or DLA advisory carries no severity array. It names the CVEs it shipped
+// a fix for in `upstream`, and each of their DEBIAN-CVE-… records has a CVSS
+// vector -- the vector describes the vulnerability rather than the release, so
+// borrowing it says nothing the data does not support. For an oldstable Debian
+// release advisories are the only records OSV returns at all, so without this
+// every finding on such an image reports as unknown, and --fail-on cannot fire
+// on it (spike/NOTES.md T18a, question 6).
 //
-// Failing to borrow is not a failure of the scan, which is why this does not
-// use fetchVulns and does not return an error: the worst case is the unknown
+// Records already fetched are not fetched again; Match reads their assessment
+// directly. Failing to borrow is not a failure of the scan, which is why this
+// does not use fetchVulns and returns no error: the worst case is the unknown
 // bucket the advisory would have produced anyway. fetchVulns promises to return
 // everything it was asked for or fail; this promises only to improve what it
-// can.
-func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecord) {
-	// The record each borrowed id would serve, so one fetch can fill several
-	// advisories naming the same CVE.
-	needed := map[string][]string{}
-	for id, record := range records {
-		if severity, _, _ := severityOf(record); severity != model.SeverityUnknown {
+// can. Match checks the context itself afterwards, so a cancellation here does
+// not pass through as a complete-looking report.
+func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecord) map[string][]severityEntry {
+	needed := map[string]bool{}
+	for _, record := range records {
+		if len(record.Severity) > 0 {
 			continue
 		}
-		if from := upstreamRecordID(record); from != "" {
-			needed[from] = append(needed[from], id)
+		for _, ident := range identities(record) {
+			from := ident.borrowFrom
+			if from == "" {
+				continue
+			}
+			if _, fetched := records[from]; fetched {
+				continue
+			}
+			needed[from] = true
 		}
 	}
+	borrowed := map[string][]severityEntry{}
 	if len(needed) == 0 {
-		return
+		return borrowed
 	}
 
 	var mu sync.Mutex
@@ -483,17 +522,18 @@ func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecor
 					continue
 				}
 				mu.Lock()
-				for _, id := range needed[from] {
-					record := records[id]
-					record.Severity = source.Severity
-					records[id] = record
-				}
+				borrowed[from] = source.Severity
 				mu.Unlock()
 			}
 		}()
 	}
 
+	ids := make([]string, 0, len(needed))
 	for from := range needed {
+		ids = append(ids, from)
+	}
+	slices.Sort(ids)
+	for _, from := range ids {
 		select {
 		case work <- from:
 		case <-ctx.Done():
@@ -501,18 +541,7 @@ func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecor
 	}
 	close(work)
 	wg.Wait()
-}
-
-// upstreamRecordID picks the record to borrow an assessment from: the database's
-// own entry for the CVE, named as DEBIAN-CVE-… or ALPINE-CVE-…, rather than the
-// bare CVE id, which OSV does not serve for these ecosystems.
-func upstreamRecordID(record vulnRecord) string {
-	for _, id := range record.Upstream {
-		if id != record.ID && strings.Contains(id, "-CVE-") {
-			return id
-		}
-	}
-	return ""
+	return borrowed
 }
 
 // userAgent identifies fwscan to the API. The URL is there so an operator

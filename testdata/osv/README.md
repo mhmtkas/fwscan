@@ -30,6 +30,16 @@ output-spec section 1, plus the duplicate-collapsing rule:
 | `ALPINE-CVE-2022-37434` | fourteen affected releases whose purls are all identical, so only the ecosystem field distinguishes them |
 | `ALPINE-CVE-2022-2097` | Alpine backport true-negative — present at `1.1.1o-r0`, absent at `1.1.1q-r0` |
 | `DSA-5218-1` | the same issue as `DEBIAN-CVE-2022-37434`, arriving as a second record |
+| `DLA-3942-1` | one advisory naming six CVEs, with no severity of its own and no `distro` qualifier on its purl — the shape OSV returns for an oldstable release. Recorded 2026-09-02 |
+| `DEBIAN-CVE-2023-5678` … `DEBIAN-CVE-2024-9143` | the six records that advisory names, each carrying the vector its CVE is assessed with, and none listing Debian 11 — so the advisory is the only thing a bullseye query finds. Recorded 2026-09-02 |
+
+`DLA-3942-1` is in `openssl@1.1.1k-1+deb11u1`'s result because that version is
+inside its window, and it is what makes the recorded set exercise the three
+rules an oldstable image depends on: an advisory expands to one finding per CVE
+it names, each finding borrows its assessment from that CVE's own record, and
+the release is matched on the advisory's ecosystem field since its purl carries
+no qualifier. The six `DEBIAN-CVE-…` records are present to be borrowed from and
+deliberately absent from every `querybatch` result, exactly as OSV serves them.
 
 `DSA-5218-1` is why zlib's query returns three ids. OSV returns the advisory
 alongside the CVE record: it lists `CVE-2022-37434` in `upstream`, so the

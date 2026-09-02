@@ -605,10 +605,12 @@ README, the code and this file agree, and none of them is waiting on anyone.
    must never be queried. That distinction did not exist when the detectors were
    written and would have to be added to them first.
 
-## T18a — Measured comparison against syft and grype — DONE 2 Sep 2026 — **TWO OPEN QUESTIONS**
+## T18a — Measured comparison against syft and grype — DONE 2 Sep 2026 — all three questions resolved
 
 Recorded in `docs/comparison.md` with the commands to re-derive it. syft 1.51.1,
-grype 0.118.0, fwscan at `a8eb612`, both committed fixture images.
+grype 0.118.0, the fwscan tree released as v0.1.0, both committed fixture
+images. The numbers below are as first measured; the resolutions that follow
+each question say what they became.
 
 ### The finding that matters
 
@@ -631,34 +633,55 @@ The spike measured bookworm-era data (T0.3 used `distro=debian-12`), which is wh
 this did not show up then. The fixture, and the images the target user has, are
 older.
 
-### Question 6 — severity is one hop away. **MAINTAINER DECISION.**
+### Question 6 — severity is one hop away. **Resolved 2 Sep 2026 (T40): follow the hop.**
 
 Every advisory names its CVE in `upstream`, and that `DEBIAN-CVE-…` record has
 the vector: `DSA-5514-1` names `CVE-2023-4911`, whose record scores 7.8 high
 under this repository's own `severityOf`. fwscan already reads `upstream` to
 choose the identifier and does not follow it for the assessment.
 
-Following it would give every finding on an oldstable image a severity and make
-`--fail-on` work there. It costs one extra fetch per advisory that carries no
-severity of its own, and it changes what the scanner reports, so it is not a
-change to make unilaterally.
+Following it gives every finding on an oldstable image a severity and makes
+`--fail-on` work there, at the cost of one extra fetch per CVE record not
+already fetched. *Decided:* do it. Measured after: every finding on the fixture
+ranked, none at `unknown`.
 
-### Question 7 — the fixed version is in the advisory. **MAINTAINER DECISION.**
+### Question 7 — the fixed version is in the advisory. **Resolved 2 Sep 2026 (T40): match on the ecosystem field.**
 
 `DSA-5514-1`'s affected entry for glibc carries `ecosystem: "Debian:11"` and
 `fixed: 2.31-13+deb11u7` — the same version grype reports. fwscan does not see it
 because `affectedMatchesRelease` matches Debian releases on the purl's `distro`
-qualifier, and an advisory's purl carries none. Matching on the ecosystem when
-the qualifier is absent would recover it.
+qualifier, and an advisory's purl carries none. *Decided:* when the qualifier is
+absent, match `package.ecosystem` against `Debian:<VERSION_ID>` from the image's
+own os-release. Measured after: every finding on the fixture carries a fix, and
+all but the six of question 8's advisory pair match grype's version exactly.
 
 Note this is the same shape T22 already worked around from the other side: T22
 collapsed the advisory into the CVE record so the report showed one row rather
 than two. Where the CVE record does not exist for the release, there is nothing
 to collapse into, and the advisory is all there is.
 
+### Question 8 — an advisory naming several CVEs was one finding. **Resolved 2 Sep 2026 (T46): one finding per CVE.**
+
+Found by the final pre-announcement review, after 6 and 7 had landed. The
+identifier rule took the *first* `CVE-…` in `upstream` as the finding's id, so
+`DLA-3942-1`, which names six CVEs, became one row under `CVE-2023-5678`
+(medium 5.3) with the other five inside `aliases` — including `CVE-2024-5535`,
+a 9.1 critical by this repository's own scorer, which therefore never reached
+`--fail-on`. On the fixture, 16 rows were hiding 38 CVEs, and the "16 against
+113" figure first recorded here compared advisories to CVEs.
+
+*Decided:* an advisory yields one finding per CVE it names, each borrowing the
+assessment of its own `DEBIAN-CVE-…` record and sharing the advisory's fixed
+version; the advisory id is an alias of each, and the sibling CVEs are not
+aliases of one another. output-spec section 3 states the rule. Measured after:
+38 findings, all ranked, all with a fix, all present in grype's 113, and 32 of
+them identical to grype's on both counts. The six that differ are the six CVEs
+of `DLA-3942-1`/`DLA-3942-2`, where fwscan reports the lower of the two fixes
+by the rule section 1 states.
+
 ### Not fwscan's to fix
 
-The count itself — 16 against 113 — is a property of the data source. OSV's
+The count itself — now 38 against 113 — is a property of the data source. OSV's
 Debian export for an oldstable release lists what received an advisory; grype
 reads the Debian Security Tracker, which carries every CVE's per-release status.
 Closing that needs a second source, which the roadmap already lists as an NVD

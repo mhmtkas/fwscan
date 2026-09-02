@@ -25,9 +25,11 @@ reports known vulnerabilities from OSV.dev.
   and OpenWrt emit are unwrapped before extraction.
 - Severity from CVSS v3.1, v4.0 or v2 vectors, scored locally. The v4 path
   matches FIRST's reference calculator across the whole base metric space; where
-  a record carries no vector of its own but names the CVE it fixed, the vector is
-  taken from that record, which is what makes `--fail-on` usable on an oldstable
-  Debian image.
+  a record carries no vector of its own but names the CVEs it fixed, each
+  finding takes the vector of its own CVE's record, which is what makes
+  `--fail-on` usable on an oldstable Debian image. An advisory that fixed
+  several CVEs in one upload is reported as one finding per CVE, not one per
+  advisory.
 
 **Vulnerability matching**
 
@@ -73,8 +75,9 @@ reports known vulnerabilities from OSV.dev.
   source rather than the matching: OSV's export for an oldstable Debian release
   lists the CVEs that received an advisory, while the Debian Security Tracker
   carries every CVE's per-release status. `docs/comparison.md` measures it — 113
-  findings to 16 on the fixture image, with every fwscan finding also one of
-  grype's. A second data source is on the roadmap.
+  findings to 38 on the fixture image, with every fwscan finding also one of
+  grype's and the two agreeing on what they share. A second data source is on
+  the roadmap.
 - Roughly a fifth of Debian's OSV records carry no severity and land in the
   `unknown` bucket, which `--fail-on` never triggers on.
 - Heuristic components are reported but not looked up: a version read off a

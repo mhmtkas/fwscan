@@ -1,6 +1,7 @@
 package match
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/package-url/packageurl-go"
@@ -8,15 +9,15 @@ import (
 	"github.com/mhmtkas/fwscan/internal/model"
 )
 
-// buildFinding turns one OSV record plus the component it hit into a Finding.
-func buildFinding(record vulnRecord, comp model.Component, key queryKey) model.Finding {
+// buildFinding turns one OSV record, read under one of its identities, plus
+// the component it hit into a Finding.
+func buildFinding(record vulnRecord, ident recordIdentity, comp model.Component, key queryKey) model.Finding {
 	severity, score, vector := severityOf(record)
-	id, aliases := identify(record)
 
 	return model.Finding{
 		Component:    comp,
-		ID:           id,
-		Aliases:      aliases,
+		ID:           ident.id,
+		Aliases:      ident.aliases,
 		Severity:     severity,
 		CVSS:         score,
 		CVSSVector:   vector,
@@ -24,40 +25,84 @@ func buildFinding(record vulnRecord, comp model.Component, key queryKey) model.F
 	}
 }
 
-// identify chooses the identifier shown to the user.
+// recordIdentity is one vulnerability a record describes: the identifier shown
+// to the user, the other names it goes by, and the record to borrow an
+// assessment from when this one has none.
+type recordIdentity struct {
+	id      string
+	aliases []string
+	// borrowFrom is the database's own record for this CVE -- DEBIAN-CVE-… or
+	// ALPINE-CVE-… -- named in upstream, or empty when there is none.
+	borrowFrom string
+}
+
+// identities lists the vulnerabilities a record describes.
 //
-// OSV's Debian records are named DEBIAN-CVE-2022-0778 and carry the plain CVE
-// in an "upstream" field; their "aliases" field was empty on all 292 records
-// the spike examined. output-spec section 3's example shows a plain CVE id, so
-// the upstream CVE is preferred and the OSV id is kept as an alias, which keeps
-// the record traceable. output-spec section 3 carries this rule under
-// "Identifier derivation"; spike/NOTES.md records the evidence behind it.
-func identify(record vulnRecord) (id string, aliases []string) {
-	id = record.ID
+// OSV's Debian and Alpine records are named DEBIAN-CVE-2022-0778 and carry the
+// plain CVE in an "upstream" field; their "aliases" field was empty on all 292
+// records the spike examined. output-spec section 3 shows a plain CVE id, so
+// the upstream CVE is the identifier and the record id is kept as an alias,
+// which keeps the record traceable.
+//
+// A DSA or DLA advisory names every CVE the upload fixed, and one upload
+// routinely fixes several -- DLA-3942-1 names six. That is six vulnerabilities,
+// each with an assessment of its own, and output-spec section 1 asks for one
+// finding per vulnerability: reporting the advisory as one finding under the
+// first CVE's name hid the rest inside `aliases`, where a 9.1 critical could sit
+// under a 5.3 medium and never reach --fail-on. So an advisory yields one
+// identity per CVE it names. Its own id is an alias of each; the sibling CVEs
+// are not aliases of one another, because they are not the same vulnerability.
+func identities(record vulnRecord) []recordIdentity {
+	var cves []string
 	seen := map[string]bool{}
-	add := func(s string) {
-		if s != "" && s != id && !seen[s] {
-			seen[s] = true
-			aliases = append(aliases, s)
+	for _, up := range record.Upstream {
+		if strings.HasPrefix(up, "CVE-") && !seen[up] {
+			seen[up] = true
+			cves = append(cves, up)
 		}
 	}
 
-	for _, up := range record.Upstream {
-		if strings.HasPrefix(up, "CVE-") {
-			id = up
-			break
+	if len(cves) == 0 {
+		// Not a record that names a CVE. It is its own identity, and every
+		// other name it carries is an alias.
+		ident := recordIdentity{id: record.ID}
+		for _, name := range append(append([]string{}, record.Upstream...), record.Aliases...) {
+			ident.addAlias(name)
+			if ident.borrowFrom == "" && name != record.ID && strings.Contains(name, "-CVE-") {
+				ident.borrowFrom = name
+			}
 		}
+		return []recordIdentity{ident}
 	}
-	if id != record.ID {
-		add(record.ID)
+
+	out := make([]recordIdentity, 0, len(cves))
+	for _, cve := range cves {
+		ident := recordIdentity{id: cve}
+		ident.addAlias(record.ID)
+		// The database's own record for this CVE is named DEBIAN-CVE-… or
+		// ALPINE-CVE-…: the CVE with a prefix. It is the alias that belongs
+		// to this identity, and the record to borrow an assessment from.
+		for _, up := range record.Upstream {
+			if up != record.ID && strings.HasSuffix(up, "-"+cve) {
+				ident.addAlias(up)
+				if ident.borrowFrom == "" {
+					ident.borrowFrom = up
+				}
+			}
+		}
+		for _, alias := range record.Aliases {
+			ident.addAlias(alias)
+		}
+		out = append(out, ident)
 	}
-	for _, up := range record.Upstream {
-		add(up)
+	return out
+}
+
+func (r *recordIdentity) addAlias(name string) {
+	if name == "" || name == r.id || slices.Contains(r.aliases, name) {
+		return
 	}
-	for _, a := range record.Aliases {
-		add(a)
-	}
-	return id, aliases
+	r.aliases = append(r.aliases, name)
 }
 
 // dedupeFindings collapses findings that name the same vulnerability in the

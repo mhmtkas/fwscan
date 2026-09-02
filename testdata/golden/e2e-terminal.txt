@@ -2,11 +2,17 @@ fwscan v0.1.0
 
   Target      ../../testdata/images/mini-rootfs.tar.gz (tar, gzip)
   Packages    7 (6 high confidence, 1 low)
-  Findings    3   critical: 1  high: 1  medium: 1  low: 0  unknown: 0
+  Findings    9   critical: 2  high: 2  medium: 5  low: 0  unknown: 0
 
 SEVERITY  SCORE  PACKAGE    INSTALLED         FIXED                    VULN ID         CONF
 critical  9.8    zlib1g     1:1.2.11.dfsg-2   1:1.2.11.dfsg-2+deb11u2  CVE-2022-37434  high
+critical  9.1    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-5535   high
 high      7.5    libssl1.1  1.1.1k-1+deb11u1  1.1.1k-1+deb11u2         CVE-2022-0778   high
+high      7.5    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-4741   high
+medium    5.9    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-2511   high
+medium    5.5    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-0727   high
+medium    5.3    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2023-5678   high
+medium    4.3    libssl1.1  1.1.1k-1+deb11u1  1.1.1n-0+deb11u6         CVE-2024-9143   high
 medium    —      zlib1g     1:1.2.11.dfsg-2   1:1.2.11.dfsg-2+deb11u9  CVE-2099-0001   high
 
 1 low-confidence component was identified by filename heuristics and may be a false positive.
