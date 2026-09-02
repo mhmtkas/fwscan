@@ -3,12 +3,18 @@
 [![ci](https://github.com/mhmtkas/fwscan/actions/workflows/ci.yml/badge.svg)](https://github.com/mhmtkas/fwscan/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-**Point it at a firmware image, get a CycloneDX SBOM and a prioritized CVE report.**
+**Point it at a rootfs — a directory, a tarball, or a squashfs image — and get a
+CycloneDX SBOM and a CVE report.**
 
-fwscan scans Linux-based firmware rootfs images, identifies installed packages
-from the package databases inside them, emits a CycloneDX 1.6 SBOM, and reports
-known vulnerabilities from [OSV.dev](https://osv.dev). One static binary, no
-configuration, no API key.
+fwscan reads the dpkg or apk database inside a Linux root filesystem, emits a
+CycloneDX 1.6 SBOM, and queries [OSV.dev](https://osv.dev) for known
+vulnerabilities. One static binary, no configuration, no API key, no database to
+provision.
+
+It reads **Debian, Ubuntu and Alpine** packages. It does not read opkg, rpm,
+buildroot or Yocto manifests, so it will not tell you much about an OpenWrt or a
+Yocto image beyond a kernel version and a busybox. That boundary is deliberate
+and [documented](docs/scope.md); read it before adopting this.
 
 ```console
 $ fwscan scan rootfs.tar.gz
@@ -36,31 +42,37 @@ recorded in `testdata/osv/`, byte for byte what the end-to-end test compares
 against. A live scan of the same image finds more, because OSV has more; the
 shape is the same.
 
-## Why another scanner
+## Why this exists, and when not to use it
 
 Firmware teams are being asked for SBOMs. The EU Cyber Resilience Act makes SBOM
-generation and vulnerability handling a legal obligation for products sold in the
-EU from 2027. The existing options are fragmented — binwalk extracts, syft and
-grype understand containers, none of them is firmware-native end to end — or they
-are enterprise platforms with a sales call attached.
+generation and vulnerability handling a legal obligation for products sold in
+the EU from 2027, and the reporting obligations start earlier. The tools that
+answer that today mostly assume a container: they take an image reference, pull
+from a registry, and want a vulnerability database staged first.
 
-**fwscan is backport-aware.** Debian and Alpine patch security bugs without
-moving the upstream version. OpenSSL 1.1.1k looks vulnerable to CVE-2022-0778
-and is not, if the installed package is `1.1.1k-1+deb11u2` — the fix was
-backported into the Debian revision. fwscan carries the release into every
-query, so it reports that as fixed. The evidence, including what happens without
-the release qualifier, is in [`spike/NOTES.md`](spike/NOTES.md).
+fwscan takes a path. A directory, a tarball in any of five compressions, or a
+squashfs image — the shapes an appliance rootfs actually arrives in — and one
+command produces both artifacts. There is no database to provision and nothing
+to keep fresh, because the CVE data is fetched at scan time. That is the whole
+of the difference in workflow, and for a CI job that has to produce an SBOM per
+build it is a real one.
 
-**It is not the only scanner that gets this right.** grype is backport-aware
-too, and on the fixture image in this repository it reports three times as many
-findings as fwscan does. [`docs/comparison.md`](docs/comparison.md) has the
-numbers, the commands to re-derive them, and the reason, which is the data
-source rather than the matching. Read it before choosing this tool over those.
+**It is backport-aware**, which any usable Debian or Alpine scanner has to be.
+OpenSSL 1.1.1k looks vulnerable to CVE-2022-0778 and is not, if the installed
+package is `1.1.1k-1+deb11u2` — the fix was backported into the Debian revision.
+fwscan carries the release into every query, so it reports that as fixed. The
+evidence, including what happens without the release qualifier, is in
+[`spike/NOTES.md`](spike/NOTES.md).
 
-What fwscan offers today is narrower than "a better scanner": one command from a
-firmware image to both an SBOM and a report with no database to provision,
-confidence and evidence on every component so a filename guess is visibly a
-guess, and a CRA-oriented compliance report as the next thing on the roadmap.
+**grype is backport-aware too, and it is a good tool.** On current releases the
+two are level or fwscan is ahead; on a release past its support window fwscan is
+far behind, for a reason that is about the data source rather than the matching.
+[`docs/comparison.md`](docs/comparison.md) has the numbers and the commands to
+re-derive them. Read it before choosing this over grype.
+
+**Use something else if** your image is OpenWrt, Yocto or rpm-based; if you need
+to scan a running host or a registry image; if you need offline operation or a
+policy engine or VEX. fwscan does one thing.
 
 ## Install
 

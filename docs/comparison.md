@@ -196,7 +196,9 @@ in the FIXED column is the answer, not a gap.
 
 The image uses opkg, a non-goal (`docs/scope.md`), so fwscan reports only what
 its filename heuristics recognise: 2 components where the image's opkg database
-lists 150. It says so on stderr. Reading opkg is on the roadmap.
+lists 150. It says so on stderr rather than reporting a nearly empty image as a
+clean one. Reading opkg is on the roadmap; until it lands, fwscan has close to
+nothing to say about an OpenWrt image and this is the row that shows it.
 
 Extraction itself is real work, and worth stating: every real rootfs carries
 device nodes that `unsquashfs` cannot create without root, and the image is

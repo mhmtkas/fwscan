@@ -12,11 +12,18 @@ firmware and which known vulnerabilities affect it. The EU Cyber Resilience Act,
 fully applicable in 2027, makes SBOM generation and vulnerability handling a
 legal obligation for products sold in the EU.
 
-The existing options sit at two extremes. Open source pieces exist but must be
-assembled — binwalk for extraction, syft and grype for containers, neither
-firmware-native end to end — and enterprise platforms are priced for enterprise
-procurement. fwscan is the middle: point it at a firmware image, get a CycloneDX
-SBOM and a severity-sorted CVE report.
+The open source tools that answer this are built around containers: they take an
+image reference, pull from a registry, and want a vulnerability database staged
+before the first scan. The enterprise platforms that are firmware-native are
+priced for enterprise procurement. fwscan sits between: it takes a path — a
+directory, a tarball, a squashfs image — and one command produces a CycloneDX
+SBOM and a severity-sorted CVE report, with nothing to provision and nothing to
+keep fresh.
+
+What it reads is narrower than "firmware": dpkg and apk, so Debian, Ubuntu and
+Alpine. An OpenWrt or Yocto image yields a kernel version and a busybox and
+little else. The non-goals below say so plainly, and the tool says so on stderr
+rather than reporting a clean image.
 
 ## Who it is for
 
