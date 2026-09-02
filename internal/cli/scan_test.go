@@ -441,3 +441,64 @@ func TestDiagnosticsAreSanitised(t *testing.T) {
 		t.Errorf("stderr carries a raw escape: %q", stderr.String())
 	}
 }
+
+// An image can carry a package database fwscan does not read -- opkg and rpm
+// are documented non-goals. A real OpenWrt image has 150 opkg packages; fwscan
+// reports the two its filename heuristics recognise, and reporting two where
+// there are a hundred and fifty without saying so is an answer that gets acted
+// on and should not be.
+func TestUnreadDatabaseWarnings(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		want  []string
+	}{
+		{
+			name:  "an openwrt image",
+			files: []string{"usr/lib/opkg/status"},
+			want:  []string{"an opkg database at usr/lib/opkg/status"},
+		},
+		{
+			name:  "opkg at the other path it uses",
+			files: []string{"var/lib/opkg/status"},
+			want:  []string{"an opkg database at var/lib/opkg/status"},
+		},
+		{
+			name:  "an rpm image",
+			files: []string{"var/lib/rpm/rpmdb.sqlite"},
+			want:  []string{"an rpm database"},
+		},
+		{
+			// Both rpm paths present is still one warning: the reader needs to
+			// know the manager is unread, not how many files it keeps.
+			name:  "one warning per manager",
+			files: []string{"var/lib/rpm/Packages", "var/lib/rpm/rpmdb.sqlite"},
+			want:  []string{"an rpm database"},
+		},
+		{
+			name:  "a debian image warns about nothing",
+			files: []string{"var/lib/dpkg/status"},
+		},
+		{
+			name:  "an alpine image warns about nothing",
+			files: []string{"lib/apk/db/installed"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := fstest.MapFS{}
+			for _, f := range tt.files {
+				root[f] = &fstest.MapFile{Data: []byte("Package: x\n")}
+			}
+			got := unreadDatabaseWarnings(root)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d warnings %q, want %d", len(got), got, len(tt.want))
+			}
+			for i, want := range tt.want {
+				if !strings.Contains(got[i], want) {
+					t.Errorf("warning %d = %q, want it to mention %q", i, got[i], want)
+				}
+			}
+		})
+	}
+}

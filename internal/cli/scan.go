@@ -106,6 +106,9 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		// would look like a bug.
 		diagnostic("no package database found; is this a Linux rootfs?")
 	}
+	for _, warning := range unreadDatabaseWarnings(rootfs) {
+		diagnostic(warning)
+	}
 	for _, warning := range releaseWarnings(rootfs, comps) {
 		diagnostic(warning)
 	}
@@ -174,6 +177,46 @@ func writeSBOM(path string, comps []model.Component, version string, started tim
 
 // catalogAll runs every cataloger over the rootfs and returns the union,
 // sorted by name so the output is stable run to run.
+// unsupportedDatabases are the package databases fwscan can find but not read.
+// Each is a documented non-goal (docs/scope.md); the point of naming them is
+// that an image carrying one is not an image with nothing in it.
+var unsupportedDatabases = []struct {
+	path    string
+	manager string
+}{
+	{"usr/lib/opkg/status", "an opkg"},
+	{"var/lib/opkg/status", "an opkg"},
+	{"var/lib/rpm/Packages", "an rpm"},
+	{"var/lib/rpm/rpmdb.sqlite", "an rpm"},
+	{"usr/lib/sysimage/rpm/rpmdb.sqlite", "an rpm"},
+}
+
+// unreadDatabaseWarnings names a package database the image has and fwscan does
+// not read.
+//
+// A real OpenWrt image carries 150 opkg packages; fwscan reads none of them and
+// reports the two components its filename heuristics recognise. Reporting two
+// where there are a hundred and fifty, without saying so, is the shape of an
+// answer that gets acted on and should not be.
+func unreadDatabaseWarnings(rootfs fs.FS) []string {
+	seen := map[string]bool{}
+	var warnings []string
+	for _, db := range unsupportedDatabases {
+		if seen[db.manager] {
+			continue
+		}
+		if _, err := fs.Stat(rootfs, db.path); err != nil {
+			continue
+		}
+		seen[db.manager] = true
+		warnings = append(warnings, fmt.Sprintf(
+			"this image has %s database at %s, which fwscan does not read; "+
+				"only components identified another way are reported",
+			db.manager, db.path))
+	}
+	return warnings
+}
+
 // releaseWarnings says what a Debian lookup could not be scoped to. Every
 // Debian query carries the image's release, because without it OSV answers
 // across every release at once and reports another release's fix as the one to

@@ -149,7 +149,7 @@ func (s SquashFS) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, er
 	var out boundedBuffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Run(); err != nil && !nonFatalExtraction(err) {
 		cleanup()
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, noopCleanup, fmt.Errorf(
@@ -201,6 +201,27 @@ func openExtracted(target string) (*os.Root, error) {
 	return root, nil
 }
 
+// unsquashfsNonFatal is the exit status unsquashfs uses for errors that did not
+// stop it extracting: 1 is fatal -- corruption, I/O -- and 2 is everything it
+// could not do but carried on past.
+const unsquashfsNonFatal = 2
+
+// nonFatalExtraction reports whether unsquashfs finished its work despite
+// complaining.
+//
+// Every real rootfs image contains device nodes -- /dev/console and /dev/null
+// at the very least -- and creating one needs root, which a scanner has no
+// business having. unsquashfs reports that it could not, exits 2, and extracts
+// everything else: the first real OpenWrt image tried here produced 1069 files
+// including the package database, and was refused because the exit status was
+// not zero. Extended attributes on an unprivileged filesystem land in the same
+// category. What must not be tolerated is exit 1, which is corruption or I/O
+// failure, and openExtracted still checks that something usable was produced.
+func nonFatalExtraction(err error) bool {
+	var exit *exec.ExitError
+	return errors.As(err, &exit) && exit.ExitCode() == unsquashfsNonFatal
+}
+
 // maxListing bounds the metadata listing an image may produce before it is
 // refused unread: at roughly a hundred bytes a line it is over three hundred
 // thousand entries, which is not a rootfs. A variable so a test can lower it;
@@ -219,7 +240,7 @@ func checkDeclared(ctx context.Context, binary, image string) error {
 	cmd := exec.CommandContext(ctx, binary, "-ll", "-d", "", image)
 	out := boundedBuffer{limit: maxListing}
 	cmd.Stdout, cmd.Stderr = &out, &out
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Run(); err != nil && !nonFatalExtraction(err) {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return fmt.Errorf("extraction stopped: %w", ctxErr)
 		}

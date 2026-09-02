@@ -124,6 +124,48 @@ Stated narrowly, because the numbers above do not support a broad claim:
 - A CRA-oriented compliance report, which is the first roadmap item and the
   reason this tool exists separately at all.
 
+## On real images
+
+The fixture above is small and built for this repository. These are not: an
+official Alpine 3.19.1 aarch64 minirootfs, a Debian bookworm rootfs pulled from
+the official image, and an OpenWrt 23.05.5 x86-64 squashfs rootfs. Same day,
+same tools, fwscan v0.1.0.
+
+| | Alpine 3.19 minirootfs | Debian bookworm | OpenWrt 23.05.5 |
+|---|---|---|---|
+| Image | 3.1 MB tar.gz | 47 MB tar.gz | 4.3 MB squashfs |
+| fwscan packages | 18 (15 from apk) | 88 | 2, all heuristic |
+| fwscan findings | 42 | 182 | — |
+| grype findings | 46 | 179 | — |
+| In both | 42 | 177 | — |
+| Severity agrees | 42 of 42 | 111 of 177 | — |
+| Fixed version reported | 42 of 42 | 0 of 182 | — |
+
+Three things in that table need saying plainly.
+
+**The Debian column reports no fixed versions, and that is correct.** grype
+reports none either — 0 of 179. The image is fully patched, so every remaining
+finding is a CVE Debian has not fixed. `—` in the FIXED column is the honest
+answer, not a gap.
+
+**The 66 severities that differ are a difference of source, not an error.**
+fwscan scores the CVSS vector on the record, as `docs/output-spec.md` section 1
+requires. grype reports Debian's own rating, and Debian marks a great many CVEs
+negligible for the way it builds: 58 of the 66 are `negligible` on grype's side.
+`CVE-2019-1010022` against glibc is the clearest case — CVSS 9.8, and Debian
+considers it not to apply. Neither number is wrong; they answer different
+questions, and a reader comparing the two tools should know which they are
+looking at.
+
+**OpenWrt is extracted but barely read.** The image uses opkg, which is a
+non-goal (`docs/scope.md`), so fwscan finds only what its filename heuristics
+recognise — 2 components where the image's opkg database lists 150. It says so
+on stderr rather than reporting 2 quietly. Reading opkg is on the roadmap.
+
+The small deltas: fwscan finds 5 on Debian that grype does not (one zlib and
+one pam CVE, the latter across four binary packages), and grype finds 4 on
+Alpine that fwscan does not (a busybox and a zlib CVE).
+
 ## Reproducing
 
 syft and grype were downloaded from their GitHub releases; grype builds its

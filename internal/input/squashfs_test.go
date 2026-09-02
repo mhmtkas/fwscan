@@ -555,3 +555,63 @@ func TestSquashFSListingTooLongIsRefused(t *testing.T) {
 		t.Errorf("error = %v, want the listing bound named", err)
 	}
 }
+
+// Every real rootfs image contains device nodes -- /dev/console at the very
+// least -- and creating one needs root, which a scanner has no business having.
+// unsquashfs says so, exits 2, and extracts everything else. The first real
+// OpenWrt image tried against this produced 1069 files including the package
+// database, and was refused because the status was not zero.
+func TestSquashFSTolerantOfNonFatalExtractionErrors(t *testing.T) {
+	requireSquashfsTools(t)
+	requireMksquashfs(t)
+
+	// mksquashfs -p writes a device node into the image without needing root
+	// to have one on disk first.
+	src := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(src, "var", "lib", "dpkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "var", "lib", "dpkg", "status"), []byte(testStatus), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	image := filepath.Join(t.TempDir(), "devices.squashfs")
+	cmd := exec.Command("mksquashfs", src, image,
+		"-noappend", "-all-root", "-no-xattrs", "-quiet", "-no-progress",
+		"-p", "dev d 755 0 0",
+		"-p", "dev/console c 600 0 0 5 1",
+		"-p", "dev/null c 666 0 0 1 3")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("mksquashfs could not build an image with device nodes: %v: %s", err, out)
+	}
+
+	rootfs, _, cleanup, err := Open(context.Background(), image)
+	defer cleanup()
+	if err != nil {
+		t.Fatalf("Open() error = %v; device nodes a non-root user cannot create are not a fatal error", err)
+	}
+	// And what the scan actually needs came out of it.
+	comps, err := catalog.NewDpkg().Catalog(context.Background(), rootfs)
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if len(comps) == 0 {
+		t.Error("no packages cataloged from an image whose database extracted fine")
+	}
+}
+
+func TestNonFatalExtraction(t *testing.T) {
+	if nonFatalExtraction(nil) {
+		t.Error("a nil error was read as a non-fatal exit")
+	}
+	// Status 1 is corruption or I/O; status 2 is everything unsquashfs carried
+	// on past.
+	for status, want := range map[int]bool{0: false, 1: false, 2: true, 3: false} {
+		err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", status)).Run()
+		if status == 0 {
+			continue
+		}
+		if got := nonFatalExtraction(err); got != want {
+			t.Errorf("nonFatalExtraction(exit %d) = %v, want %v", status, got, want)
+		}
+	}
+}

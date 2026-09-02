@@ -173,14 +173,18 @@ contents are out of proportion to its size — more than 4 GiB in total, or over
 is an xz stream declaring a dictionary over 128 MiB (`xz -9` uses 64 MiB) and a
 path more than 256 levels deep. No real firmware image is near any of these.
 
-**fwscan finds less than grype does, and the gap is the data source.** On the
-fixture image in this repository grype reports 113 findings to fwscan's 38 —
-every one of fwscan's is also one of grype's, and on those the two agree. OSV's
-export for an oldstable Debian release lists the CVEs that received a DSA or
-DLA; grype reads the Debian Security Tracker, which carries every CVE's
-per-release status. A second data source is on the roadmap and is not in
-v0.1.0. [`docs/comparison.md`](docs/comparison.md) has the numbers and the
-commands.
+**How much fwscan finds depends on the release.** On a current Debian bookworm
+rootfs and an Alpine 3.19 minirootfs it is level with grype — 182 findings to
+grype's 179, and 42 to 46. On an *oldstable* Debian image it finds considerably
+less, because OSV's export for such a release lists only the CVEs that received
+a DSA or DLA while grype reads the full Debian Security Tracker. A second data
+source is on the roadmap and is not in v0.1.0.
+
+Where both report a finding they agree on Alpine; on Debian they often differ on
+severity, because fwscan scores the CVSS vector and grype reports Debian's own
+rating, which is `negligible` for a great many CVEs.
+[`docs/comparison.md`](docs/comparison.md) has the numbers, on real images, with
+the commands to re-derive them.
 
 **Some findings carry no severity**, land in the `unknown` bucket, and so never
 trigger `--fail-on` — roughly a fifth of Debian's OSV records, 57 of the 292 the
