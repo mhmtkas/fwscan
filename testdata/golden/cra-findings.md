@@ -39,6 +39,9 @@ Those are matters of process and require their own records.
 
 Distributions found in the image: debian bullseye.
 
+**Support status: supported.** debian 11 (bullseye) receives free security updates
+under LTS until 2026-08-31.
+
 The inventory itself is the CycloneDX 1.6 SBOM this run wrote, which is
 the machine-readable format the obligation asks for. It is not repeated
 here: a second hand-rendered copy would be a second thing to keep true.

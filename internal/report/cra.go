@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/release"
 )
 
 // CRAOptions carries what the evidence report needs beyond the scan results
@@ -49,7 +50,7 @@ func CRA(w io.Writer, version string, info ScanInfo, comps []model.Component, fi
 	var b strings.Builder
 	writeCRAScope(&b)
 	writeCRAScan(&b, version, info)
-	writeCRAInventory(&b, comps, opts)
+	writeCRAInventory(&b, comps, info, opts)
 	writeCRAVulnerabilities(&b, findings, opts)
 	writeCRALowConfidence(&b, comps)
 	writeCRALimitations(&b, findings, opts)
@@ -93,7 +94,7 @@ func writeCRAScan(b *strings.Builder, version string, info ScanInfo) {
 	b.WriteString("\n")
 }
 
-func writeCRAInventory(b *strings.Builder, comps []model.Component, opts CRAOptions) {
+func writeCRAInventory(b *strings.Builder, comps []model.Component, info ScanInfo, opts CRAOptions) {
 	counts := CountPackages(comps)
 	b.WriteString("## 2. Component inventory\n\n")
 	fmt.Fprintf(b, "%d components were identified: %d from a package database, %d from filename heuristics.\n\n",
@@ -102,6 +103,7 @@ func writeCRAInventory(b *strings.Builder, comps []model.Component, opts CRAOpti
 	if distros := distributions(comps); len(distros) > 0 {
 		b.WriteString("Distributions found in the image: " + mdCell(strings.Join(distros, ", ")) + ".\n\n")
 	}
+	writeCRASupport(b, comps, info.StartedAt)
 
 	if opts.SBOMPath != "" {
 		b.WriteString("The inventory itself is the CycloneDX 1.6 SBOM this run wrote, which is\n" +
@@ -113,6 +115,65 @@ func writeCRAInventory(b *strings.Builder, comps []model.Component, opts CRAOpti
 	b.WriteString("No SBOM was written by this run. The obligation asks for the inventory in\n" +
 		"a commonly used machine-readable format; re-run with `--sbom <file>` to\n" +
 		"produce it, and file it alongside this document.\n\n")
+}
+
+// writeCRASupport states whether the release still receives security updates.
+//
+// For this regulation that is the finding, not a footnote. A product shipping a
+// release past free support carries vulnerabilities nobody will fix, and every
+// one of them is permanent unless the manufacturer backports it. A reader who
+// took the vulnerability table at face value without this paragraph would
+// conclude the opposite of the truth, because the table is shorter for exactly
+// the releases where it should be longer.
+func writeCRASupport(b *strings.Builder, comps []model.Component, at time.Time) {
+	pkg := distroComponent(comps)
+	if pkg == nil {
+		return
+	}
+	support, ok := release.Lookup(pkg.DistroID, pkg.Distro, pkg.DistroVersion, at)
+	if !ok {
+		b.WriteString("**Support status: unknown.** " + mdCell(pkg.DistroID) +
+			" is not a distribution whose release schedule this tool carries, so\n" +
+			"whether it still receives security updates has to be established by hand.\n\n")
+		return
+	}
+
+	name := pkg.DistroID + " " + support.Version
+	if support.Series != "" {
+		name += " (" + support.Series + ")"
+	}
+	switch {
+	case support.EndOfLife():
+		b.WriteString("**Support status: end of life.** " + mdCell(name) + " is past every\n" +
+			"support tier its vendor offers. No security updates are published for it by\n" +
+			"anyone, and no vulnerability database tracks it, so the section below cannot\n" +
+			"be complete and will not become complete. Under this regulation that is\n" +
+			"itself the finding.\n\n")
+	case !support.FreelySupported():
+		fmt.Fprintf(b, "**Support status: paid tier only.** %s left free security support\n"+
+			"on %s and is covered until %s by %s. Updates in that tier are not published\n"+
+			"to everyone: a fix named below may require that subscription, and\n"+
+			"vulnerability databases track releases while they are freely supported, so\n"+
+			"the section below is incomplete.\n\n",
+			mdCell(name), support.LastFree().Format(time.DateOnly),
+			support.Current.Until.Format(time.DateOnly), mdCell(support.Current.Name))
+	default:
+		fmt.Fprintf(b, "**Support status: supported.** %s receives free security updates\n"+
+			"under %s until %s.\n\n",
+			mdCell(name), mdCell(support.Current.Name), support.Current.Until.Format(time.DateOnly))
+	}
+}
+
+// distroComponent picks the component the release is read from: any one that
+// came from a package database and named a distribution. They all name the same
+// one, because they all came from the same image.
+func distroComponent(comps []model.Component) *model.Component {
+	for i := range comps {
+		if comps[i].DistroID != "" && comps[i].Confidence == model.ConfidenceHigh {
+			return &comps[i]
+		}
+	}
+	return nil
 }
 
 func writeCRAVulnerabilities(b *strings.Builder, findings []model.Finding, opts CRAOptions) {

@@ -42,6 +42,16 @@ recorded in `testdata/osv/`, byte for byte what the end-to-end test compares
 against. A live scan of the same image finds more, because OSV has more; the
 shape is the same.
 
+The fixture is a Debian 11 rootfs, so a live scan of it also prints this on
+stderr, which is the second half of the answer:
+
+```
+fwscan: debian 11 (bullseye) left free security support on 2026-08-31 and is now
+covered only by Extended LTS (Freexian, commercial), until 2031-06-30. OSV tracks
+releases while they are freely supported, so findings for this image are
+incomplete and a fix it does name may need a paid subscription
+```
+
 ## Why this exists, and when not to use it
 
 Firmware teams are being asked for SBOMs. The EU Cyber Resilience Act makes SBOM
@@ -166,6 +176,13 @@ findings rather than find them. `libssl.so.3` names an ABI, not a release.
 - **`--cra evidence.md`** — the scan written up as evidence toward the Cyber
   Resilience Act's vulnerability-handling obligations. See below.
 
+Every scan also reports, on stderr and in the evidence report, whether the
+release in the image still receives security updates and whether those updates
+are free. A release past free support is why a scan can come back empty, and it
+is a more useful answer than the empty report on its own. The dates come from
+`distro-info-data`, the table Debian and Ubuntu maintain for the question,
+embedded in the binary rather than fetched.
+
 ## Cyber Resilience Act evidence
 
 Annex I, Part II of Regulation (EU) 2024/2847 lists eight vulnerability-handling
@@ -227,11 +244,12 @@ those thins out as a release ages, and disappears once it leaves support.
 
 On supported releases this costs little and fwscan is level with grype or ahead
 of it: 182 findings to 179 on a Debian bookworm rootfs, 148 to 144 on trixie,
-140 to 101 on Ubuntu 22.04, 56 to 58 on Alpine 3.21. On a release past its
-support window it costs a great deal — on a fully patched Debian 11 rootfs
-fwscan reports **nothing** where grype reports 211, every one of them a CVE
-Debian has not fixed. A scan of a Debian image that finds nothing says so on
-stderr rather than leaving you with "No known vulnerabilities found".
+140 to 101 on Ubuntu 22.04, 56 to 58 on Alpine 3.21. On a release past free
+support it costs a great deal — on a fully patched Debian 11 rootfs fwscan
+reports **nothing** where grype reports 211 and trivy 222, none of which carry a
+fixed version, because Debian has published none. fwscan names the cause on
+stderr and in the evidence report, with the date, instead of leaving you with
+"No known vulnerabilities found".
 
 Where both tools report a finding they agree on Alpine. On Debian they often
 differ on severity, because fwscan scores the CVSS vector and grype reports

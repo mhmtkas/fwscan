@@ -113,6 +113,12 @@ func TestErrorMessages(t *testing.T) {
 }
 
 // assertUserFacingMessage enforces the shape every error shares.
+//
+// A failing scan may have written diagnostics before it failed -- an
+// unreadable package database, a release past free support -- and those are
+// legitimate output rather than part of the error. The error is the last line;
+// every line is held to the same shape, so a warning cannot smuggle in a stack
+// trace either.
 func assertUserFacingMessage(t *testing.T, stderr string) {
 	t.Helper()
 
@@ -120,16 +126,26 @@ func assertUserFacingMessage(t *testing.T, stderr string) {
 	if trimmed == "" {
 		t.Fatal("nothing on stderr")
 	}
-	if strings.Contains(trimmed, "\n") {
-		t.Errorf("message spans several lines:\n%s", stderr)
+	lines := strings.Split(trimmed, "\n")
+	for _, line := range lines {
+		assertDiagnosticLine(t, line)
 	}
-	if !strings.HasPrefix(trimmed, "fwscan: ") {
-		t.Errorf("message is not prefixed with the tool name: %q", trimmed)
+	assertDiagnosticLine(t, lines[len(lines)-1])
+}
+
+func assertDiagnosticLine(t *testing.T, line string) {
+	t.Helper()
+
+	if !strings.HasPrefix(line, "fwscan: ") {
+		t.Errorf("message is not prefixed with the tool name: %q", line)
 	}
 
-	body := strings.TrimPrefix(trimmed, "fwscan: ")
+	body := strings.TrimPrefix(line, "fwscan: ")
 	if body == "" {
 		t.Fatal("message has no body")
+	}
+	if strings.Contains(body, "\n") {
+		t.Errorf("message spans several lines: %q", body)
 	}
 	if first := body[:1]; first != strings.ToLower(first) {
 		t.Errorf("message does not start lowercase: %q", body)

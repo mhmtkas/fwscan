@@ -858,9 +858,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 github.com/FIRSTdotorg/cvss-v4-calculator c5b0d409ae9f57c44264c6ce5f27d89298e1d32a
-Not linked. The CVSS v4 MacroVector table and scoring steps in
-internal/match/cvss4.go and internal/match/cvss4_lookup.go are
-transcribed from this project.
+Not linked. The CVSS v4 MacroVector table and scoring steps in 
+internal/match/cvss4.go and internal/match/cvss4_lookup.go are transcribed 
+from this project.
 --------------------------------------------------------------------------------
 
 Copyright (c) 2023 FIRST.ORG, Inc., Red Hat, and contributors
@@ -885,3 +885,28 @@ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+--------------------------------------------------------------------------------
+salsa.debian.org/debian/distro-info-data 2026-09-03
+Not linked. internal/release/debian.csv and internal/release/ubuntu.csv are 
+copies of this project's tables of release and end-of-support dates.
+--------------------------------------------------------------------------------
+
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: distro-info-data
+Upstream-Contact: Benjamin Drung <bdrung@debian.org>
+
+Files: *
+Copyright: 2009-2024, Benjamin Drung <bdrung@debian.org>
+           2009-2021, Stefano Rivera <stefanor@debian.org>
+License: ISC
+ Permission to use, copy, modify, and/or distribute this software for any
+ purpose with or without fee is hereby granted, provided that the above
+ copyright notice and this permission notice appear in all copies.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+ REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+ AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+ LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ PERFORMANCE OF THIS SOFTWARE.

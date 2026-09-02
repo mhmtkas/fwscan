@@ -20,10 +20,13 @@ out=THIRD_PARTY_LICENSES.txt
 module=$(go list -m)
 
 # Components transcribed into this repository rather than imported, as
-# "name|version|licence file". FIRST's calculator is data -- the CVSS v4
-# MacroVector table cannot be derived, only copied -- so its terms travel with
-# this repository even though nothing links against it.
-transcribed='github.com/FIRSTdotorg/cvss-v4-calculator|c5b0d409ae9f57c44264c6ce5f27d89298e1d32a|licenses/cvss-v4-calculator.txt'
+# "name|version|licence file|what was copied". FIRST's calculator is data -- the
+# CVSS v4 MacroVector table cannot be derived, only copied -- and
+# distro-info-data is the vendors' own table of release and end-of-support
+# dates, embedded so a scan can answer offline. Neither is linked against, and
+# both sets of terms travel with this repository regardless.
+transcribed='github.com/FIRSTdotorg/cvss-v4-calculator|c5b0d409ae9f57c44264c6ce5f27d89298e1d32a|licenses/cvss-v4-calculator.txt|The CVSS v4 MacroVector table and scoring steps in internal/match/cvss4.go and internal/match/cvss4_lookup.go are transcribed from this project.
+salsa.debian.org/debian/distro-info-data|2026-09-03|licenses/distro-info-data.txt|internal/release/debian.csv and internal/release/ubuntu.csv are copies of this project'"'"'s tables of release and end-of-support dates.'
 
 rule() {
 	printf '%s\n' '--------------------------------------------------------------------------------'
@@ -83,13 +86,11 @@ HEADER
 		fi
 	done
 
-	printf '%s\n' "$transcribed" | while IFS='|' read -r name version licence; do
+	printf '%s\n' "$transcribed" | while IFS='|' read -r name version licence note; do
 		printf '\n'
 		rule
 		printf '%s %s\n' "$name" "$version"
-		printf 'Not linked. The CVSS v4 MacroVector table and scoring steps in\n'
-		printf 'internal/match/cvss4.go and internal/match/cvss4_lookup.go are\n'
-		printf 'transcribed from this project.\n'
+		printf 'Not linked. %s\n' "$note" | fold -s -w 78
 		rule
 		printf '\n'
 		cat "$licence"

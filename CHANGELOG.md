@@ -58,6 +58,16 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 - `--fail-on` and the exit codes from `docs/output-spec.md` section 5: 0 clean,
   1 findings at or above the threshold, 2 the scan could not complete.
 - `--no-network` to produce the SBOM without any vulnerability lookup.
+- Every scan reports whether the release in the image still receives security
+  updates, and whether those updates are free. This is the explanation behind
+  the tool's worst result: a Debian 11 image scanned after 2026-08-31 yields no
+  findings at all, because that is the day Debian 11 left free support, the
+  security tracker's export stopped carrying it, and OSV's Debian data is built
+  from that export. The scan now names the release, the day, and the tier that
+  covers it — Freexian's commercial Extended LTS, in that case — instead of
+  reporting a clean image. The dates are `distro-info-data`, the table Debian
+  and Ubuntu maintain for the question, embedded rather than fetched so an
+  offline run still knows.
 - `--cra <file>` writes the scan as a Markdown evidence report for Annex I,
   Part II of Regulation (EU) 2024/2847, the Cyber Resilience Act: scan
   provenance, a reference to the SBOM rather than a second copy of the

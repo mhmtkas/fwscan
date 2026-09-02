@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/mhmtkas/fwscan/internal/match"
 	"github.com/mhmtkas/fwscan/internal/model"
@@ -51,8 +52,14 @@ func TestScanEndToEndNoNetwork(t *testing.T) {
 			t.Errorf("output contains %q in --no-network mode:\n%s", unwanted, got)
 		}
 	}
-	if stderr.Len() != 0 {
-		t.Errorf("unexpected stderr: %s", stderr.String())
+	// The fixture is a bullseye rootfs, and bullseye left free security support
+	// on 2026-08-31, so a scan of it warns. That warning is the point of the
+	// support table and belongs on stderr; what matters here is that it is the
+	// only thing there and that it stayed out of the report.
+	if got := stderr.String(); !strings.Contains(got, "left free security support") {
+		t.Errorf("stderr does not carry the support warning: %q", got)
+	} else if strings.Count(strings.TrimSpace(got), "\n") != 0 {
+		t.Errorf("unexpected extra stderr: %s", got)
 	}
 }
 
@@ -551,8 +558,12 @@ func TestEmptyResultWarnings(t *testing.T) {
 			if (len(got) > 0) != tt.want {
 				t.Fatalf("got %q, want a warning: %v", got, tt.want)
 			}
-			if tt.want && !strings.Contains(got[0], "oldstable") {
-				t.Errorf("warning = %q, want it to explain why zero can be wrong", got[0])
+			// The reason zero can be wrong now comes from supportWarnings,
+			// which names the release and the date its support ended rather
+			// than gesturing at "oldstable". This warning's job is only to say
+			// that a Debian image with no findings is worth a second look.
+			if tt.want && !strings.Contains(got[0], "no findings for a Debian image") {
+				t.Errorf("warning = %q, want it to flag the empty result", got[0])
 			}
 		})
 	}
@@ -642,5 +653,114 @@ func TestScanCRAPathUnwritable(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "cra") {
 		t.Errorf("error = %q, want it to name the cra report", err)
+	}
+}
+
+// The support warning is the explanation behind fwscan's worst result: a
+// bullseye image reports nothing, and the reason is a date rather than the
+// image. Before this the scan could only say it had found nothing.
+func TestSupportWarnings(t *testing.T) {
+	deb := func(id, series, version string) model.Component {
+		return model.Component{
+			Name: "openssl", Version: "1.1.1n", PURL: "pkg:deb/" + id + "/openssl@1.1.1n",
+			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+			DistroID: id, Distro: series, DistroVersion: version,
+		}
+	}
+	at := func(s string) time.Time {
+		d, err := time.Parse(time.DateOnly, s)
+		if err != nil {
+			t.Fatalf("bad date: %v", err)
+		}
+		return d
+	}
+
+	tests := []struct {
+		name    string
+		comps   []model.Component
+		now     string
+		want    string
+		wantNot bool
+	}{
+		{
+			name:  "a release past free support says when and what covers it now",
+			comps: []model.Component{deb("debian", "bullseye", "11")},
+			now:   "2026-09-03",
+			want:  "left free security support on 2026-08-31",
+		},
+		{
+			// The same image, three days earlier, is a different answer. The
+			// warning is about a date, so it has to be computed from one.
+			name:    "the same release before that date is not warned about",
+			comps:   []model.Component{deb("debian", "bullseye", "11")},
+			now:     "2026-08-30",
+			wantNot: true,
+		},
+		{
+			name:    "a freely supported release is silent",
+			comps:   []model.Component{deb("debian", "bookworm", "12")},
+			now:     "2026-09-03",
+			wantNot: true,
+		},
+		{
+			name:    "an ubuntu release in free support is silent",
+			comps:   []model.Component{deb("ubuntu", "jammy", "22.04")},
+			now:     "2026-09-03",
+			wantNot: true,
+		},
+		{
+			name:  "an ubuntu release on ESM names the subscription",
+			comps: []model.Component{deb("ubuntu", "bionic", "18.04")},
+			now:   "2026-09-03",
+			want:  "ESM (Ubuntu Pro)",
+		},
+		{
+			name:  "a release past every tier says nobody publishes updates",
+			comps: []model.Component{deb("debian", "jessie", "8")},
+			now:   "2026-09-03",
+			want:  "nobody publishes security updates for it",
+		},
+		{
+			// releaseWarnings already says a derivative is queried as Debian;
+			// inventing a support date for one would be worse than silence.
+			name:    "a derivative is not given a support date",
+			comps:   []model.Component{deb("linuxmint", "vanessa", "21")},
+			now:     "2026-09-03",
+			wantNot: true,
+		},
+		{
+			// A heuristic component carries no distribution it can vouch for.
+			name: "a low-confidence component is not read for a release",
+			comps: []model.Component{{
+				Name: "busybox", Version: "1.30.1", Confidence: model.ConfidenceLow,
+				Evidence: "bin/busybox", DistroID: "debian", Distro: "bullseye",
+			}},
+			now:     "2026-09-03",
+			wantNot: true,
+		},
+		{
+			name:    "an image with no packages at all",
+			comps:   nil,
+			now:     "2026-09-03",
+			wantNot: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := supportWarnings(tt.comps, at(tt.now))
+			if tt.wantNot {
+				if len(got) != 0 {
+					t.Errorf("got warnings %q, want none", got)
+				}
+				return
+			}
+			if len(got) != 1 {
+				t.Fatalf("got %d warnings, want 1: %q", len(got), got)
+			}
+			if !strings.Contains(got[0], tt.want) {
+				t.Errorf("warning = %q, want it to contain %q", got[0], tt.want)
+			}
+		})
 	}
 }

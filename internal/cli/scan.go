@@ -17,6 +17,7 @@ import (
 	"github.com/mhmtkas/fwscan/internal/match"
 	"github.com/mhmtkas/fwscan/internal/model"
 	"github.com/mhmtkas/fwscan/internal/purl"
+	"github.com/mhmtkas/fwscan/internal/release"
 	"github.com/mhmtkas/fwscan/internal/report"
 	"github.com/mhmtkas/fwscan/internal/sbom"
 )
@@ -122,6 +123,9 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		diagnostic(warning)
 	}
 	for _, warning := range releaseWarnings(rootfs, comps) {
+		diagnostic(warning)
+	}
+	for _, warning := range supportWarnings(comps, started) {
 		diagnostic(warning)
 	}
 
@@ -281,8 +285,70 @@ func emptyResultWarnings(comps []model.Component, findings []model.Finding) []st
 		return nil
 	}
 	return []string{"no findings for a Debian image with " + strconv.Itoa(len(comps)) +
-		" packages. On an oldstable release OSV carries only the CVEs that received a DSA or DLA, " +
-		"so one this tool reports as clean may still carry CVEs the release has chosen not to fix"}
+		" packages, which is worth checking rather than trusting"}
+}
+
+// supportWarnings says whether the release still receives security updates, and
+// whether they are free.
+//
+// This is the explanation behind fwscan's worst result. A Debian 11 image
+// scanned today yields no findings at all, and the cause is not the image: on
+// 2026-08-31 Debian 11 left free support, the security tracker's export stopped
+// carrying it, and OSV's Debian data is built from that export. The tool knew
+// only that it had found nothing. It can now say why, and name the day.
+//
+// It fires whether or not there were findings, because a release covered only
+// by a paid tier is a fact about a product somebody is shipping regardless of
+// what this scan turned up.
+func supportWarnings(comps []model.Component, now time.Time) []string {
+	var pkg *model.Component
+	for i := range comps {
+		if comps[i].DistroID != "" && comps[i].Confidence == model.ConfidenceHigh {
+			pkg = &comps[i]
+			break
+		}
+	}
+	if pkg == nil {
+		return nil
+	}
+	// An unknown release is not warned about here: releaseWarnings already
+	// says a derivative is queried as Debian, and guessing at a support date
+	// for one would be worse than saying nothing.
+	support, ok := release.Lookup(pkg.DistroID, pkg.Distro, pkg.DistroVersion, now)
+	if !ok || support.FreelySupported() {
+		return nil
+	}
+
+	name := pkg.DistroID + " " + support.Version
+	if support.Series != "" {
+		name += " (" + support.Series + ")"
+	}
+	if support.EndOfLife() {
+		return []string{name + " reached the end of every support tier" +
+			endedOn(support.LastFree(), support.Windows) +
+			"; nobody publishes security updates for it, and no vulnerability database " +
+			"tracks it, so this scan cannot be complete"}
+	}
+	return []string{fmt.Sprintf(
+		"%s left free security support on %s and is now covered only by %s, until %s. "+
+			"OSV tracks releases while they are freely supported, so findings for this "+
+			"image are incomplete and a fix it does name may need a paid subscription",
+		name, support.LastFree().Format(time.DateOnly), support.Current.Name,
+		support.Current.Until.Format(time.DateOnly))}
+}
+
+// endedOn renders the day the last tier ran out, for a release past all of
+// them. It prefers the final tier's end over the last free one, because that is
+// the day support actually stopped.
+func endedOn(lastFree time.Time, windows []release.Window) string {
+	end := lastFree
+	if n := len(windows); n > 0 && windows[n-1].Until.After(end) {
+		end = windows[n-1].Until
+	}
+	if end.IsZero() {
+		return ""
+	}
+	return " on " + end.Format(time.DateOnly)
 }
 
 // releaseWarnings says what a Debian lookup could not be scoped to. Every
