@@ -69,7 +69,7 @@ order.
 
 | Identification | Confidence |
 |---|---|
-| dpkg status database | High |
+| dpkg status database, Debian or Ubuntu | High |
 | apk installed database | High |
 | Filename heuristics for unmanaged components such as BusyBox and the kernel | Low, always with the evidence path, and never queried against OSV |
 

@@ -105,7 +105,8 @@ func TestDetectRelease(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			codename, version := detectRelease(tt.files)
+			info := ReadOSRelease(tt.files)
+			codename, version := info.Codename, info.VersionID
 			if codename != tt.codename || version != tt.version {
 				t.Errorf("detectRelease() = %q, %q, want %q, %q",
 					codename, version, tt.codename, tt.version)
@@ -117,8 +118,7 @@ func TestDetectRelease(t *testing.T) {
 // mustCodename keeps the path-preference test reading about codenames, which is
 // what it is about, rather than about the pair detectRelease returns.
 func mustCodename(root fs.FS) string {
-	codename, _ := detectRelease(root)
-	return codename
+	return ReadOSRelease(root).Codename
 }
 
 // errorFS serves one path whose contents cannot be read. A rootfs is untrusted
@@ -142,7 +142,8 @@ func (unreadableFile) Close() error               { return nil }
 var errUnreadable = errors.New("cannot read")
 
 func TestDetectReleaseSurvivesAnUnreadableFile(t *testing.T) {
-	codename, version := detectRelease(errorFS{path: "usr/lib/os-release"})
+	info := ReadOSRelease(errorFS{path: "usr/lib/os-release"})
+	codename, version := info.Codename, info.VersionID
 	if codename != "" || version != "" {
 		t.Errorf("detectRelease() = %q, %q, want both empty", codename, version)
 	}

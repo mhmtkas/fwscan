@@ -135,7 +135,10 @@ type affected struct {
 type queryKey struct {
 	source  string
 	version string
-	distro  string
+	// namespace is the purl namespace the query goes under, which is what
+	// selects between OSV's Debian and Ubuntu data.
+	namespace string
+	distro    string
 	// release is the same release as distro, under the number OSV's advisory
 	// records use rather than the codename its per-CVE records use.
 	release string
@@ -160,11 +163,12 @@ func keyFor(c model.Component) queryKey {
 		source, version = c.Name, c.Version
 	}
 	return queryKey{
-		source:  source,
-		version: version,
-		distro:  c.Distro,
-		release: c.DistroVersion,
-		kind:    kindOf(c),
+		source:    source,
+		version:   version,
+		namespace: purl.Namespace(c.DistroID),
+		distro:    c.Distro,
+		release:   c.DistroVersion,
+		kind:      kindOf(c),
 	}
 }
 
@@ -183,8 +187,16 @@ func (k queryKey) ecosystem() string {
 // field instead, as "Debian:11". For an oldstable image advisories are the only
 // records OSV returns, so without this the fixed version they carry is
 // unreachable (spike/NOTES.md T18a, question 7).
+//
+// Debian only, deliberately. Ubuntu's records -- USN advisories included --
+// carry the qualifier, so they match on the purl and need no fallback; and
+// matching them on the ecosystem would be wrong, because the Pro and FIPS
+// tiers share a release number under names like "Ubuntu:Pro:22.04:LTS" and
+// carry different fixed versions, some of them none at all. The qualifier
+// separates them -- "jammy" against "esm-apps/jammy" -- and the ecosystem
+// would not.
 func (k queryKey) advisoryEcosystem() string {
-	if k.kind == kindDeb && k.release != "" {
+	if k.kind == kindDeb && k.release != "" && purl.Namespace(k.namespace) == purl.NamespaceDebian {
 		return "Debian:" + k.release
 	}
 	return ""
@@ -209,7 +221,7 @@ func queryFor(key queryKey) (query, bool) {
 	switch key.kind {
 	case kindDeb:
 		var q query
-		q.Package.PURL = purl.Source(key.source, key.version, key.distro)
+		q.Package.PURL = purl.Source(key.namespace, key.source, key.version, key.distro)
 		return q, true
 	case kindApk:
 		if key.distro == "" {

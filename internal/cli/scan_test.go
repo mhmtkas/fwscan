@@ -376,10 +376,28 @@ func TestReleaseWarnings(t *testing.T) {
 			want:  []string{"no release found"},
 		},
 		{
+			// Ubuntu has its own OSV data and fwscan queries it, so there is
+			// nothing to warn about.
 			name:  "an ubuntu image",
 			files: map[string]string{"var/lib/dpkg/status": status, "usr/lib/os-release": "ID=ubuntu\nVERSION_ID=\"22.04\"\nVERSION_CODENAME=jammy\n"},
-			comps: []model.Component{func() model.Component { c := deb; c.Distro, c.DistroVersion = "jammy", "22.04"; return c }()},
-			want:  []string{"this is ubuntu"},
+			comps: []model.Component{func() model.Component {
+				c := deb
+				c.DistroID, c.Distro, c.DistroVersion = "ubuntu", "jammy", "22.04"
+				c.PURL = "pkg:deb/ubuntu/openssl@3.0.2-0ubuntu1.10?arch=amd64&distro=jammy"
+				return c
+			}()},
+		},
+		{
+			// A derivative fwscan has no data for is queried as Debian, which
+			// returns nothing rather than an error, so it says so.
+			name:  "a derivative with no data of its own",
+			files: map[string]string{"var/lib/dpkg/status": status, "usr/lib/os-release": "ID=linuxmint\nVERSION_ID=\"21\"\nVERSION_CODENAME=vanessa\n"},
+			comps: []model.Component{func() model.Component {
+				c := deb
+				c.DistroID, c.Distro, c.DistroVersion = "linuxmint", "vanessa", "21"
+				return c
+			}()},
+			want: []string{"this is linuxmint"},
 		},
 		{
 			name:  "an alpine image is not a debian lookup",

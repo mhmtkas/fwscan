@@ -37,7 +37,7 @@ func TestOSVLiveBackportBehaviour(t *testing.T) {
 			DistroVersion: "11",
 			// The purl is what selects the query shape, so a component without
 			// one is never looked up.
-			PURL:       purl.Binary("libssl1.1", version, "amd64", "bullseye"),
+			PURL:       purl.Binary(purl.NamespaceDebian, "libssl1.1", version, "amd64", "bullseye"),
 			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
 		}
 	}

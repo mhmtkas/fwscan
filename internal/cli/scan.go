@@ -16,6 +16,7 @@ import (
 	"github.com/mhmtkas/fwscan/internal/input"
 	"github.com/mhmtkas/fwscan/internal/match"
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/purl"
 	"github.com/mhmtkas/fwscan/internal/report"
 	"github.com/mhmtkas/fwscan/internal/sbom"
 )
@@ -277,9 +278,14 @@ func releaseWarnings(rootfs fs.FS, comps []model.Component) []string {
 		warnings = append(warnings, "no release found in os-release; the vulnerability lookup is not "+
 			"scoped to a Debian release and may name fixes from other releases")
 	}
-	if id := catalog.ReadOSRelease(rootfs).ID; id != "" && id != "debian" {
+	// OSV keys Debian and Ubuntu separately and fwscan queries both. Anything
+	// else dpkg-based is queried as Debian, which is what a derivative is most
+	// likely built from -- and if the derivative renumbered its packages, that
+	// query returns nothing rather than an error, so it is worth saying.
+	if id := catalog.ReadOSRelease(rootfs).ID; id != "" &&
+		id != purl.NamespaceDebian && id != purl.NamespaceUbuntu {
 		warnings = append(warnings, fmt.Sprintf("os-release says this is %s; the vulnerability lookup "+
-			"uses OSV's Debian data only and may find nothing for it", id))
+			"queries OSV's Debian data for it and may find nothing", id))
 	}
 	return warnings
 }

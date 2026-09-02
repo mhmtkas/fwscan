@@ -61,7 +61,7 @@ func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 
 	want := []model.Component{{
 		Name: "openssl", Version: "1.1.1k-1+deb11u2", Arch: "amd64",
-		Source: "openssl", SourceVersion: "1.1.1k-1+deb11u2", Distro: "bullseye",
+		Source: "openssl", SourceVersion: "1.1.1k-1+deb11u2", DistroID: "debian", Distro: "bullseye",
 		PURL:       "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u2?arch=amd64&distro=bullseye",
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}}

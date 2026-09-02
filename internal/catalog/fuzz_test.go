@@ -38,7 +38,7 @@ func FuzzParseStatus(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data string) {
-		comps, err := parseStatus(strings.NewReader(data), "bookworm", "")
+		comps, err := parseStatus(strings.NewReader(data), OSRelease{ID: "debian", Codename: "bookworm", VersionID: ""})
 		if err != nil {
 			return // a rejection is a valid outcome
 		}

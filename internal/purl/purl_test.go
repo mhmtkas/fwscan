@@ -1,15 +1,18 @@
 package purl
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSource(t *testing.T) {
 	// The exact form spike/NOTES.md T0.3 proved backport-aware.
-	got := Source("openssl", "1.1.1k-1+deb11u2", "bullseye")
+	got := Source(NamespaceDebian, "openssl", "1.1.1k-1+deb11u2", "bullseye")
 	want := "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u2?arch=source&distro=bullseye"
 	if got != want {
 		t.Errorf("Source() = %q, want %q", got, want)
 	}
-	if got := Source("", "1.0", "bullseye"); got != "" {
+	if got := Source(NamespaceDebian, "", "1.0", "bullseye"); got != "" {
 		t.Errorf("Source() with no name = %q, want empty", got)
 	}
 }
@@ -18,15 +21,15 @@ func TestBinary(t *testing.T) {
 	// The "+" of a Debian revision must arrive percent-encoded, which
 	// output-spec section 3 requires and downstream tooling relies on.
 	want := "pkg:deb/debian/libssl1.1@1.1.1k-1%2Bdeb11u2?arch=amd64&distro=bullseye"
-	if got := Binary("libssl1.1", "1.1.1k-1+deb11u2", "amd64", "bullseye"); got != want {
+	if got := Binary(NamespaceDebian, "libssl1.1", "1.1.1k-1+deb11u2", "amd64", "bullseye"); got != want {
 		t.Errorf("Binary() = %q, want %q", got, want)
 	}
-	if got := Binary("", "1.0", "amd64", "bullseye"); got != "" {
+	if got := Binary(NamespaceDebian, "", "1.0", "amd64", "bullseye"); got != "" {
 		t.Errorf("Binary() with no name = %q, want empty", got)
 	}
 	// A component from an image that did not identify its release still gets a
 	// purl; it just cannot say which release the version belongs to.
-	if got := Binary("bash", "5.1-2", "amd64", ""); got != "pkg:deb/debian/bash@5.1-2?arch=amd64" {
+	if got := Binary(NamespaceDebian, "bash", "5.1-2", "amd64", ""); got != "pkg:deb/debian/bash@5.1-2?arch=amd64" {
 		t.Errorf("Binary() with no codename = %q", got)
 	}
 }
@@ -40,5 +43,29 @@ func TestApk(t *testing.T) {
 	}
 	if got := Apk("", "1.0", "x86_64", "v3.16"); got != "" {
 		t.Errorf("Apk() with no name = %q, want empty", got)
+	}
+}
+
+// OSV keys Debian and Ubuntu separately, and the namespace is what selects
+// between them: a query under the wrong one returns nothing rather than an
+// error, which is the failure mode with no symptom.
+func TestNamespace(t *testing.T) {
+	for in, want := range map[string]string{
+		"debian": NamespaceDebian, "ubuntu": NamespaceUbuntu, "Ubuntu": NamespaceUbuntu,
+		"raspbian": NamespaceDebian, "": NamespaceDebian, "linuxmint": NamespaceDebian,
+	} {
+		if got := Namespace(in); got != want {
+			t.Errorf("Namespace(%q) = %q, want %q", in, got, want)
+		}
+	}
+
+	want := "pkg:deb/ubuntu/openssl@3.0.2-0ubuntu1.10?arch=source&distro=jammy"
+	if got := Source(NamespaceUbuntu, "openssl", "3.0.2-0ubuntu1.10", "jammy"); got != want {
+		t.Errorf("Source() = %q, want %q", got, want)
+	}
+	// An empty namespace is Debian, so a component from before the field
+	// existed still queries where it used to.
+	if got := Source("", "openssl", "1.0", "bullseye"); !strings.Contains(got, "/debian/") {
+		t.Errorf("Source() with no namespace = %q, want the debian namespace", got)
 	}
 }

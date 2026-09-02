@@ -40,6 +40,12 @@ type Component struct {
 	// (spike/NOTES.md T18a).
 	DistroVersion string
 
+	// DistroID is the distribution the image says it is -- os-release's ID,
+	// "debian" or "ubuntu". It decides which body of OSV data a query reaches,
+	// because OSV keys the two separately and a query under the wrong one
+	// returns nothing rather than an error.
+	DistroID string
+
 	// Distro is the release, under the name its ecosystem queries by: a Debian
 	// codename such as "bookworm", or an Alpine release such as "v3.16". Empty
 	// when the image did not identify itself, which costs the query its scope

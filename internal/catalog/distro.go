@@ -69,23 +69,6 @@ func ReadOSRelease(root fs.FS) OSRelease {
 	return partial
 }
 
-// detectRelease reads both names a release goes by.
-//
-// The codename -- "bookworm" -- is the distro qualifier every OSV query needs:
-// without it OSV matches across all Debian releases at once and reports
-// backported fixes as vulnerable (spike/NOTES.md T0.3). The version id -- "11"
-// -- is how OSV's DSA and DLA advisories name the same release, in their
-// ecosystem field, and for an oldstable image advisories are all OSV returns
-// (spike/NOTES.md T18a).
-//
-// Either may be empty, and neither is a reason to fail: a rootfs with a dpkg
-// database and no os-release is unusual but not broken. It costs the matching
-// each empty one would have done, and nothing else.
-func detectRelease(root fs.FS) (codename, version string) {
-	info := ReadOSRelease(root)
-	return info.Codename, info.VersionID
-}
-
 // parseCodename reads VERSION_CODENAME from os-release's shell-ish syntax.
 func parseCodename(r io.Reader) string {
 	value := parseOSReleaseField(r, "VERSION_CODENAME")

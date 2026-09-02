@@ -136,15 +136,23 @@ same tools, fwscan v0.1.0.
 | Debian 11 bullseye | 52 MB | 98 | **0** | 211 |
 | Debian 12 bookworm | 47 MB | 88 | 182 | 179 |
 | Debian 13 trixie | 48 MB | 79 | 148 | 144 |
-| Ubuntu 22.04 | 29 MB | 102 | **0** | 101 |
+| Ubuntu 22.04 | 29 MB | 102 | 140 | 101 |
 | Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94 |
 | Alpine 3.19 | 3.1 MB | 18 | 42 | 46 |
 | Alpine 3.21 | 3.7 MB | 18 | 56 | 58 |
 | OpenWrt 23.05.5 squashfs | 4.3 MB | 2, all heuristic | — | — |
 
-On a supported release the two tools are level, and fwscan is slightly ahead on
-both current Debian releases. The rows in bold, and the Alpine 3.16 row, are
-where they are not, and each has a specific cause.
+On a supported release the two tools are level, and fwscan is ahead on both
+current Debian releases and on Ubuntu. The row in bold, and the Alpine 3.16
+row, are where they are not, and each has a specific cause.
+
+The Ubuntu column is worth a note: 40 of the 98 findings the two share are ones
+fwscan gives a fixed version and grype reports as not fixed. Checked against
+OSV directly and against a grype database built the same day, OSV's Ubuntu data
+had the fix — `UBUNTU-CVE-2026-54371` on `attr` at `1:2.5.1-1ubuntu0.1`, for
+one. Ubuntu records also carry entries for the Pro and FIPS tiers, under the
+same release number and sometimes with no fix at all; fwscan reports none of
+them, because the purl qualifier separates `jammy` from `esm-apps/jammy`.
 
 ### One sentence explains most of the table
 
@@ -164,10 +172,6 @@ advisories.
 Alpine 3.16 is the same shape in a different ecosystem: fwscan finds 27 and
 grype's count of *fixed* findings is 29. The other 65 are CVEs with no fix in an
 end-of-life release.
-
-Ubuntu is not a coverage gap but a scope one: queries go to OSV's Debian data,
-which has nothing for an Ubuntu purl. fwscan says so on stderr rather than
-reporting a clean image.
 
 A scan that reports zero findings for a Debian image now carries a warning
 saying why zero may not mean clean. That is the case where the difference

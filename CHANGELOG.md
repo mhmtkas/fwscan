@@ -13,6 +13,14 @@ reports known vulnerabilities from OSV.dev.
 
 **Scanning**
 
+- Ubuntu images are queried against OSV's Ubuntu data, not Debian's. The two are
+  keyed separately and a query under the wrong one returns nothing rather than
+  an error, so an Ubuntu image cataloged perfectly well and reported no findings
+  at all. On a real Ubuntu 22.04 rootfs that is the difference between 0
+  findings and 140. Entries for the Ubuntu Pro and FIPS tiers, which share a
+  release number with the main archive and sometimes carry no fix, are not
+  reported: a fix only a subscriber can install is not an answer.
+
 - `fwscan scan` reading extracted rootfs directories, tar archives with gzip, xz,
   zstd or lz4 compression, and squashfs images. The format is detected from the
   file's contents, never from its name.
@@ -92,8 +100,8 @@ reports known vulnerabilities from OSV.dev.
   them unfixed. A scan of a Debian image that finds nothing says so rather than
   reporting a clean result. `docs/comparison.md` measures seven real images. A
   second data source is on the roadmap.
-- Ubuntu images are cataloged but not matched: queries go to OSV's Debian data,
-  which has nothing for an Ubuntu purl. The scan says so on stderr.
+- A dpkg-based distribution that is neither Debian nor Ubuntu is queried against
+  Debian's data, which may have nothing for it. The scan says so on stderr.
 - Roughly a fifth of Debian's OSV records carry no severity and land in the
   `unknown` bucket, which `--fail-on` never triggers on.
 - Heuristic components are reported but not looked up: a version read off a

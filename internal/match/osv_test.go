@@ -117,7 +117,7 @@ func debComponent(name, version, source, sourceVersion string) model.Component {
 		Source: source, SourceVersion: sourceVersion, Distro: "bullseye",
 		// The purl is what tells the matcher which query shape to use, so a
 		// component without one is never looked up.
-		PURL:       purl.Binary(name, version, "amd64", "bullseye"),
+		PURL:       purl.Binary(purl.NamespaceDebian, name, version, "amd64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
 	}
 }
@@ -1114,7 +1114,7 @@ func TestSeverityIsBorrowedFromTheUpstreamRecord(t *testing.T) {
 		Name: "libc6", Version: "2.31-13+deb11u2",
 		Source: "glibc", SourceVersion: "2.31-13+deb11u2",
 		Distro: "bullseye", DistroVersion: "11",
-		PURL:       purl.Binary("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
+		PURL:       purl.Binary(purl.NamespaceDebian, "libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}
 
@@ -1172,7 +1172,7 @@ func TestABrokenUpstreamFetchIsNotFatal(t *testing.T) {
 		Name: "libc6", Version: "2.31-13+deb11u2",
 		Source: "glibc", SourceVersion: "2.31-13+deb11u2",
 		Distro: "bullseye", DistroVersion: "11",
-		PURL:       purl.Binary("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
+		PURL:       purl.Binary(purl.NamespaceDebian, "libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}})
 	if err != nil {
@@ -1326,7 +1326,7 @@ func TestExpandedFindingsCarryTheirOwnAssessments(t *testing.T) {
 	findings, err := osv.Match(context.Background(), []model.Component{{
 		Name: "demo", Version: "1.0-1", Source: "demo", SourceVersion: "1.0-1",
 		Distro: "bullseye", DistroVersion: "11",
-		PURL:       purl.Binary("demo", "1.0-1", "arm64", "bullseye"),
+		PURL:       purl.Binary(purl.NamespaceDebian, "demo", "1.0-1", "arm64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}})
 	if err != nil {
@@ -1427,5 +1427,63 @@ func TestIdentitiesReadNamesOnceUpToTheBound(t *testing.T) {
 	// Order is preserved, so the first names win rather than a random subset.
 	if got[0].id != "CVE-2024-000000" || got[len(got)-1].id != fmt.Sprintf("CVE-2024-%06d", maxNamesPerRecord-1) {
 		t.Errorf("first/last = %s/%s", got[0].id, got[len(got)-1].id)
+	}
+}
+
+// OSV keys Debian and Ubuntu separately and a query under the wrong namespace
+// returns nothing rather than an error, so an Ubuntu image cataloged perfectly
+// well reported no findings at all.
+//
+// Ubuntu records also carry entries for the Pro and FIPS tiers, under the same
+// release number and with different fixed versions -- some with no fix at all.
+// Matching one of those would report a version only a subscriber can install,
+// or an unfixed package as unfixed when the main archive fixed it. The purl's
+// distro qualifier is what separates them: "jammy" against "esm-apps/jammy".
+func TestUbuntuIsQueriedUnderItsOwnNamespace(t *testing.T) {
+	const (
+		release = "3.0.2-0ubuntu1.12"
+		esm     = "3.0.2-0ubuntu1.12+esm1"
+	)
+	var record vulnRecord
+	if err := json.Unmarshal([]byte(`{
+	  "id": "UBUNTU-CVE-2023-2975",
+	  "upstream": ["CVE-2023-2975"],
+	  "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"}],
+	  "affected": [
+	    {"package": {"ecosystem": "Ubuntu:22.04:LTS", "name": "openssl",
+	                 "purl": "pkg:deb/ubuntu/openssl@`+release+`?arch=source&distro=jammy"},
+	     "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "`+release+`"}]}]},
+	    {"package": {"ecosystem": "Ubuntu:Pro:22.04:LTS", "name": "openssl",
+	                 "purl": "pkg:deb/ubuntu/openssl@`+esm+`?arch=source&distro=esm-apps/jammy"},
+	     "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}, {"fixed": "`+esm+`"}]}]}
+	  ]
+	}`), &record); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	key := queryKey{
+		source: "openssl", version: "3.0.2-0ubuntu1.10",
+		namespace: purl.NamespaceUbuntu, distro: "jammy", release: "22.04", kind: kindDeb,
+	}
+	if got := fixedVersion(record, key); got != release {
+		t.Errorf("fixedVersion = %q, want the main archive's %q, never the Pro tier's", got, release)
+	}
+
+	// The query goes under pkg:deb/ubuntu, which is the whole point.
+	q, ok := queryFor(key)
+	if !ok || !strings.Contains(q.Package.PURL, "pkg:deb/ubuntu/openssl") {
+		t.Errorf("query purl = %q, want the ubuntu namespace", q.Package.PURL)
+	}
+
+	// And the ecosystem fallback that Debian advisories need is not applied to
+	// Ubuntu, because the Pro tiers share the release number.
+	if eco := key.advisoryEcosystem(); eco != "" {
+		t.Errorf("advisoryEcosystem = %q, want none for Ubuntu", eco)
+	}
+	debian := key
+	debian.namespace = purl.NamespaceDebian
+	debian.release = "11"
+	if eco := debian.advisoryEcosystem(); eco != "Debian:11" {
+		t.Errorf("advisoryEcosystem for Debian = %q, want Debian:11", eco)
 	}
 }

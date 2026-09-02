@@ -42,7 +42,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Description: Secure Sockets Layer toolkit\n",
 			want: []model.Component{{
 				Name: "openssl", Version: "3.0.11-1~deb12u2", Arch: "amd64",
-				Source: "openssl", SourceVersion: "3.0.11-1~deb12u2", Distro: "bookworm",
+				Source: "openssl", SourceVersion: "3.0.11-1~deb12u2", DistroID: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/openssl@3.0.11-1~deb12u2?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -61,7 +61,7 @@ func TestDpkgCatalog(t *testing.T) {
 				" still the description\n",
 			want: []model.Component{{
 				Name: "real-pkg", Version: "1.0-1", Arch: "amd64",
-				Source: "real-pkg", SourceVersion: "1.0-1", Distro: "bookworm",
+				Source: "real-pkg", SourceVersion: "1.0-1", DistroID: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/real-pkg@1.0-1?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -85,7 +85,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1.0-1\n",
 			want: []model.Component{{
 				Name: "present", Version: "1.0-1", Arch: "amd64",
-				Source: "present", SourceVersion: "1.0-1", Distro: "bullseye",
+				Source: "present", SourceVersion: "1.0-1", DistroID: "debian", Distro: "bullseye",
 				PURL:       "pkg:deb/debian/present@1.0-1?arch=amd64&distro=bullseye",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -100,7 +100,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1:1.2.11.dfsg-2\n",
 			want: []model.Component{{
 				Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "amd64",
-				Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", Distro: "bullseye",
+				Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", DistroID: "debian", Distro: "bullseye",
 				PURL:       "pkg:deb/debian/zlib1g@1:1.2.11.dfsg-2?arch=amd64&distro=bullseye",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -115,7 +115,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1:2.36.1-8+deb11u1\n",
 			want: []model.Component{{
 				Name: "bsdutils", Version: "1:2.36.1-8+deb11u1", Arch: "amd64",
-				Source: "util-linux", SourceVersion: "2.36.1-8+deb11u1", Distro: "bullseye",
+				Source: "util-linux", SourceVersion: "2.36.1-8+deb11u1", DistroID: "debian", Distro: "bullseye",
 				PURL:       "pkg:deb/debian/bsdutils@1:2.36.1-8%2Bdeb11u1?arch=amd64&distro=bullseye",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -129,7 +129,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 2026b-0+deb12u1\n",
 			want: []model.Component{{
 				Name: "tzdata", Version: "2026b-0+deb12u1", Arch: "all",
-				Source: "tzdata", SourceVersion: "2026b-0+deb12u1", Distro: "bookworm",
+				Source: "tzdata", SourceVersion: "2026b-0+deb12u1", DistroID: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/tzdata@2026b-0%2Bdeb12u1?arch=all&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -157,7 +157,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1.0\n",
 			want: []model.Component{{
 				Name: "survivor", Version: "1.0", Arch: "amd64",
-				Source: "survivor", SourceVersion: "1.0", Distro: "bookworm",
+				Source: "survivor", SourceVersion: "1.0", DistroID: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/survivor@1.0?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -168,7 +168,7 @@ func TestDpkgCatalog(t *testing.T) {
 			status:   "Package: last\nStatus: install ok installed\nArchitecture: amd64\nVersion: 2.0",
 			want: []model.Component{{
 				Name: "last", Version: "2.0", Arch: "amd64",
-				Source: "last", SourceVersion: "2.0", Distro: "bookworm",
+				Source: "last", SourceVersion: "2.0", DistroID: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/last@2.0?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -321,7 +321,7 @@ func TestContinuationLinesParseInLinearTime(t *testing.T) {
 	}
 
 	start := time.Now()
-	comps, err := parseStatus(strings.NewReader(b.String()), "bullseye", "")
+	comps, err := parseStatus(strings.NewReader(b.String()), OSRelease{ID: "debian", Codename: "bullseye"})
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("parseStatus() error = %v", err)
@@ -352,7 +352,7 @@ func TestStatusFileSizeIsBounded(t *testing.T) {
 		b.WriteString("Package: p\nStatus: install ok installed\nVersion: 1\n\n")
 	}
 
-	if _, err := parseStatus(strings.NewReader(b.String()), "bullseye", ""); err == nil {
+	if _, err := parseStatus(strings.NewReader(b.String()), OSRelease{ID: "debian", Codename: "bullseye"}); err == nil {
 		t.Error("a status file past the size limit parsed without complaint")
 	}
 
@@ -363,5 +363,31 @@ func TestStatusFileSizeIsBounded(t *testing.T) {
 	}
 	if _, err := parseApkInstalled(strings.NewReader(a.String()), "v3.16"); err == nil {
 		t.Error("an apk database past the size limit parsed without complaint")
+	}
+}
+
+// The distribution an image says it is decides which body of OSV data its
+// packages are queried against, so it has to survive cataloging.
+func TestDpkgCarriesTheDistribution(t *testing.T) {
+	status := "Package: openssl\nStatus: install ok installed\nArchitecture: amd64\nVersion: 3.0.2-0ubuntu1.10\n"
+	root := fstest.MapFS{
+		"var/lib/dpkg/status": &fstest.MapFile{Data: []byte(status)},
+		"usr/lib/os-release": &fstest.MapFile{Data: []byte(
+			"ID=ubuntu\nVERSION_ID=\"22.04\"\nVERSION_CODENAME=jammy\n")},
+	}
+	comps, err := NewDpkg().Catalog(context.Background(), root)
+	if err != nil {
+		t.Fatalf("Catalog() error = %v", err)
+	}
+	if len(comps) != 1 {
+		t.Fatalf("got %d components, want 1", len(comps))
+	}
+	got := comps[0]
+	if got.DistroID != "ubuntu" || got.Distro != "jammy" || got.DistroVersion != "22.04" {
+		t.Errorf("distro = %q/%q/%q, want ubuntu/jammy/22.04", got.DistroID, got.Distro, got.DistroVersion)
+	}
+	// The component's own purl says Ubuntu too, which is what the SBOM carries.
+	if !strings.Contains(got.PURL, "pkg:deb/ubuntu/openssl") {
+		t.Errorf("purl = %q, want the ubuntu namespace", got.PURL)
 	}
 }

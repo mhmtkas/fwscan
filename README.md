@@ -177,17 +177,19 @@ path more than 256 levels deep. No real firmware image is near any of these.
 report the ones a distribution has chosen not to fix**, because OSV's data for
 those thins out as a release ages, and disappears once it leaves support.
 
-On supported releases this costs little and fwscan is level with grype: 182
-findings to 179 on a Debian bookworm rootfs, 148 to 144 on trixie, 56 to 58 on
-Alpine 3.21. On a release past its support window it costs a great deal — on a
-fully patched Debian 11 rootfs fwscan reports **nothing** where grype reports
-211, every one of them a CVE Debian has not fixed. A scan of a Debian image that
-finds nothing says so on stderr rather than leaving you with "No known
-vulnerabilities found". Ubuntu images are not covered at all, and also say so.
+On supported releases this costs little and fwscan is level with grype or ahead
+of it: 182 findings to 179 on a Debian bookworm rootfs, 148 to 144 on trixie,
+140 to 101 on Ubuntu 22.04, 56 to 58 on Alpine 3.21. On a release past its
+support window it costs a great deal — on a fully patched Debian 11 rootfs
+fwscan reports **nothing** where grype reports 211, every one of them a CVE
+Debian has not fixed. A scan of a Debian image that finds nothing says so on
+stderr rather than leaving you with "No known vulnerabilities found".
 
 Where both tools report a finding they agree on Alpine. On Debian they often
 differ on severity, because fwscan scores the CVSS vector and grype reports
 Debian's own rating, which is `negligible` for a great many CVEs.
+Debian and Ubuntu are queried against their own OSV data, and an Ubuntu image
+is never told about a fix that only an Ubuntu Pro subscription ships.
 [`docs/comparison.md`](docs/comparison.md) has the full table — seven real
 images — and the commands to re-derive it. A second data source, which is what
 would close the gap, is on the roadmap and is not in v0.1.0.

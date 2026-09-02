@@ -12,24 +12,48 @@ import (
 	"github.com/package-url/packageurl-go"
 )
 
-// Binary identifies an installed Debian binary package, which is what the SBOM
+// The purl namespaces of the dpkg-based distributions fwscan queries. OSV keys
+// its Debian and Ubuntu data separately and under these names, so the namespace
+// decides which body of data a query reaches.
+const (
+	NamespaceDebian = "debian"
+	NamespaceUbuntu = "ubuntu"
+)
+
+// Namespace maps an os-release ID to the purl namespace to query under.
+//
+// Anything else falls back to Debian, which is what a derivative is most likely
+// to be built from; the scan warns separately when it is scanning something it
+// has no data for, since a wrong namespace returns zero results rather than an
+// error.
+func Namespace(osReleaseID string) string {
+	if strings.EqualFold(osReleaseID, NamespaceUbuntu) {
+		return NamespaceUbuntu
+	}
+	return NamespaceDebian
+}
+
+// Binary identifies an installed dpkg binary package, which is what the SBOM
 // and the JSON report carry (output-spec section 3). The distro qualifier is
 // included when known so the purl states which release the version belongs to;
-// it is what makes a Debian version string meaningful.
-func Binary(name, version, arch, codename string) string {
-	return deb(name, version, arch, codename)
+// it is what makes a Debian or Ubuntu version string meaningful.
+func Binary(namespace, name, version, arch, codename string) string {
+	return deb(namespace, name, version, arch, codename)
 }
 
-// Source identifies the Debian source package a query is about: source name,
-// source version, arch=source. It is a different purl from Binary, and it is
-// the one OSV is asked about (spike/NOTES.md T0.3).
-func Source(name, version, codename string) string {
-	return deb(name, version, "source", codename)
+// Source identifies the source package a query is about: source name, source
+// version, arch=source. It is a different purl from Binary, and it is the one
+// OSV is asked about (spike/NOTES.md T0.3).
+func Source(namespace, name, version, codename string) string {
+	return deb(namespace, name, version, "source", codename)
 }
 
-func deb(name, version, arch, codename string) string {
+func deb(namespace, name, version, arch, codename string) string {
 	if name == "" {
 		return ""
+	}
+	if namespace == "" {
+		namespace = NamespaceDebian
 	}
 	qualifiers := map[string]string{}
 	if arch != "" {
@@ -41,7 +65,7 @@ func deb(name, version, arch, codename string) string {
 	// packageurl-go percent-encodes the version, so "+" becomes "%2B" as
 	// output-spec section 3 requires.
 	return packageurl.NewPackageURL(
-		packageurl.TypeDebian, "debian", name, version,
+		packageurl.TypeDebian, namespace, name, version,
 		packageurl.QualifiersFromMap(qualifiers), "",
 	).ToString()
 }

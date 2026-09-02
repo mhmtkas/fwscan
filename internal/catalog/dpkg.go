@@ -69,9 +69,9 @@ func (d Dpkg) Catalog(ctx context.Context, root fs.FS) ([]model.Component, error
 	}
 	defer func() { _ = f.Close() }()
 
-	codename, release := detectRelease(root)
+	info := ReadOSRelease(root)
 
-	comps, err := parseStatus(f, codename, release)
+	comps, err := parseStatus(f, info)
 	if err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", DpkgStatusPath, err)
 	}
@@ -79,7 +79,7 @@ func (d Dpkg) Catalog(ctx context.Context, root fs.FS) ([]model.Component, error
 }
 
 // parseStatus reads RFC-822-style stanzas separated by blank lines.
-func parseStatus(r io.Reader, codename, release string) ([]model.Component, error) {
+func parseStatus(r io.Reader, info OSRelease) ([]model.Component, error) {
 	var (
 		out    []model.Component
 		fields = map[string]string{}
@@ -119,7 +119,7 @@ func parseStatus(r io.Reader, codename, release string) ([]model.Component, erro
 		if fields["Status"] != installedStatus || fields["Package"] == "" {
 			return nil
 		}
-		out = append(out, componentFrom(fields, codename, release))
+		out = append(out, componentFrom(fields, info))
 		return nil
 	}
 
@@ -177,7 +177,7 @@ func parseStatus(r io.Reader, codename, release string) ([]model.Component, erro
 }
 
 // componentFrom builds a Component from one parsed stanza.
-func componentFrom(fields map[string]string, codename, release string) model.Component {
+func componentFrom(fields map[string]string, info OSRelease) model.Component {
 	name := fields["Package"]
 	version := fields["Version"]
 	arch := fields["Architecture"]
@@ -189,9 +189,10 @@ func componentFrom(fields map[string]string, codename, release string) model.Com
 		Arch:          arch,
 		Source:        sourceName,
 		SourceVersion: sourceVersion,
-		Distro:        codename,
-		DistroVersion: release,
-		PURL:          purl.Binary(name, version, arch, codename),
+		DistroID:      info.ID,
+		Distro:        info.Codename,
+		DistroVersion: info.VersionID,
+		PURL:          purl.Binary(purl.Namespace(info.ID), name, version, arch, info.Codename),
 		Confidence:    model.ConfidenceHigh,
 		Evidence:      DpkgStatusPath,
 	}
