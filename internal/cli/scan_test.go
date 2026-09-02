@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/mhmtkas/fwscan/internal/match"
 	"github.com/mhmtkas/fwscan/internal/model"
@@ -347,5 +348,60 @@ func TestOutputPathThatIsADirectory(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), ".tmp") {
 		t.Errorf("error = %v, names the temp file rather than the destination", err)
+	}
+}
+
+// A Debian lookup that cannot be scoped to a release still runs, and says so.
+// Without the release OSV answers across every Debian release and names another
+// release's fix as the one to install; silently unscoped is the worse outcome.
+func TestReleaseWarnings(t *testing.T) {
+	status := "Package: openssl\nStatus: install ok installed\nArchitecture: amd64\nVersion: 1.1.1n-0+deb11u5\n"
+	deb := model.Component{Name: "openssl", Version: "1.1.1n-0+deb11u5", PURL: "pkg:deb/debian/openssl@1.1.1n-0%2Bdeb11u5?arch=amd64"}
+
+	tests := []struct {
+		name  string
+		files map[string]string
+		comps []model.Component
+		want  []string
+	}{
+		{
+			name:  "a bullseye image warns about nothing",
+			files: map[string]string{"var/lib/dpkg/status": status, "usr/lib/os-release": "ID=debian\nVERSION_ID=\"11\"\nVERSION_CODENAME=bullseye\n"},
+			comps: []model.Component{func() model.Component { c := deb; c.Distro, c.DistroVersion = "bullseye", "11"; return c }()},
+		},
+		{
+			name:  "no os-release at all",
+			files: map[string]string{"var/lib/dpkg/status": status},
+			comps: []model.Component{deb},
+			want:  []string{"no release found"},
+		},
+		{
+			name:  "an ubuntu image",
+			files: map[string]string{"var/lib/dpkg/status": status, "usr/lib/os-release": "ID=ubuntu\nVERSION_ID=\"22.04\"\nVERSION_CODENAME=jammy\n"},
+			comps: []model.Component{func() model.Component { c := deb; c.Distro, c.DistroVersion = "jammy", "22.04"; return c }()},
+			want:  []string{"this is ubuntu"},
+		},
+		{
+			name:  "an alpine image is not a debian lookup",
+			files: map[string]string{"lib/apk/db/installed": "P:openssl\nV:1.1.1o-r0\n\n"},
+			comps: []model.Component{{Name: "openssl", Version: "1.1.1o-r0", PURL: "pkg:apk/alpine/openssl@1.1.1o-r0"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := fstest.MapFS{}
+			for name, body := range tt.files {
+				root[name] = &fstest.MapFile{Data: []byte(body)}
+			}
+			got := releaseWarnings(root, tt.comps)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d warnings %q, want %d", len(got), got, len(tt.want))
+			}
+			for i, want := range tt.want {
+				if !strings.Contains(got[i], want) {
+					t.Errorf("warning %d = %q, want it to mention %q", i, got[i], want)
+				}
+			}
+		})
 	}
 }

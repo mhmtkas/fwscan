@@ -1361,3 +1361,16 @@ func TestExpandedFindingsCarryTheirOwnAssessments(t *testing.T) {
 		}
 	}
 }
+
+// A vector that scores 0.0 is no assessment on any path. v3 already fell
+// through; v2 reported low with a score of 0 and the vector attached, which
+// the terminal rendered as "low  —" and the JSON as a score nothing supports.
+func TestZeroScoringV2VectorIsNoAssessment(t *testing.T) {
+	record := vulnRecord{Severity: []severityEntry{
+		{Type: "CVSS_V2", Score: "AV:N/AC:L/Au:N/C:N/I:N/A:N"},
+	}}
+	severity, score, vector := severityOf(record)
+	if severity != model.SeverityUnknown || score != 0 || vector != "" {
+		t.Errorf("severityOf = %q, %v, %q; want unknown with nothing attached", severity, score, vector)
+	}
+}

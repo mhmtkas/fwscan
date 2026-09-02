@@ -367,4 +367,13 @@ func TestStatusFileSizeIsBounded(t *testing.T) {
 	if _, err := parseStatus(strings.NewReader(b.String()), "bullseye", ""); err == nil {
 		t.Error("a status file past the size limit parsed without complaint")
 	}
+
+	// The apk database is bounded the same way.
+	var a strings.Builder
+	for i := 0; i < 1000; i++ {
+		a.WriteString("P:p\nV:1\n\n")
+	}
+	if _, err := parseApkInstalled(strings.NewReader(a.String()), "v3.16"); err == nil {
+		t.Error("an apk database past the size limit parsed without complaint")
+	}
 }

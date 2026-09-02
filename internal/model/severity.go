@@ -52,7 +52,8 @@ func (s Severity) AtLeast(threshold Severity) bool {
 // reports whether the input was recognised; unrecognised input yields
 // SeverityUnknown so callers can use the value directly either way.
 func ParseSeverity(s string) (Severity, bool) {
-	switch strings.ToLower(strings.TrimSpace(s)) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	switch s {
 	case "critical":
 		return SeverityCritical, true
 	case "high":

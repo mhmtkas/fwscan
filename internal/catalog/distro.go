@@ -20,6 +20,55 @@ var osReleasePaths = []string{
 // larger is a hostile image, not a distro identity file.
 const maxOSReleaseSize = 64 << 10
 
+// OSRelease is what the image says about itself in os-release. Any field may
+// be empty; an image without the file is unusual but not broken.
+type OSRelease struct {
+	// ID is the distribution, e.g. "debian" or "ubuntu".
+	ID string
+	// Codename is VERSION_CODENAME, e.g. "bookworm": the distro qualifier
+	// OSV's per-CVE Debian records carry.
+	Codename string
+	// VersionID is VERSION_ID, e.g. "12": how OSV's advisories name the same
+	// release, in their ecosystem field.
+	VersionID string
+}
+
+// ReadOSRelease reports what the image says about itself. It is exported so
+// the scan can warn about what it could not scope: a dpkg image with no
+// release, or with a release OSV's Debian data does not cover.
+func ReadOSRelease(root fs.FS) OSRelease {
+	// The first file that names a release wins; a file that only names the
+	// distribution is not enough to stop looking, because the release is what
+	// every query needs. Its ID is kept in case no file names a release.
+	var partial OSRelease
+	for _, path := range osReleasePaths {
+		f, err := root.Open(path)
+		if err != nil {
+			continue
+		}
+		body, err := io.ReadAll(io.LimitReader(f, maxOSReleaseSize))
+		_ = f.Close()
+		if err != nil {
+			continue
+		}
+		info := OSRelease{
+			ID:        parseOSReleaseField(bytes.NewReader(body), "ID"),
+			Codename:  parseCodename(bytes.NewReader(body)),
+			VersionID: parseOSReleaseField(bytes.NewReader(body), "VERSION_ID"),
+		}
+		if info.Codename != "" || info.VersionID != "" {
+			if info.ID == "" {
+				info.ID = partial.ID
+			}
+			return info
+		}
+		if partial.ID == "" {
+			partial.ID = info.ID
+		}
+	}
+	return partial
+}
+
 // detectRelease reads both names a release goes by.
 //
 // The codename -- "bookworm" -- is the distro qualifier every OSV query needs:
@@ -33,23 +82,8 @@ const maxOSReleaseSize = 64 << 10
 // database and no os-release is unusual but not broken. It costs the matching
 // each empty one would have done, and nothing else.
 func detectRelease(root fs.FS) (codename, version string) {
-	for _, path := range osReleasePaths {
-		f, err := root.Open(path)
-		if err != nil {
-			continue
-		}
-		body, err := io.ReadAll(io.LimitReader(f, maxOSReleaseSize))
-		_ = f.Close()
-		if err != nil {
-			continue
-		}
-		codename = parseCodename(bytes.NewReader(body))
-		version = parseOSReleaseField(bytes.NewReader(body), "VERSION_ID")
-		if codename != "" || version != "" {
-			return codename, version
-		}
-	}
-	return "", ""
+	info := ReadOSRelease(root)
+	return info.Codename, info.VersionID
 }
 
 // parseCodename reads VERSION_CODENAME from os-release's shell-ish syntax.

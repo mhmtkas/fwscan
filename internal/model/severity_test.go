@@ -222,3 +222,17 @@ func TestCompareComponentsIsATotalOrder(t *testing.T) {
 		})
 	}
 }
+
+// The doc says case-insensitive, and "unknown" was the one value where the raw
+// input was compared instead: "Unknown" parsed to the unknown bucket but
+// reported itself as unrecognised.
+func TestParseSeverityUnknownIsCaseInsensitive(t *testing.T) {
+	for _, in := range []string{"unknown", "Unknown", "UNKNOWN", " unknown "} {
+		if got, known := ParseSeverity(in); got != SeverityUnknown || !known {
+			t.Errorf("ParseSeverity(%q) = %q, %v; want unknown, true", in, got, known)
+		}
+	}
+	if _, known := ParseSeverity(""); known {
+		t.Error("ParseSeverity(\"\") reported the empty string as a recognised level")
+	}
+}

@@ -206,9 +206,12 @@ func severityOf(record vulnRecord) (model.Severity, float64, string) {
 		}
 	}
 
-	// 3. CVSS v2, only when there is neither v3 nor v4.
+	// 3. CVSS v2, only when there is neither v3 nor v4. A vector scoring 0 is
+	// no assessment on this path either, for the same reason as above: v2's
+	// bands start at 0.1, and "low, score 0, vector present" is a row that
+	// contradicts itself.
 	if vector, ok := vectorOfType(record, "CVSS_V2"); ok {
-		if score, ok := cvss2BaseScore(vector); ok {
+		if score, ok := cvss2BaseScore(vector); ok && score > 0 {
 			return bucketFromV2Score(score), score, vector
 		}
 	}

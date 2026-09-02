@@ -86,8 +86,18 @@ func parseApkInstalled(r io.Reader, release string) ([]model.Component, error) {
 
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64<<10), maxLineBytes)
+	var read int64
 	for sc.Scan() {
 		line := sc.Text()
+
+		// The same whole-file bound as the dpkg parser, for the same reason:
+		// the line and stanza limits can each be satisfied by a file that is
+		// still arbitrarily long.
+		read += int64(len(line)) + 1
+		if read > maxStatusBytes {
+			return nil, fmt.Errorf("package database is larger than %d bytes", maxStatusBytes)
+		}
+
 		if line == "" {
 			if err := flush(); err != nil {
 				return nil, err

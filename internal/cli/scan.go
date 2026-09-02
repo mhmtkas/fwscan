@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -105,6 +106,9 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
 			"fwscan: no package database found; is this a Linux rootfs?")
 	}
+	for _, warning := range releaseWarnings(rootfs, comps) {
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "fwscan: "+warning)
+	}
 
 	// The SBOM is written before the CVE lookup, so a network failure still
 	// leaves the user with the artifact that does not depend on the network.
@@ -170,6 +174,36 @@ func writeSBOM(path string, comps []model.Component, version string, started tim
 
 // catalogAll runs every cataloger over the rootfs and returns the union,
 // sorted by name so the output is stable run to run.
+// releaseWarnings says what a Debian lookup could not be scoped to. Every
+// Debian query carries the image's release, because without it OSV answers
+// across every release at once and reports another release's fix as the one to
+// install (spike/NOTES.md T0.3). An image that does not say its release, or
+// says one OSV's Debian data does not cover, gets a report anyway -- silently
+// unscoped is worse than loudly unscoped.
+func releaseWarnings(rootfs fs.FS, comps []model.Component) []string {
+	var dpkg *model.Component
+	for i := range comps {
+		if strings.HasPrefix(comps[i].PURL, "pkg:deb/") {
+			dpkg = &comps[i]
+			break
+		}
+	}
+	if dpkg == nil {
+		return nil
+	}
+
+	var warnings []string
+	if dpkg.Distro == "" {
+		warnings = append(warnings, "no release found in os-release; the vulnerability lookup is not "+
+			"scoped to a Debian release and may name fixes from other releases")
+	}
+	if id := catalog.ReadOSRelease(rootfs).ID; id != "" && id != "debian" {
+		warnings = append(warnings, fmt.Sprintf("os-release says this is %s; the vulnerability lookup "+
+			"uses OSV's Debian data only and may find nothing for it", id))
+	}
+	return warnings
+}
+
 func catalogAll(ctx context.Context, rootfs fs.FS) ([]model.Component, error) {
 	var comps []model.Component
 	for _, c := range catalog.All() {
