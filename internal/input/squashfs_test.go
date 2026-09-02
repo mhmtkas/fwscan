@@ -90,7 +90,7 @@ func TestSquashFSWithAbsoluteSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rootfs, cleanup, err := Open(context.Background(), buildSquashFS(t, src))
+	rootfs, _, cleanup, err := Open(context.Background(), buildSquashFS(t, src))
 	if err != nil {
 		t.Fatalf("Open() error = %v; a rootfs with absolute symlinks is an ordinary image, not a hostile one", err)
 	}
@@ -156,7 +156,7 @@ func TestSquashFSCompressionMatrix(t *testing.T) {
 				t.Errorf("compression = %s, want %s", compression, tt.wantCompression)
 			}
 
-			rootfs, cleanup, err := Open(context.Background(), path)
+			rootfs, _, cleanup, err := Open(context.Background(), path)
 			if err != nil {
 				t.Fatalf("Open() error = %v", err)
 			}
@@ -194,7 +194,7 @@ func TestSquashFSCleanupRemovesTempDir(t *testing.T) {
 	requireSquashfsTools(t)
 
 	path := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")
-	rootfs, cleanup, err := Open(context.Background(), path)
+	rootfs, _, cleanup, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -214,7 +214,7 @@ func TestSquashFSMissingUnsquashfs(t *testing.T) {
 	t.Cleanup(func() { lookPath = original })
 
 	path := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")
-	_, cleanup, err := Open(context.Background(), path)
+	_, _, cleanup, err := Open(context.Background(), path)
 	cleanup()
 
 	if err == nil {
@@ -249,7 +249,7 @@ func TestSquashFSCorruptImage(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	_, cleanup, err := Open(context.Background(), path)
+	_, _, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
 		t.Fatal("Open() on a corrupt image returned no error")
@@ -312,7 +312,7 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 		t.Fatalf("read fixture: %v", err)
 	}
 
-	bare, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	bare, _, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
 	if err != nil {
 		t.Fatalf("Open() on the bare image error = %v", err)
 	}
@@ -356,7 +356,7 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 				t.Fatalf("format = %s, want squashfs", format)
 			}
 
-			rootfs, cleanup, err := Open(context.Background(), path)
+			rootfs, _, cleanup, err := Open(context.Background(), path)
 			if err != nil {
 				t.Fatalf("Open() error = %v; a wrapped image is supported input", err)
 			}
@@ -398,7 +398,7 @@ func TestSquashFSWrapperFailures(t *testing.T) {
 		if err := os.WriteFile(path, whole.Bytes()[:len(whole.Bytes())/2], 0o644); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		_, cleanup, err := Open(context.Background(), path)
+		_, _, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
 			t.Fatal("a truncated image opened without complaint")
@@ -419,7 +419,7 @@ func TestSquashFSWrapperFailures(t *testing.T) {
 		if err := os.WriteFile(path, whole.Bytes(), 0o644); err != nil {
 			t.Fatalf("write: %v", err)
 		}
-		_, cleanup, err := Open(context.Background(), path)
+		_, _, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
 			t.Fatal("unwrapping ignored the expansion bound")
@@ -463,7 +463,7 @@ func TestUnwrappingStopsWhenTheContextIsCancelled(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, cleanup, err := Open(ctx, path)
+	_, _, cleanup, err := Open(ctx, path)
 	cleanup()
 	if err == nil {
 		t.Fatal("a cancelled context unwrapped and extracted the image")
@@ -503,7 +503,7 @@ func TestSquashFSDeclaredContentsAreBounded(t *testing.T) {
 
 	count := isolateTempRoot(t)
 	before := count()
-	_, cleanup, err := Open(context.Background(), image)
+	_, _, cleanup, err := Open(context.Background(), image)
 	cleanup()
 	if err == nil {
 		t.Fatal("an image declaring 8 MiB from a few KB was extracted")
@@ -516,7 +516,7 @@ func TestSquashFSDeclaredContentsAreBounded(t *testing.T) {
 	}
 
 	// The committed fixture is inside every bound.
-	if _, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")); err != nil {
+	if _, _, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")); err != nil {
 		cleanup()
 		t.Errorf("the fixture image was refused: %v", err)
 	} else {
@@ -546,7 +546,7 @@ func TestSquashFSListingTooLongIsRefused(t *testing.T) {
 	t.Cleanup(func() { maxListing = restore })
 	maxListing = 64
 
-	_, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	_, _, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
 	cleanup()
 	if err == nil {
 		t.Fatal("an image whose listing overran the bound was extracted")

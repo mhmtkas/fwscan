@@ -42,7 +42,10 @@ func (s Severity) rank() int {
 // threshold, including SeverityUnknown itself — output-spec section 5 states
 // that unknown-severity findings never trigger exit 1.
 func (s Severity) AtLeast(threshold Severity) bool {
-	if s == SeverityUnknown || s.rank() == 0 {
+	// Rank 0 is unknown and anything unrecognised, and neither meets a
+	// threshold -- including the unknown threshold itself, which ParseFailOn
+	// refuses anyway.
+	if s.rank() == 0 {
 		return false
 	}
 	return s.rank() >= threshold.rank()

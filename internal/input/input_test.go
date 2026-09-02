@@ -48,7 +48,7 @@ func writeRootfs(t *testing.T) string {
 func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 	root := writeRootfs(t)
 
-	rootfs, cleanup, err := Open(context.Background(), root)
+	rootfs, _, cleanup, err := Open(context.Background(), root)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -75,7 +75,7 @@ func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 
 func TestOpenCleanupIsNoopForDirectories(t *testing.T) {
 	root := writeRootfs(t)
-	_, cleanup, err := Open(context.Background(), root)
+	_, _, cleanup, err := Open(context.Background(), root)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -108,7 +108,7 @@ func TestOpenErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, cleanup, err := Open(context.Background(), tt.path)
+			_, _, cleanup, err := Open(context.Background(), tt.path)
 			if cleanup == nil {
 				t.Fatal("cleanup is nil on the error path")
 			}
@@ -149,7 +149,7 @@ func TestDirOpenRejectsNonDirectory(t *testing.T) {
 // image by a crafted path.
 func TestReadsAreConfinedToTheRoot(t *testing.T) {
 	root := writeRootfs(t)
-	rootfs, cleanup, err := Open(context.Background(), root)
+	rootfs, _, cleanup, err := Open(context.Background(), root)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}

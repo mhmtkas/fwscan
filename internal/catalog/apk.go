@@ -9,9 +9,8 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/package-url/packageurl-go"
-
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/purl"
 )
 
 // ApkInstalledPath is where apk records installed packages, relative to the
@@ -144,35 +143,10 @@ func apkComponent(fields map[string]string, release string) model.Component {
 		// same version as its binaries.
 		SourceVersion: version,
 		Distro:        release,
-		PURL:          ApkPURL(name, version, arch, release),
+		PURL:          purl.Apk(name, version, arch, release),
 		Confidence:    model.ConfidenceHigh,
 		Evidence:      ApkInstalledPath,
 	}
-}
-
-// ApkPURL builds the purl identifying an installed apk package, for the SBOM
-// and the JSON report.
-//
-// Note this purl is *not* what the matcher queries. OSV's own Alpine records
-// carry no distro qualifier and keep the release in their ecosystem field, so
-// Alpine has to be queried by ecosystem instead (spike/NOTES.md T0.3a). The
-// qualifier here is for the reader's benefit: a bare apk version says nothing
-// about which Alpine release it belongs to.
-func ApkPURL(name, version, arch, release string) string {
-	if name == "" {
-		return ""
-	}
-	qualifiers := map[string]string{}
-	if arch != "" {
-		qualifiers["arch"] = arch
-	}
-	if release != "" {
-		qualifiers["distro"] = "alpine-" + strings.TrimPrefix(release, "v")
-	}
-	return packageurl.NewPackageURL(
-		"apk", "alpine", name, version,
-		packageurl.QualifiersFromMap(qualifiers), "",
-	).ToString()
 }
 
 // alpineReleasePaths is searched in order.

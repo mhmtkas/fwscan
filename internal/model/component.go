@@ -40,9 +40,11 @@ type Component struct {
 	// (spike/NOTES.md T18a).
 	DistroVersion string
 
-	// Distro is the release codename, e.g. "bookworm". Empty when the image did
-	// not identify itself. Without it OSV matches across every Debian release
-	// at once and reports backported fixes as vulnerable.
+	// Distro is the release, under the name its ecosystem queries by: a Debian
+	// codename such as "bookworm", or an Alpine release such as "v3.16". Empty
+	// when the image did not identify itself, which costs the query its scope
+	// -- without it OSV matches across every release at once and reports
+	// backported fixes as vulnerable.
 	Distro     string
 	PURL       string
 	Confidence Confidence

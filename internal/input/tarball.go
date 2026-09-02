@@ -13,8 +13,9 @@ import (
 )
 
 // ErrUnsafePath reports an archive entry that would write outside the
-// extraction directory. It is its own error so tests and the CLI can recognise
-// a hostile archive rather than pattern-matching a message.
+// extraction directory. It is its own error so a caller can recognise a hostile
+// archive without matching on a message; the tests do, and the CLI reports it
+// like any other failure.
 var ErrUnsafePath = errors.New("archive entry escapes the extraction directory")
 
 // Extraction bounds. A firmware rootfs is large but not unbounded, and this

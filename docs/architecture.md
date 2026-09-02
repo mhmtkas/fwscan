@@ -108,6 +108,19 @@ Three things here are not obvious and are all spike conclusions
 3. **`querybatch` returns identifiers only.** Severity and fixed versions need a
    second request each, which is why lookups are deduplicated by source package
    and details are fetched through a bounded worker pool.
+4. **An advisory is several vulnerabilities.** For an oldstable Debian release
+   OSV returns only DSA and DLA records, each naming every CVE its upload
+   fixed, with no severity of its own and no `distro` qualifier on its purl. So
+   a record becomes one finding per CVE, each taking its assessment from that
+   CVE's own record and the release from the advisory's `ecosystem` field.
+
+### `internal/purl`
+
+Both `catalog` and `match` build purls and neither owns the format: a cataloger
+names the binary package it found, the matcher names the source package it asks
+OSV about, and the two have to agree down to the percent-encoding of a version's
+`+`. So the constructors sit in one package below both, and `catalog` depends on
+nothing but `model` and it.
 
 ### `internal/report` and `internal/sbom`
 

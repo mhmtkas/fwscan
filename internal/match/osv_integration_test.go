@@ -9,6 +9,7 @@ import (
 
 	"github.com/mhmtkas/fwscan/internal/catalog"
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/purl"
 )
 
 // TestOSVLiveBackportBehaviour is the only test allowed to reach the real API
@@ -36,7 +37,7 @@ func TestOSVLiveBackportBehaviour(t *testing.T) {
 			DistroVersion: "11",
 			// The purl is what selects the query shape, so a component without
 			// one is never looked up.
-			PURL:       catalog.BinaryPURL("libssl1.1", version, "amd64", "bullseye"),
+			PURL:       purl.Binary("libssl1.1", version, "amd64", "bullseye"),
 			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
 		}
 	}
@@ -77,7 +78,7 @@ func TestOSVLiveBackportBehaviour(t *testing.T) {
 		alpine := model.Component{
 			Name: "zlib", Version: "1.2.12-r1", Arch: "x86_64",
 			Source: "zlib", SourceVersion: "1.2.12-r1", Distro: "v3.16",
-			PURL:       catalog.ApkPURL("zlib", "1.2.12-r1", "x86_64", "v3.16"),
+			PURL:       purl.Apk("zlib", "1.2.12-r1", "x86_64", "v3.16"),
 			Confidence: model.ConfidenceHigh, Evidence: catalog.ApkInstalledPath,
 		}
 		findings, err := osv.Match(ctx, []model.Component{alpine})

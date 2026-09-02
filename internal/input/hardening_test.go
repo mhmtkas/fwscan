@@ -77,7 +77,7 @@ func TestNoTempDirsLeakOnFailure(t *testing.T) {
 	for _, tt := range hostile {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.build(t)
-			rootfs, cleanup, err := Open(context.Background(), path)
+			rootfs, _, cleanup, err := Open(context.Background(), path)
 			if err == nil {
 				cleanup()
 				t.Fatalf("Open() accepted a hostile archive, returning %v", rootfs)
@@ -136,7 +136,7 @@ func TestSymlinkEscapesAreNeverReadable(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	rootfs, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
+	rootfs, _, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
 	if err != nil {
 		t.Fatalf("Open() error = %v; escaping links should be dropped, not fatal", err)
 	}
@@ -164,7 +164,7 @@ func TestSymlinkEscapesAreNeverReadable(t *testing.T) {
 // producing an empty rootfs that scans clean.
 func TestHostileArchiveFailsRatherThanScanningClean(t *testing.T) {
 	path := writeTar(t, tar.Header{Name: "../../etc/cron.d/backdoor", Typeflag: tar.TypeReg, Mode: 0o644})
-	_, cleanup, err := Open(context.Background(), path)
+	_, _, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
 		t.Fatal("a hostile archive produced a usable rootfs")
@@ -216,7 +216,7 @@ func TestDecompressionBombIsRefused(t *testing.T) {
 		t.Fatalf("the fixture only expands %dx, which is inside the limit; it does not test the guard", ratio)
 	}
 
-	_, cleanup, err := Open(context.Background(), writeTemp(t, "bomb.tar.gz", bomb.Bytes()))
+	_, _, cleanup, err := Open(context.Background(), writeTemp(t, "bomb.tar.gz", bomb.Bytes()))
 	cleanup()
 	if err == nil {
 		t.Fatal("a decompression bomb unpacked without complaint")
@@ -264,7 +264,7 @@ func TestSparseEntryExpansionIsBounded(t *testing.T) {
 	t.Cleanup(restore)
 	maxExpansionRatio, minExpansionBytes = 20, 4<<10
 
-	_, cleanup, err := Open(context.Background(), archive)
+	_, _, cleanup, err := Open(context.Background(), archive)
 	cleanup()
 	if err == nil {
 		t.Fatalf("a %d byte archive expanded to 200 MiB without complaint", info.Size())
@@ -291,7 +291,7 @@ func mustCreate(t *testing.T, path string) string {
 func TestOrdinaryImagesDoNotTripTheExpansionGuard(t *testing.T) {
 	for _, name := range []string{"mini-rootfs.tar.gz", "alpine-rootfs.tar.gz"} {
 		t.Run(name, func(t *testing.T) {
-			_, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", name))
+			_, _, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", name))
 			defer cleanup()
 			if err != nil {
 				t.Errorf("Open() error = %v; a committed fixture must not trip the expansion guard", err)
@@ -402,7 +402,7 @@ func TestSquashFSNoTempDirLeakOnFailure(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 
-	_, cleanup, err := Open(context.Background(), path)
+	_, _, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
 		t.Fatal("a corrupt squashfs produced a usable rootfs")
@@ -503,7 +503,7 @@ func TestDirectoryInputCannotReadThroughASymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rootfs, cleanup, err := Open(context.Background(), root)
+	rootfs, _, cleanup, err := Open(context.Background(), root)
 	if err != nil {
 		t.Fatalf("Open() error = %v; a directory holding an escaping link is still scannable", err)
 	}
@@ -614,7 +614,7 @@ func TestCleanupIsSafeToCallTwice(t *testing.T) {
 	before := count()
 
 	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
-	_, cleanup, err := Open(context.Background(), image)
+	_, _, cleanup, err := Open(context.Background(), image)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -655,7 +655,7 @@ func TestXZDictionaryIsBounded(t *testing.T) {
 	if _, _, err := Detect(bomb); err == nil {
 		t.Error("Detect() accepted a stream declaring a 512 MiB dictionary")
 	}
-	_, cleanup, err := Open(context.Background(), bomb)
+	_, _, cleanup, err := Open(context.Background(), bomb)
 	cleanup()
 	if err == nil {
 		t.Fatal("a stream declaring a 512 MiB dictionary was decompressed")
@@ -684,7 +684,7 @@ func TestXZDictionaryIsBounded(t *testing.T) {
 	if err := os.WriteFile(concatenated, append(append([]byte{}, good...), bad...), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, cleanup, err := Open(context.Background(), concatenated); err == nil {
+	if _, _, cleanup, err := Open(context.Background(), concatenated); err == nil {
 		cleanup()
 		t.Error("a large dictionary in the second of two streams was not found")
 	} else {
@@ -698,7 +698,7 @@ func TestXZDictionaryIsBounded(t *testing.T) {
 	if err := os.WriteFile(bomb, good, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, cleanup, err := Open(context.Background(), bomb); err != nil {
+	if _, _, cleanup, err := Open(context.Background(), bomb); err != nil {
 		cleanup()
 		t.Fatalf("an xz -9 archive was refused: %v", err)
 	} else {
@@ -708,7 +708,7 @@ func TestXZDictionaryIsBounded(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("xz: %v: %s", err, out)
 	}
-	if _, cleanup, err := Open(context.Background(), bomb); err != nil {
+	if _, _, cleanup, err := Open(context.Background(), bomb); err != nil {
 		cleanup()
 		t.Fatalf("a multi-block xz archive was refused: %v", err)
 	} else {

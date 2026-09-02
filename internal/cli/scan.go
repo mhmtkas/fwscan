@@ -77,12 +77,7 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		return err
 	}
 
-	format, compression, err := input.Detect(target)
-	if err != nil {
-		return err
-	}
-
-	rootfs, cleanup, err := input.Open(cmd.Context(), target)
+	rootfs, detected, cleanup, err := input.Open(cmd.Context(), target)
 	if err != nil {
 		return err
 	}
@@ -133,8 +128,8 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 
 	info := report.ScanInfo{
 		Target:      target,
-		Format:      format.String(),
-		Compression: compression.String(),
+		Format:      detected.Format.String(),
+		Compression: detected.Compression.String(),
 		StartedAt:   started.UTC(),
 		Duration:    time.Since(started),
 	}

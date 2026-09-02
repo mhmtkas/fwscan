@@ -7,8 +7,9 @@ import (
 	"os"
 )
 
-// ErrUnsupportedFormat reports input fwscan cannot read. It is separate from an
-// I/O failure so the CLI can tell the user which of the two happened.
+// ErrUnsupportedFormat reports input fwscan cannot read, as opposed to input it
+// could not open. It is its own error so a caller can tell the two apart
+// without matching on a message.
 var ErrUnsupportedFormat = errors.New("unsupported format")
 
 // Format is what the input is.

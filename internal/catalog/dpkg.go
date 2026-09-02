@@ -10,9 +10,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/package-url/packageurl-go"
-
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/purl"
 )
 
 // DpkgStatusPath is where dpkg records installed packages, relative to the
@@ -192,7 +191,7 @@ func componentFrom(fields map[string]string, codename, release string) model.Com
 		SourceVersion: sourceVersion,
 		Distro:        codename,
 		DistroVersion: release,
-		PURL:          BinaryPURL(name, version, arch, codename),
+		PURL:          purl.Binary(name, version, arch, codename),
 		Confidence:    model.ConfidenceHigh,
 		Evidence:      DpkgStatusPath,
 	}
@@ -218,39 +217,4 @@ func sourceOf(fields map[string]string) (name, version string) {
 		return m[1], m[2]
 	}
 	return src, version
-}
-
-// BinaryPURL builds the purl identifying an installed binary package, which is
-// what the SBOM and the JSON report carry (output-spec section 3). The distro
-// qualifier is included when known so the purl states which release the version
-// belongs to; it is what makes a Debian version string meaningful.
-//
-// The OSV query purl is a different thing — source package, source version,
-// arch=source — and is built by the matcher.
-func BinaryPURL(name, version, arch, codename string) string {
-	return debPURL(name, version, arch, codename)
-}
-
-// SourcePURL builds the purl used to query OSV, per spike/NOTES.md T0.3.
-func SourcePURL(sourceName, sourceVersion, codename string) string {
-	return debPURL(sourceName, sourceVersion, "source", codename)
-}
-
-func debPURL(name, version, arch, codename string) string {
-	if name == "" {
-		return ""
-	}
-	qualifiers := map[string]string{}
-	if arch != "" {
-		qualifiers["arch"] = arch
-	}
-	if codename != "" {
-		qualifiers["distro"] = codename
-	}
-	// packageurl-go percent-encodes the version, so "+" becomes "%2B" as
-	// output-spec section 3 requires.
-	return packageurl.NewPackageURL(
-		packageurl.TypeDebian, "debian", name, version,
-		packageurl.QualifiersFromMap(qualifiers), "",
-	).ToString()
 }

@@ -33,30 +33,42 @@ type Source interface {
 // noopCleanup is the cleanup for sources that allocate nothing.
 func noopCleanup() {}
 
-// Open detects the format at path and opens it.
+// Detection is what Open found the input to be, which the report header states.
+type Detection struct {
+	Format      Format
+	Compression Compression
+}
+
+// Open detects the format at path and opens it, reporting what it detected.
+//
+// The detection is returned rather than left to the caller to repeat: detecting
+// a compressed input decompresses its head, and for xz it walks the container
+// to check what the stream declares, so asking twice does that work twice.
 //
 // The returned cleanup is never nil, including on the error path, so
 // `defer cleanup()` immediately after the call is always correct.
-func Open(ctx context.Context, path string) (fs.FS, CleanupFunc, error) {
+func Open(ctx context.Context, path string) (fs.FS, Detection, CleanupFunc, error) {
 	format, compression, err := Detect(path)
 	if err != nil {
-		return nil, noopCleanup, err
+		return nil, Detection{}, noopCleanup, err
 	}
+	found := Detection{Format: format, Compression: compression}
+
 	src, err := sourceFor(path, format, compression)
 	if err != nil {
-		return nil, noopCleanup, err
+		return nil, found, noopCleanup, err
 	}
 	rootfs, cleanup, err := src.Open(ctx, path)
 	if err != nil {
 		if cleanup != nil {
 			cleanup()
 		}
-		return nil, noopCleanup, fmt.Errorf("%s: %w", src.Name(), err)
+		return nil, found, noopCleanup, fmt.Errorf("%s: %w", src.Name(), err)
 	}
 	if cleanup == nil {
 		cleanup = noopCleanup
 	}
-	return rootfs, cleanup, nil
+	return rootfs, found, cleanup, nil
 }
 
 // sourceFor maps a detected format to its handler. Anything unrecognised gets a

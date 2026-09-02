@@ -17,6 +17,7 @@ import (
 
 	"github.com/mhmtkas/fwscan/internal/catalog"
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/purl"
 )
 
 // newFakeOSV serves the recorded responses in testdata/osv. No test in this
@@ -116,7 +117,7 @@ func debComponent(name, version, source, sourceVersion string) model.Component {
 		Source: source, SourceVersion: sourceVersion, Distro: "bullseye",
 		// The purl is what tells the matcher which query shape to use, so a
 		// component without one is never looked up.
-		PURL:       catalog.BinaryPURL(name, version, "amd64", "bullseye"),
+		PURL:       purl.Binary(name, version, "amd64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
 	}
 }
@@ -125,7 +126,7 @@ func apkComponent(name, version, origin string) model.Component {
 	return model.Component{
 		Name: name, Version: version, Arch: "x86_64",
 		Source: origin, SourceVersion: version, Distro: "v3.16",
-		PURL:       catalog.ApkPURL(name, version, "x86_64", "v3.16"),
+		PURL:       purl.Apk(name, version, "x86_64", "v3.16"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.ApkInstalledPath,
 	}
 }
@@ -1113,7 +1114,7 @@ func TestSeverityIsBorrowedFromTheUpstreamRecord(t *testing.T) {
 		Name: "libc6", Version: "2.31-13+deb11u2",
 		Source: "glibc", SourceVersion: "2.31-13+deb11u2",
 		Distro: "bullseye", DistroVersion: "11",
-		PURL:       catalog.BinaryPURL("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
+		PURL:       purl.Binary("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}
 
@@ -1171,7 +1172,7 @@ func TestABrokenUpstreamFetchIsNotFatal(t *testing.T) {
 		Name: "libc6", Version: "2.31-13+deb11u2",
 		Source: "glibc", SourceVersion: "2.31-13+deb11u2",
 		Distro: "bullseye", DistroVersion: "11",
-		PURL:       catalog.BinaryPURL("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
+		PURL:       purl.Binary("libc6", "2.31-13+deb11u2", "arm64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}})
 	if err != nil {
@@ -1325,7 +1326,7 @@ func TestExpandedFindingsCarryTheirOwnAssessments(t *testing.T) {
 	findings, err := osv.Match(context.Background(), []model.Component{{
 		Name: "demo", Version: "1.0-1", Source: "demo", SourceVersion: "1.0-1",
 		Distro: "bullseye", DistroVersion: "11",
-		PURL:       catalog.BinaryPURL("demo", "1.0-1", "arm64", "bullseye"),
+		PURL:       purl.Binary("demo", "1.0-1", "arm64", "bullseye"),
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	}})
 	if err != nil {

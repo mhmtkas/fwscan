@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mhmtkas/fwscan/internal/catalog"
 	"github.com/mhmtkas/fwscan/internal/model"
+	"github.com/mhmtkas/fwscan/internal/purl"
 )
 
 // DefaultBaseURL is the public OSV API. No key is needed, and the spike drew no
@@ -209,7 +209,7 @@ func queryFor(key queryKey) (query, bool) {
 	switch key.kind {
 	case kindDeb:
 		var q query
-		q.Package.PURL = catalog.SourcePURL(key.source, key.version, key.distro)
+		q.Package.PURL = purl.Source(key.source, key.version, key.distro)
 		return q, true
 	case kindApk:
 		if key.distro == "" {

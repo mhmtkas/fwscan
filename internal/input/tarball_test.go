@@ -178,7 +178,7 @@ func TestTarballAllCompressions(t *testing.T) {
 				t.Errorf("Detect() compression = %s, want %s", compression, tt.wantCompression)
 			}
 
-			rootfs, cleanup, err := Open(context.Background(), path)
+			rootfs, _, cleanup, err := Open(context.Background(), path)
 			if err != nil {
 				t.Fatalf("Open() error = %v", err)
 			}
@@ -202,7 +202,7 @@ func TestTarballAllCompressions(t *testing.T) {
 
 func TestTarballCleanupRemovesTempDir(t *testing.T) {
 	path := writeTemp(t, "rootfs.tar", buildTar(t))
-	rootfs, cleanup, err := Open(context.Background(), path)
+	rootfs, _, cleanup, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -242,7 +242,7 @@ func TestTarballRejectsEscapingEntries(t *testing.T) {
 			}
 			path := writeTemp(t, "hostile.tar", buf.Bytes())
 
-			_, cleanup, err := Open(context.Background(), path)
+			_, _, cleanup, err := Open(context.Background(), path)
 			cleanup()
 			if err == nil {
 				t.Fatal("Open() error = nil, want the entry rejected")
@@ -276,7 +276,7 @@ func TestTarballDropsEscapingSymlinks(t *testing.T) {
 	}
 
 	path := writeTemp(t, "links.tar", buf.Bytes())
-	rootfs, cleanup, err := Open(context.Background(), path)
+	rootfs, _, cleanup, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("Open() error = %v, want escaping symlinks to be dropped rather than fatal", err)
 	}
@@ -314,7 +314,7 @@ func TestTarballKeepsInternalSymlinks(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	rootfs, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
+	rootfs, _, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
@@ -441,7 +441,7 @@ func TestExtractBounds(t *testing.T) {
 	t.Run("truncated archive fails cleanly", func(t *testing.T) {
 		raw := buildTar(t)
 		path := writeTemp(t, "truncated.tar", raw[:len(raw)/2])
-		_, cleanup, err := Open(context.Background(), path)
+		_, _, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
 			t.Error("Open() on a truncated archive returned no error")

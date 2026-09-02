@@ -272,18 +272,6 @@ func TestDpkgRealFixture(t *testing.T) {
 	}
 }
 
-func TestSourcePURL(t *testing.T) {
-	// The exact form spike/NOTES.md T0.3 proved backport-aware.
-	got := SourcePURL("openssl", "1.1.1k-1+deb11u2", "bullseye")
-	want := "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u2?arch=source&distro=bullseye"
-	if got != want {
-		t.Errorf("SourcePURL() = %q, want %q", got, want)
-	}
-	if got := SourcePURL("", "1.0", "bullseye"); got != "" {
-		t.Errorf("SourcePURL() with no name = %q, want empty", got)
-	}
-}
-
 func TestAllCatalogers(t *testing.T) {
 	all := All()
 	if len(all) == 0 {
