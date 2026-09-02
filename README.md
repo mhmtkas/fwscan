@@ -173,18 +173,24 @@ contents are out of proportion to its size — more than 4 GiB in total, or over
 is an xz stream declaring a dictionary over 128 MiB (`xz -9` uses 64 MiB) and a
 path more than 256 levels deep. No real firmware image is near any of these.
 
-**How much fwscan finds depends on the release.** On a current Debian bookworm
-rootfs and an Alpine 3.19 minirootfs it is level with grype — 182 findings to
-grype's 179, and 42 to 46. On an *oldstable* Debian image it finds considerably
-less, because OSV's export for such a release lists only the CVEs that received
-a DSA or DLA while grype reads the full Debian Security Tracker. A second data
-source is on the roadmap and is not in v0.1.0.
+**fwscan reports the CVEs a distribution has issued a fix for. It does not
+report the ones a distribution has chosen not to fix**, because OSV's data for
+those thins out as a release ages, and disappears once it leaves support.
 
-Where both report a finding they agree on Alpine; on Debian they often differ on
-severity, because fwscan scores the CVSS vector and grype reports Debian's own
-rating, which is `negligible` for a great many CVEs.
-[`docs/comparison.md`](docs/comparison.md) has the numbers, on real images, with
-the commands to re-derive them.
+On supported releases this costs little and fwscan is level with grype: 182
+findings to 179 on a Debian bookworm rootfs, 148 to 144 on trixie, 56 to 58 on
+Alpine 3.21. On a release past its support window it costs a great deal — on a
+fully patched Debian 11 rootfs fwscan reports **nothing** where grype reports
+211, every one of them a CVE Debian has not fixed. A scan of a Debian image that
+finds nothing says so on stderr rather than leaving you with "No known
+vulnerabilities found". Ubuntu images are not covered at all, and also say so.
+
+Where both tools report a finding they agree on Alpine. On Debian they often
+differ on severity, because fwscan scores the CVSS vector and grype reports
+Debian's own rating, which is `negligible` for a great many CVEs.
+[`docs/comparison.md`](docs/comparison.md) has the full table — seven real
+images — and the commands to re-derive it. A second data source, which is what
+would close the gap, is on the roadmap and is not in v0.1.0.
 
 **Some findings carry no severity**, land in the `unknown` bucket, and so never
 trigger `--fail-on` — roughly a fifth of Debian's OSV records, 57 of the 292 the

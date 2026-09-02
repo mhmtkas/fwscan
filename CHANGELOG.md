@@ -84,13 +84,16 @@ reports known vulnerabilities from OSV.dev.
 
 ### Known limitations
 
-- fwscan finds less than grype does on the same image, and the gap is the data
-  source rather than the matching: OSV's export for an oldstable Debian release
-  lists the CVEs that received an advisory, while the Debian Security Tracker
-  carries every CVE's per-release status. `docs/comparison.md` measures it — 113
-  findings to 38 on the fixture image, with every fwscan finding also one of
-  grype's and the two agreeing on what they share. A second data source is on
-  the roadmap.
+- fwscan reports the CVEs a distribution has issued a fix for, not the ones it
+  has chosen not to fix. OSV's data for the latter thins as a release ages and
+  is gone once it leaves support, so on a supported release fwscan is level with
+  grype — 182 findings to 179 on a Debian bookworm rootfs — and on a fully
+  patched Debian 11 rootfs it reports nothing where grype reports 211, all of
+  them unfixed. A scan of a Debian image that finds nothing says so rather than
+  reporting a clean result. `docs/comparison.md` measures seven real images. A
+  second data source is on the roadmap.
+- Ubuntu images are cataloged but not matched: queries go to OSV's Debian data,
+  which has nothing for an Ubuntu purl. The scan says so on stderr.
 - Roughly a fifth of Debian's OSV records carry no severity and land in the
   `unknown` bucket, which `--fail-on` never triggers on.
 - Heuristic components are reported but not looked up: a version read off a

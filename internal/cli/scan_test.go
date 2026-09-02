@@ -502,3 +502,40 @@ func TestUnreadDatabaseWarnings(t *testing.T) {
 		})
 	}
 }
+
+// "No known vulnerabilities found." is the wrong thing to leave a reader with
+// when the data could not have said otherwise. OSV's Debian export carries a
+// record per CVE for a supported release and only DSA/DLA advisories for an
+// oldstable one -- and an advisory exists exactly when a fix shipped, so a
+// patched oldstable image answers zero while its unfixed CVEs are simply absent
+// from the data. Measured on a real Debian 11 rootfs: fwscan 0, a scanner
+// reading the Debian Security Tracker 211, all of them unfixed.
+func TestEmptyResultWarnings(t *testing.T) {
+	deb := model.Component{Name: "libc6", Version: "2.31-13+deb11u14", PURL: "pkg:deb/debian/libc6@2.31-13%2Bdeb11u14?arch=amd64&distro=bullseye"}
+	apk := model.Component{Name: "musl", Version: "1.2.4-r2", PURL: "pkg:apk/alpine/musl@1.2.4-r2?arch=x86_64"}
+	finding := model.Finding{Component: deb, ID: "CVE-2024-0001", Severity: model.SeverityHigh}
+
+	tests := []struct {
+		name     string
+		comps    []model.Component
+		findings []model.Finding
+		want     bool
+	}{
+		{"a debian image with nothing found", []model.Component{deb}, nil, true},
+		{"a debian image with findings", []model.Component{deb}, []model.Finding{finding}, false},
+		{"an alpine image with nothing found", []model.Component{apk}, nil, false},
+		{"no components at all", nil, nil, false},
+		{"a mixed image with nothing found", []model.Component{apk, deb}, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := emptyResultWarnings(tt.comps, tt.findings)
+			if (len(got) > 0) != tt.want {
+				t.Fatalf("got %q, want a warning: %v", got, tt.want)
+			}
+			if tt.want && !strings.Contains(got[0], "oldstable") {
+				t.Errorf("warning = %q, want it to explain why zero can be wrong", got[0])
+			}
+		})
+	}
+}

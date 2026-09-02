@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -127,6 +128,9 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 		if err != nil {
 			return err
 		}
+		for _, warning := range emptyResultWarnings(comps, findings) {
+			diagnostic(warning)
+		}
 	}
 
 	info := report.ScanInfo{
@@ -215,6 +219,39 @@ func unreadDatabaseWarnings(rootfs fs.FS) []string {
 			db.manager, db.path))
 	}
 	return warnings
+}
+
+// emptyResultWarnings explains a Debian lookup that found nothing.
+//
+// OSV's Debian export is not the same shape for every release. For a supported
+// one it carries a DEBIAN-CVE-… record per CVE, including the many a release
+// never fixes; for an oldstable one those records drop the release and only the
+// DSA and DLA advisories remain -- and an advisory exists exactly when a fix
+// shipped. So on a fully patched oldstable image every advisory is satisfied and
+// the answer is zero, while the CVEs the release chose not to fix are simply
+// not in the data. Measured on a Debian 11 rootfs: OSV had nothing, and a
+// scanner reading the Debian Security Tracker reported 211 findings, every one
+// of them unfixed.
+//
+// "No known vulnerabilities found." is the wrong thing to leave a reader with
+// there, so it does not stand alone.
+func emptyResultWarnings(comps []model.Component, findings []model.Finding) []string {
+	if len(findings) > 0 {
+		return nil
+	}
+	debian := false
+	for _, c := range comps {
+		if strings.HasPrefix(c.PURL, "pkg:deb/debian/") {
+			debian = true
+			break
+		}
+	}
+	if !debian {
+		return nil
+	}
+	return []string{"no findings for a Debian image with " + strconv.Itoa(len(comps)) +
+		" packages. On an oldstable release OSV carries only the CVEs that received a DSA or DLA, " +
+		"so one this tool reports as clean may still carry CVEs the release has chosen not to fix"}
 }
 
 // releaseWarnings says what a Debian lookup could not be scoped to. Every
