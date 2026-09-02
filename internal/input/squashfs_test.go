@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -469,5 +470,88 @@ func TestUnwrappingStopsWhenTheContextIsCancelled(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("error %v does not wrap context.Canceled", err)
+	}
+}
+
+// squashfs deduplicates identical blocks, so a tiny image can declare an
+// enormous tree, and unsquashfs writes outside the meter the tar path uses. A
+// 1.6 MB image declared 1.5 GiB of files and had every one of them written
+// before anything could object; the declared contents are checked first now.
+func TestSquashFSDeclaredContentsAreBounded(t *testing.T) {
+	requireSquashfsTools(t)
+	requireMksquashfs(t)
+
+	restore := func(ratio, floor int64) func() {
+		return func() { maxExpansionRatio, minExpansionBytes = ratio, floor }
+	}(maxExpansionRatio, minExpansionBytes)
+	t.Cleanup(restore)
+	maxExpansionRatio, minExpansionBytes = 20, 64<<10
+
+	// Eight identical 1 MiB files deduplicate to one block: the image is a
+	// few KB and declares 8 MiB.
+	src := t.TempDir()
+	block := bytes.Repeat([]byte{0x42}, 1<<20)
+	for i := range 8 {
+		if err := os.WriteFile(filepath.Join(src, fmt.Sprintf("dup%d", i)), block, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	image := buildSquashFS(t, src)
+	if info, _ := os.Stat(image); info != nil && info.Size() > 512<<10 {
+		t.Skipf("mksquashfs did not deduplicate (image is %d bytes)", info.Size())
+	}
+
+	count := isolateTempRoot(t)
+	before := count()
+	_, cleanup, err := Open(context.Background(), image)
+	cleanup()
+	if err == nil {
+		t.Fatal("an image declaring 8 MiB from a few KB was extracted")
+	}
+	if !errors.Is(err, ErrDecompressionBomb) {
+		t.Errorf("error %v does not wrap ErrDecompressionBomb", err)
+	}
+	if after := count(); after != before {
+		t.Errorf("%d extraction directories left behind", after-before)
+	}
+
+	// The committed fixture is inside every bound.
+	if _, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")); err != nil {
+		cleanup()
+		t.Errorf("the fixture image was refused: %v", err)
+	} else {
+		cleanup()
+	}
+}
+
+// A listing too long to read is refused unread.
+func TestBoundedBufferRemembersTruncation(t *testing.T) {
+	b := boundedBuffer{limit: 8}
+	if _, err := b.Write([]byte("12345")); err != nil || b.truncated {
+		t.Fatalf("short write: err=%v truncated=%v", err, b.truncated)
+	}
+	if _, err := b.Write([]byte("6789")); err != nil {
+		t.Fatal(err)
+	}
+	if !b.truncated || b.String() != "12345678" {
+		t.Errorf("after overflow: truncated=%v buf=%q", b.truncated, b.String())
+	}
+}
+
+// A listing too long to read is refused before anything is extracted, since a
+// tree that large is not a rootfs and reading it all is itself a cost.
+func TestSquashFSListingTooLongIsRefused(t *testing.T) {
+	requireSquashfsTools(t)
+	restore := maxListing
+	t.Cleanup(func() { maxListing = restore })
+	maxListing = 64
+
+	_, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
+	cleanup()
+	if err == nil {
+		t.Fatal("an image whose listing overran the bound was extracted")
+	}
+	if !errors.Is(err, ErrDecompressionBomb) || !strings.Contains(err.Error(), "more entries") {
+		t.Errorf("error = %v, want the listing bound named", err)
 	}
 }

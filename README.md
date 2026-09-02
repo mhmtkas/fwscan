@@ -167,6 +167,12 @@ Multi-partition flash dumps, UBI, JFFS2 and cramfs are not read directly:
 extract with binwalk first and point fwscan at the resulting rootfs. It does not
 try to compete with binwalk on extraction.
 
+Input is bounded because it is untrusted. An archive or image whose declared
+contents are out of proportion to its size — more than 4 GiB in total, or over
+5000× the file it came from past 64 MiB — is refused rather than extracted, as
+is an xz stream declaring a dictionary over 128 MiB (`xz -9` uses 64 MiB) and a
+path more than 256 levels deep. No real firmware image is near any of these.
+
 **fwscan finds less than grype does, and the gap is the data source.** On the
 fixture image in this repository grype reports 113 findings to fwscan's 38 —
 every one of fwscan's is also one of grype's, and on those the two agree. OSV's

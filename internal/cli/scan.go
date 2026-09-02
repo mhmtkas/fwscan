@@ -98,16 +98,21 @@ func runScan(cmd *cobra.Command, target, version string, opts scanOptions) error
 	if err != nil {
 		return err
 	}
+	// Diagnostics go to stderr so stdout stays a clean report, and through
+	// Sanitize because a warning can quote the image -- an os-release ID is as
+	// attacker-controlled as a package name, and an escape sequence in one
+	// reaches the terminal exactly as it would in the report. A failed write
+	// is not worth failing the scan over.
+	diagnostic := func(message string) {
+		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "fwscan: "+report.Sanitize(message))
+	}
 	if len(comps) == 0 {
 		// A rootfs with no package database is a legitimate result, but silence
-		// would look like a bug. The warning goes to stderr so stdout stays a
-		// clean report.
-		// A failed warning write is not worth failing the scan over.
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(),
-			"fwscan: no package database found; is this a Linux rootfs?")
+		// would look like a bug.
+		diagnostic("no package database found; is this a Linux rootfs?")
 	}
 	for _, warning := range releaseWarnings(rootfs, comps) {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "fwscan: "+warning)
+		diagnostic(warning)
 	}
 
 	// The SBOM is written before the CVE lookup, so a network failure still

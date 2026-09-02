@@ -30,6 +30,10 @@ func TestOSVLiveBackportBehaviour(t *testing.T) {
 		return model.Component{
 			Name: "libssl1.1", Version: version, Arch: "amd64",
 			Source: "openssl", SourceVersion: version, Distro: "bullseye",
+			// The release number is how an advisory names bullseye, and for
+			// an oldstable release advisories are all OSV returns; without it
+			// the fixed version cannot be matched.
+			DistroVersion: "11",
 			// The purl is what selects the query shape, so a component without
 			// one is never looked up.
 			PURL:       catalog.BinaryPURL("libssl1.1", version, "amd64", "bullseye"),

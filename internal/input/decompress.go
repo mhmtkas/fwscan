@@ -25,6 +25,11 @@ var (
 	magicTarOffset = 257
 )
 
+// maxXZDictionary bounds the dictionary an xz block may declare. 128 MiB is
+// twice what xz -9 uses and far above what any firmware build system emits;
+// the decoder allocates the declared size in full before decoding a byte.
+const maxXZDictionary = 128 << 20
+
 // peekLen is how much of the file the detector reads. It has to reach past the
 // tar magic at offset 257.
 const peekLen = 512
@@ -73,7 +78,29 @@ func decompress(r io.Reader, c Compression) (io.Reader, io.Closer, error) {
 		}
 		return zr, zr, nil
 	case CompressionXz:
-		xr, err := xz.NewReader(r)
+		// The declared dictionaries are checked from the container before the
+		// decoder sees the stream: the decoder allocates whatever a block
+		// declares, and the library's cap is a floor it grows past. Every
+		// caller hands over a file, which is seekable; a reader that is not
+		// cannot be checked and is not decoded.
+		rs, ok := r.(interface {
+			io.ReadSeeker
+			io.ReaderAt
+		})
+		if !ok {
+			return nil, nil, fmt.Errorf("xz: input is not seekable")
+		}
+		size, err := rs.Seek(0, io.SeekEnd)
+		if err != nil {
+			return nil, nil, fmt.Errorf("xz: %w", err)
+		}
+		if err := checkXZDictionaries(rs, size); err != nil {
+			return nil, nil, err
+		}
+		if _, err := rs.Seek(0, io.SeekStart); err != nil {
+			return nil, nil, fmt.Errorf("xz: %w", err)
+		}
+		xr, err := xz.NewReader(rs)
 		if err != nil {
 			return nil, nil, fmt.Errorf("xz: %w", err)
 		}

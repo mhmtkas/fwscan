@@ -60,7 +60,7 @@ func TestErrorMessages(t *testing.T) {
 					t.Fatalf("read fixture: %v", err)
 				}
 				path := filepath.Join(t.TempDir(), "rootfs.tar.gz")
-				if err := os.WriteFile(path, whole[:3000], 0o644); err != nil {
+				if err := os.WriteFile(path, whole[:len(whole)*2/3], 0o644); err != nil {
 					t.Fatalf("write: %v", err)
 				}
 				return []string{"scan", path}

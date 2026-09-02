@@ -32,6 +32,15 @@ const (
 	// into 8 s and drew no throttling.
 	defaultConcurrency = 10
 	defaultTimeout     = 60 * time.Second
+	// maxVulnsPerPackage and maxRecordsPerScan bound what a response may ask
+	// this client to fetch next. OSV is trusted, but a client that follows any
+	// number of ids into any number of detail fetches is one a compromised or
+	// impersonated service could point at a million requests and a million
+	// findings. A real package carries tens of records; a real image,
+	// thousands.
+	maxVulnsPerPackage = 10_000
+	maxRecordsPerScan  = 100_000
+
 	// maxResponseBytes bounds a single API response. OSV is a trusted service,
 	// but nothing that reads from a network gets to allocate without a limit.
 	maxResponseBytes = 64 << 20
@@ -260,6 +269,9 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 		}
 	}
 	slices.Sort(ids)
+	if len(ids) > maxRecordsPerScan {
+		return nil, fmt.Errorf("osv returned %d distinct records for this image, more than fwscan will fetch", len(ids))
+	}
 
 	records, err := o.fetchVulns(ctx, ids)
 	if err != nil {
@@ -359,6 +371,10 @@ func (o *OSV) queryBatch(ctx context.Context, keys []queryKey) (map[queryKey][]s
 			}
 			if len(result.Vulns) == 0 {
 				continue
+			}
+			if len(result.Vulns) > maxVulnsPerPackage {
+				return nil, fmt.Errorf("osv returned %d records for %s, more than fwscan will fetch",
+					len(result.Vulns), asked[i].source)
 			}
 			ids := make([]string, 0, len(result.Vulns))
 			for _, v := range result.Vulns {

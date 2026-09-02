@@ -197,12 +197,27 @@ func PlainVersion(version string) string {
 // `git describe`, and "vdev" or "v20cc89e" would read as broken to the first
 // person who sees it.
 func DisplayVersion(version string) string {
-	if version == "" || !startsWithDigit(version) {
+	if !looksLikeAVersion(version) {
 		return version
 	}
 	return "v" + version
 }
 
-func startsWithDigit(s string) bool {
-	return s != "" && s[0] >= '0' && s[0] <= '9'
+// looksLikeAVersion reports whether s opens with the digits-and-dots shape of a
+// version number. Starting with a digit is not enough: `git describe` on an
+// untagged tree yields a bare hash, and one hash in sixteen starts with one.
+func looksLikeAVersion(s string) bool {
+	dots := 0
+	for i, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+			continue
+		case c == '.' && i > 0 && s[i-1] != '.':
+			dots++
+			continue
+		default:
+			return dots >= 2 && i > 0 && s[i-1] != '.'
+		}
+	}
+	return dots >= 2 && len(s) > 0 && s[len(s)-1] != '.'
 }

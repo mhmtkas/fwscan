@@ -20,9 +20,14 @@ default assumption, shorter if the issue is being actively exploited.
 fwscan parses untrusted firmware images, so anything an image can make it do is
 in scope:
 
-- memory exhaustion or unbounded allocation driven by crafted input
+- memory, disk or CPU exhaustion driven by crafted input: unbounded
+  allocation, an archive or image that expands out of proportion to its size,
+  or a parser that slows super-linearly
 - writing outside the designated temp directory during extraction, including
-  path traversal and symlink escapes in tar or squashfs archives
+  path traversal and symlink escapes in tar or squashfs archives, or reading
+  the host through a link inside an image
+- terminal escape or invisible-character injection through anything fwscan
+  prints, including its own diagnostics
 - command injection through any path handed to `unsquashfs`
 - crashes that a crafted package database can trigger
 

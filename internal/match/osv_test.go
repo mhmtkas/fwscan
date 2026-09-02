@@ -1374,3 +1374,57 @@ func TestZeroScoringV2VectorIsNoAssessment(t *testing.T) {
 		t.Errorf("severityOf = %q, %v, %q; want unknown with nothing attached", severity, score, vector)
 	}
 }
+
+// OSV is trusted, but a client that follows any number of ids into any number
+// of detail fetches is one a compromised or impersonated service could point
+// at a million requests. Both the per-package and per-scan counts are capped.
+func TestHostileRecordCountsAreRefused(t *testing.T) {
+	ids := make([]struct {
+		ID string `json:"id"`
+	}, maxVulnsPerPackage+1)
+	for i := range ids {
+		ids[i].ID = fmt.Sprintf("DEBIAN-CVE-2024-%06d", i)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, batchResponse{Results: []batchResult{{Vulns: ids}}})
+	})
+	var fetched atomic.Int64
+	mux.HandleFunc("GET /v1/vulns/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		fetched.Add(1)
+		http.Error(w, "should not be reached", http.StatusInternalServerError)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+	_, err := osv.Match(context.Background(), []model.Component{
+		debComponent("libssl1.1", "1.1.1k-1+deb11u1", "openssl", "1.1.1k-1+deb11u1"),
+	})
+	if err == nil {
+		t.Fatal("a response naming more records than the cap was followed")
+	}
+	if n := fetched.Load(); n != 0 {
+		t.Errorf("%d detail fetches were made before the cap fired", n)
+	}
+}
+
+// A record's upstream and alias lists are read once each, up to a bound. The
+// largest real advisory names a few dozen CVEs; a hostile record can name a
+// million, and matching every CVE against every name was quadratic.
+func TestIdentitiesReadNamesOnceUpToTheBound(t *testing.T) {
+	record := vulnRecord{ID: "DLA-1-1"}
+	for i := range maxNamesPerRecord * 3 {
+		record.Upstream = append(record.Upstream, fmt.Sprintf("CVE-2024-%06d", i))
+	}
+	got := identities(record)
+	if len(got) != maxNamesPerRecord {
+		t.Errorf("got %d identities, want the bound of %d", len(got), maxNamesPerRecord)
+	}
+	// Order is preserved, so the first names win rather than a random subset.
+	if got[0].id != "CVE-2024-000000" || got[len(got)-1].id != fmt.Sprintf("CVE-2024-%06d", maxNamesPerRecord-1) {
+		t.Errorf("first/last = %s/%s", got[0].id, got[len(got)-1].id)
+	}
+}

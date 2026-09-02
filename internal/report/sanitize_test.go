@@ -95,6 +95,13 @@ func TestSanitizeRemovesInvisibleReorderingCharacters(t *testing.T) {
 		{"zero width space", "open\u200bssl"},
 		{"zero width joiner", "open\u200dssl"},
 		{"byte order mark", "\ufeffopenssl"},
+		{"word joiner", "open\u2060ssl"},
+		{"soft hyphen", "open\u00adssl"},
+		{"left-to-right mark", "open\u200essl"},
+		{"tag character", "openssl\U000E0041"},
+		{"variation selector", "openssl\ufe0f"},
+		{"hangul filler", "open\u3164ssl"},
+		{"combining grapheme joiner", "open\u034fssl"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

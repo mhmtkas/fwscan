@@ -1,7 +1,6 @@
 package match
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/package-url/packageurl-go"
@@ -34,6 +33,7 @@ type recordIdentity struct {
 	// borrowFrom is the database's own record for this CVE -- DEBIAN-CVE-… or
 	// ALPINE-CVE-… -- named in upstream, or empty when there is none.
 	borrowFrom string
+	seen       map[string]bool
 }
 
 // identities lists the vulnerabilities a record describes.
@@ -53,20 +53,37 @@ type recordIdentity struct {
 // identity per CVE it names. Its own id is an alias of each; the sibling CVEs
 // are not aliases of one another, because they are not the same vulnerability.
 func identities(record vulnRecord) []recordIdentity {
+	// Names are read once each. A record's upstream and aliases are its own
+	// business, but their length is not: a hostile response can carry
+	// millions, and matching every CVE against every name was quadratic.
+	upstream := boundNames(record.Upstream)
+	aliases := boundNames(record.Aliases)
+
+	// The database's own record for a CVE is the CVE with a prefix, so it is
+	// found by suffix: DEBIAN-CVE-2022-0778 belongs to CVE-2022-0778.
 	var cves []string
 	seen := map[string]bool{}
-	for _, up := range record.Upstream {
-		if strings.HasPrefix(up, "CVE-") && !seen[up] {
-			seen[up] = true
-			cves = append(cves, up)
+	prefixed := map[string][]string{}
+	for _, up := range upstream {
+		switch {
+		case strings.HasPrefix(up, "CVE-"):
+			if !seen[up] {
+				seen[up] = true
+				cves = append(cves, up)
+			}
+		case up != record.ID:
+			if i := strings.Index(up, "-CVE-"); i >= 0 {
+				cve := up[i+1:]
+				prefixed[cve] = append(prefixed[cve], up)
+			}
 		}
 	}
 
 	if len(cves) == 0 {
 		// Not a record that names a CVE. It is its own identity, and every
 		// other name it carries is an alias.
-		ident := recordIdentity{id: record.ID}
-		for _, name := range append(append([]string{}, record.Upstream...), record.Aliases...) {
+		ident := newIdentity(record.ID)
+		for _, name := range append(append([]string{}, upstream...), aliases...) {
 			ident.addAlias(name)
 			if ident.borrowFrom == "" && name != record.ID && strings.Contains(name, "-CVE-") {
 				ident.borrowFrom = name
@@ -77,20 +94,15 @@ func identities(record vulnRecord) []recordIdentity {
 
 	out := make([]recordIdentity, 0, len(cves))
 	for _, cve := range cves {
-		ident := recordIdentity{id: cve}
+		ident := newIdentity(cve)
 		ident.addAlias(record.ID)
-		// The database's own record for this CVE is named DEBIAN-CVE-… or
-		// ALPINE-CVE-…: the CVE with a prefix. It is the alias that belongs
-		// to this identity, and the record to borrow an assessment from.
-		for _, up := range record.Upstream {
-			if up != record.ID && strings.HasSuffix(up, "-"+cve) {
-				ident.addAlias(up)
-				if ident.borrowFrom == "" {
-					ident.borrowFrom = up
-				}
+		for _, up := range prefixed[cve] {
+			ident.addAlias(up)
+			if ident.borrowFrom == "" {
+				ident.borrowFrom = up
 			}
 		}
-		for _, alias := range record.Aliases {
+		for _, alias := range aliases {
 			ident.addAlias(alias)
 		}
 		out = append(out, ident)
@@ -98,10 +110,26 @@ func identities(record vulnRecord) []recordIdentity {
 	return out
 }
 
+// maxNamesPerRecord bounds how many upstream or alias names of one record are
+// read. The largest real advisory names a few dozen CVEs.
+const maxNamesPerRecord = 1000
+
+func boundNames(names []string) []string {
+	if len(names) > maxNamesPerRecord {
+		return names[:maxNamesPerRecord]
+	}
+	return names
+}
+
+func newIdentity(id string) recordIdentity {
+	return recordIdentity{id: id, seen: map[string]bool{id: true}}
+}
+
 func (r *recordIdentity) addAlias(name string) {
-	if name == "" || name == r.id || slices.Contains(r.aliases, name) {
+	if name == "" || r.seen[name] {
 		return
 	}
+	r.seen[name] = true
 	r.aliases = append(r.aliases, name)
 }
 

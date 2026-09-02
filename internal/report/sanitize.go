@@ -1,6 +1,9 @@
 package report
 
-import "strings"
+import (
+	"strings"
+	"unicode"
+)
 
 // Sanitize makes a string from an untrusted image safe to write to a terminal.
 //
@@ -61,10 +64,21 @@ func unsafeForTerminal(r rune) bool {
 		// be made to read as a different one -- the Trojan Source trick. A
 		// scanner's whole output is names the reader is asked to trust.
 		return true
-	case r >= '\u200B' && r <= '\u200D', r == '\uFEFF':
-		// Zero-width space, non-joiner, joiner and the byte order mark. Two
-		// names that render identically must not be able to hide that they
-		// differ.
+	case unicode.Is(unicode.Cf, r):
+		// Every format character: the zero-width space, joiner and
+		// non-joiner, the word joiner, the soft hyphen, the byte order mark,
+		// the directional marks, the tag block. None of them is visible, and
+		// two names that render identically must not be able to hide that
+		// they differ. The category is used rather than a list, because a
+		// list is only ever as complete as the last attack someone thought of.
+		return true
+	case r >= '\uFE00' && r <= '\uFE0F', r >= 0xE0100 && r <= 0xE01EF:
+		// Variation selectors: marks that change how the previous character
+		// is drawn, or not at all.
+		return true
+	case r == '\u034F', r == '\u115F', r == '\u1160', r == '\u3164', r == '\uFFA0':
+		// The combining grapheme joiner and the Hangul fillers, which are
+		// letters by category and blank on screen.
 		return true
 	default:
 		return false

@@ -31,11 +31,20 @@ const (
 	tempDirNamespace = "fwscan-extract-"
 )
 
-// maxEntries bounds the number of entries an archive may hold: a million files
-// is an attack on the filesystem's inodes rather than a rootfs. A variable so a
-// test can lower it and reach the bound with an archive it can build; nothing
-// else assigns to it.
+// maxEntries bounds the filesystem objects an archive may create: a million is
+// an attack on the filesystem's inodes rather than a rootfs. Every path
+// component counts, not only every entry, because one entry with a very deep
+// name creates a directory per level -- a single 400 KB entry made 200,000
+// directories before components were counted. A variable so a test can lower
+// it and reach the bound with an archive it can build; nothing else assigns to
+// it.
 var maxEntries = 1 << 20
+
+// maxPathDepth bounds how many levels deep an entry may sit. A real rootfs is
+// under twenty; each level past it is a directory to create and a path for the
+// kernel to re-resolve on every entry beneath it, and with no bound a small
+// archive spent half a minute making nothing.
+const maxPathDepth = 256
 
 // ErrDecompressionBomb reports an archive whose contents are wildly out of
 // proportion to its size.
@@ -248,14 +257,14 @@ func extractTar(ctx context.Context, tr *tar.Reader, root *os.Root, budget *extr
 			return fmt.Errorf("reading archive: %w", err)
 		}
 
-		entries++
-		if entries > maxEntries {
-			return fmt.Errorf("archive has more than %d entries", maxEntries)
-		}
-
 		name, err := safeName(header.Name)
 		if err != nil {
 			return err
+		}
+
+		entries += 1 + strings.Count(name, string(filepath.Separator))
+		if entries > maxEntries {
+			return fmt.Errorf("archive creates more than %d files and directories", maxEntries)
 		}
 
 		switch header.Typeflag {
@@ -320,6 +329,9 @@ func safeName(name string) (string, error) {
 	clean := filepath.Clean(filepath.FromSlash(name))
 	if escapesLexically(clean) {
 		return "", fmt.Errorf("%w: %s", ErrUnsafePath, name)
+	}
+	if depth := strings.Count(clean, string(filepath.Separator)) + 1; depth > maxPathDepth {
+		return "", fmt.Errorf("%w: %d levels deep, more than %d", ErrUnsafePath, depth, maxPathDepth)
 	}
 	return clean, nil
 }

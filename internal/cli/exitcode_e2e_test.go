@@ -152,3 +152,31 @@ func TestExitCodes(t *testing.T) {
 		}
 	})
 }
+
+// `fwscan scan image | head` closes stdout early. The runtime's default on a
+// broken stdout is to die of SIGPIPE, which runs no deferred cleanup and left
+// the extracted rootfs on disk every time.
+func TestClosedStdoutDoesNotLeakTheExtraction(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a binary")
+	}
+	tmp := t.TempDir()
+	image := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.tar.gz")
+
+	// The reader takes one byte and closes; the writer's next write breaks.
+	script := fmt.Sprintf("%q scan --no-network %q | head -c 1 >/dev/null", fwscanBinary(t), image)
+	cmd := exec.Command("sh", "-c", script)
+	cmd.Dir = filepath.Join("..", "..")
+	cmd.Env = append(os.Environ(), "TMPDIR="+tmp)
+	_ = cmd.Run() // the pipeline's status is head's; fwscan's own is not observable here
+
+	left, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range left {
+		if strings.HasPrefix(e.Name(), "fwscan-extract-") {
+			t.Errorf("extraction directory %s left behind after stdout closed", e.Name())
+		}
+	}
+}

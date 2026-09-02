@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,13 +34,26 @@ const unsquashfsTimeout = 10 * time.Minute
 // line is ever shown, and the rest comes from the image.
 const maxToolOutput = 64 << 10
 
-// boundedBuffer collects at most maxToolOutput bytes and silently drops the
-// rest.
-type boundedBuffer struct{ buf bytes.Buffer }
+// boundedBuffer collects at most limit bytes -- maxToolOutput when unset -- and
+// drops the rest, remembering that it did.
+type boundedBuffer struct {
+	buf       bytes.Buffer
+	limit     int
+	truncated bool
+}
 
 func (b *boundedBuffer) Write(p []byte) (int, error) {
-	if room := maxToolOutput - b.buf.Len(); room > 0 {
+	limit := b.limit
+	if limit <= 0 {
+		limit = maxToolOutput
+	}
+	if room := limit - b.buf.Len(); room > 0 {
 		b.buf.Write(p[:min(room, len(p))])
+		if len(p) > room {
+			b.truncated = true
+		}
+	} else if len(p) > 0 {
+		b.truncated = true
 	}
 	// The writer reports everything consumed: a full buffer is not the tool's
 	// problem, and an error here would show as a broken pipe rather than as
@@ -117,6 +131,16 @@ func (s SquashFS) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, er
 	ctx, cancel := context.WithTimeout(ctx, unsquashfsTimeout)
 	defer cancel()
 
+	// What the image declares is checked before anything is written. The tar
+	// path meters every byte it writes; unsquashfs writes outside that meter,
+	// and squashfs deduplicates identical blocks, so a 1.6 MB image declared
+	// 1.5 GiB of files and had every one of them written before anything could
+	// object. The listing is the same tool reading only metadata.
+	if err := checkDeclared(ctx, binary, image); err != nil {
+		cleanup()
+		return nil, noopCleanup, err
+	}
+
 	// binary comes from LookPath and the only variable argument is the user's
 	// own scan target. This is the one sanctioned shell-out (CLAUDE.md rule 8).
 	cmd := exec.CommandContext(ctx, binary, "-no-progress", "-quiet", "-d", target, image)
@@ -175,6 +199,70 @@ func openExtracted(target string) (*os.Root, error) {
 		return nil, fmt.Errorf("open the extracted rootfs: %w", err)
 	}
 	return root, nil
+}
+
+// maxListing bounds the metadata listing an image may produce before it is
+// refused unread: at roughly a hundred bytes a line it is over three hundred
+// thousand entries, which is not a rootfs. A variable so a test can lower it;
+// nothing else assigns to it.
+var maxListing = 32 << 20
+
+// checkDeclared reads what the image says it contains and refuses one whose
+// contents are out of proportion to the file, by the same rules that bound a
+// tar archive: the total, the object count, and the ratio to the source.
+func checkDeclared(ctx context.Context, binary, image string) error {
+	info, err := os.Stat(image)
+	if err != nil {
+		return fmt.Errorf("stat the image: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, binary, "-ll", "-d", "", image)
+	out := boundedBuffer{limit: maxListing}
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fmt.Errorf("extraction stopped: %w", ctxErr)
+		}
+		return fmt.Errorf("unsquashfs could not read the image: %s", toolMessage(out.String(), image, image))
+	}
+	if out.truncated {
+		return fmt.Errorf("%w: the image lists more entries than fwscan will extract", ErrDecompressionBomb)
+	}
+
+	var objects, declared int64
+	for _, line := range strings.Split(out.String(), "\n") {
+		// A listing line opens with the mode, "-rw-r--r--"; the tool's own
+		// chatter does not. The size is the third field, after owner/group.
+		if line == "" || !strings.ContainsRune("-dlcbps", rune(line[0])) {
+			continue
+		}
+		objects++
+		if line[0] != '-' {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		size, err := strconv.ParseInt(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		declared += size
+	}
+
+	switch {
+	case objects > int64(maxEntries):
+		return fmt.Errorf("%w: the image declares %d files and directories, more than %d",
+			ErrDecompressionBomb, objects, maxEntries)
+	case declared > maxTotalBytes:
+		return fmt.Errorf("%w: the image declares %d bytes of files, more than the %d byte limit",
+			ErrDecompressionBomb, declared, int64(maxTotalBytes))
+	case info.Size() > 0 && declared > minExpansionBytes && declared/info.Size() > maxExpansionRatio:
+		return fmt.Errorf("%w: a %d byte image declares %d bytes of files, over %dx",
+			ErrDecompressionBomb, info.Size(), declared, maxExpansionRatio)
+	}
+	return nil
 }
 
 // decompressToFile unwraps a compressed image into dest and returns its path.

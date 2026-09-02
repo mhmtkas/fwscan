@@ -405,3 +405,39 @@ func TestReleaseWarnings(t *testing.T) {
 		})
 	}
 }
+
+// A diagnostic can quote the image -- an os-release ID is as attacker-controlled
+// as a package name -- and the report has been sanitised since it was written.
+// The warnings went to stderr around that, raw.
+func TestDiagnosticsAreSanitised(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "var", "lib", "dpkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "var", "lib", "dpkg", "status"),
+		[]byte("Package: x\nStatus: install ok installed\nArchitecture: amd64\nVersion: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "etc", "os-release"),
+		[]byte("ID=\"\x1b[2Jpwned\"\nVERSION_ID=\"12\"\nVERSION_CODENAME=bookworm\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd := NewRootCmd("v0.1.0")
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"scan", "--no-network", root})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "pwned") {
+		t.Fatalf("the os-release warning did not fire: %q", stderr.String())
+	}
+	if strings.ContainsRune(stderr.String(), 0x1b) {
+		t.Errorf("stderr carries a raw escape: %q", stderr.String())
+	}
+}

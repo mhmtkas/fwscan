@@ -10,3 +10,11 @@ dist/
 # addressed to whoever is building this rather than to whoever is reading it,
 # and the repository is public.
 .private/
+
+# The nested spike module builds into its own directory.
+spike/vercmp/vercmp
+
+# Editors.
+.idea/
+.vscode/
+*.swp

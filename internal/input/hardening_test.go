@@ -339,8 +339,8 @@ func TestArchiveEntryCountIsBounded(t *testing.T) {
 	if err == nil {
 		t.Fatal("an archive past the entry limit extracted without complaint")
 	}
-	if !strings.Contains(err.Error(), "entries") {
-		t.Errorf("error = %v, want it to name the entry limit", err)
+	if !strings.Contains(err.Error(), "files and directories") {
+		t.Errorf("error = %v, want it to name the object limit", err)
 	}
 
 	// The extraction stops where the bound is, rather than after finishing.
@@ -622,5 +622,131 @@ func TestCleanupIsSafeToCallTwice(t *testing.T) {
 	cleanup()
 	if after := count(); after != before {
 		t.Errorf("%d extraction directories left behind", after-before)
+	}
+}
+
+// An xz stream declares its own dictionary size and the decoder allocates all
+// of it before producing a byte, so a 180-byte file could cost 1.5 GiB of
+// memory -- during detection, before any budget existed to notice.
+func TestXZDictionaryIsBounded(t *testing.T) {
+	if _, err := exec.LookPath("xz"); err != nil {
+		t.Skip("xz not installed; needed to build a stream declaring a large dictionary")
+	}
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "small.tar")
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	writeReg(t, tw, "var/lib/dpkg/status", testStatus)
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plain, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Well past the cap, and still a file of a few hundred bytes.
+	cmd := exec.Command("xz", "-k", "-f", "--lzma2=dict=512MiB", plain)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("xz could not build the stream: %v: %s", err, out)
+	}
+	bomb := plain + ".xz"
+
+	// Detection alone must not pay for the dictionary.
+	if _, _, err := Detect(bomb); err == nil {
+		t.Error("Detect() accepted a stream declaring a 512 MiB dictionary")
+	}
+	_, cleanup, err := Open(context.Background(), bomb)
+	cleanup()
+	if err == nil {
+		t.Fatal("a stream declaring a 512 MiB dictionary was decompressed")
+	}
+
+	// The dictionary is declared per block, and a file may hold several
+	// streams back to back, so a declaration in the last block of the last
+	// stream must be found too.
+	cmd = exec.Command("xz", "-k", "-f", "-9", plain)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("xz: %v: %s", err, out)
+	}
+	good, err := os.ReadFile(bomb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.Command("xz", "-k", "-f", "--lzma2=dict=512MiB", plain)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("xz: %v: %s", err, out)
+	}
+	bad, err := os.ReadFile(bomb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	concatenated := filepath.Join(dir, "two.tar.xz")
+	if err := os.WriteFile(concatenated, append(append([]byte{}, good...), bad...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, cleanup, err := Open(context.Background(), concatenated); err == nil {
+		cleanup()
+		t.Error("a large dictionary in the second of two streams was not found")
+	} else {
+		cleanup()
+		if !errors.Is(err, ErrXZDictionary) {
+			t.Errorf("error %v does not wrap ErrXZDictionary", err)
+		}
+	}
+
+	// And an ordinary xz archive still works, including a multi-block one.
+	if err := os.WriteFile(bomb, good, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, cleanup, err := Open(context.Background(), bomb); err != nil {
+		cleanup()
+		t.Fatalf("an xz -9 archive was refused: %v", err)
+	} else {
+		cleanup()
+	}
+	cmd = exec.Command("xz", "-k", "-f", "-T2", "--block-size=512", plain)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("xz: %v: %s", err, out)
+	}
+	if _, cleanup, err := Open(context.Background(), bomb); err != nil {
+		cleanup()
+		t.Fatalf("a multi-block xz archive was refused: %v", err)
+	} else {
+		cleanup()
+	}
+}
+
+// One entry with a very deep name creates a directory per level, and every
+// entry beneath a deep prefix makes the kernel re-resolve all of it: a 10 KB
+// archive made 200,000 directories and took half a minute doing so.
+func TestPathDepthIsBounded(t *testing.T) {
+	deep := strings.Repeat("d/", maxPathDepth+1) + "f"
+	if _, err := safeName(deep); err == nil {
+		t.Errorf("a %d-level path was accepted", maxPathDepth+1)
+	}
+	if _, err := safeName(strings.Repeat("d/", maxPathDepth-1) + "f"); err != nil {
+		t.Errorf("a %d-level path was refused: %v", maxPathDepth, err)
+	}
+
+	// Path components count against the object budget, since each is a
+	// directory to create.
+	restore := maxEntries
+	t.Cleanup(func() { maxEntries = restore })
+	maxEntries = 64
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for i := range 4 {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: strings.Repeat("d/", 20) + fmt.Sprintf("f%d", i), Typeflag: tar.TypeReg, Mode: 0o644,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := extractInto(t, t.TempDir(), buf.Bytes()); err == nil {
+		t.Error("four entries implying 84 objects extracted under a budget of 64")
 	}
 }

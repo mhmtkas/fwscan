@@ -71,9 +71,14 @@ jobs:
         # sudo, because /usr/local/bin is not the runner user's to write.
         env:
           CYCLONEDX_VERSION: v0.33.1
+          # sha256 of cyclonedx-linux-x64 at that tag. A downloaded binary is
+          # run against the SBOM this job validates; a swapped release asset
+          # would otherwise run unverified.
+          CYCLONEDX_SHA256: bfc8b2538da86fe239bc53658bbb63c1c8c510a293c1e6891aa5bea5d3c58746
         run: |
           curl -sSfL -o /tmp/cyclonedx \
             "https://github.com/CycloneDX/cyclonedx-cli/releases/download/${CYCLONEDX_VERSION}/cyclonedx-linux-x64"
+          echo "${CYCLONEDX_SHA256}  /tmp/cyclonedx" | sha256sum --check --strict
           chmod +x /tmp/cyclonedx
           sudo mv /tmp/cyclonedx /usr/local/bin/cyclonedx
           cyclonedx --version

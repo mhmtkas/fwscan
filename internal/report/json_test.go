@@ -166,6 +166,12 @@ func TestVersionRendering(t *testing.T) {
 		{"dev", "dev", "dev"},
 		{"abc1234", "abc1234", "abc1234"},
 		{"abc1234-dirty", "abc1234-dirty", "abc1234-dirty"},
+		// A hash that happens to start with a digit is still a hash.
+		{"1a2b3c4", "1a2b3c4", "1a2b3c4"},
+		{"933c3e6-dirty", "933c3e6-dirty", "933c3e6-dirty"},
+		// Pre-release and build metadata keep the version shape.
+		{"0.2.0-rc.1", "0.2.0-rc.1", "v0.2.0-rc.1"},
+		{"0.0.0-20260902045748-c3043c9f8192", "0.0.0-20260902045748-c3043c9f8192", "v0.0.0-20260902045748-c3043c9f8192"},
 	}
 	for _, tt := range tests {
 		if got := PlainVersion(tt.in); got != tt.plain {

@@ -62,6 +62,13 @@ func Execute(version string) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// A reader closing stdout early -- `fwscan scan image | head` -- must not
+	// kill the process. The runtime's default on a broken stdout is to die of
+	// SIGPIPE, which runs no deferred cleanup and leaves the extracted rootfs
+	// on disk. Ignored, the write fails with EPIPE instead, and that failure
+	// unwinds through the same path as every other error.
+	signal.Ignore(syscall.SIGPIPE)
+
 	err := NewRootCmd(version).ExecuteContext(ctx)
 	if err == nil {
 		return ExitOK
