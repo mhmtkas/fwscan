@@ -69,14 +69,14 @@ reports known vulnerabilities from OSV.dev.
   coming, how it is built, exactly what it emits, and how it measures against
   syft and grype.
 
-### Fixed after first testing on real firmware
+### Found by testing on real firmware before release
 
 - A squashfs image containing device nodes — which every real rootfs does, `/dev/console`
   at the least — was refused. `unsquashfs` cannot create them without root, says
   so, exits 2 and extracts everything else; fwscan treated any non-zero status as
   failure. The first real OpenWrt image tried against it produced 1069 files
-  including the package database and was rejected anyway. Exit 2 is now read as
-  what it means and exit 1 still is not.
+  including the package database and was rejected anyway. Exit 2 is read as what
+  it means and exit 1 still is not.
 - An image carrying a package database fwscan does not read — opkg, rpm — now
   says so. A real OpenWrt image lists 150 opkg packages; fwscan reports the two
   its filename heuristics recognise, and reporting two of a hundred and fifty
