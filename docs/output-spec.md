@@ -1,6 +1,6 @@
 # fwscan — Output Specification (v1)
 
-Normative spec for everything fwscan prints or writes. The agent implements exactly this; changes go through the maintainer.
+Normative spec for everything fwscan prints or writes. The implementation follows this document; a change to what fwscan emits is a change here first, and goes through the maintainer.
 
 ## 1. Severity mapping (applies everywhere)
 
@@ -20,7 +20,7 @@ A vector that parses but scores **0.0** is no assessment, on every path: the ban
 
 One finding per vulnerability per component. OSV answers a single package query with several records describing one issue — the `DEBIAN-CVE-…` record carrying the CVSS vector and the release's fixed version, plus the DSA or DLA advisory that shipped the fix, carrying neither — and §3's identifier rule resolves them to the same id. Collapse them: keep the most severe assessment, and its `severity`, `cvss_score` and `cvss_vector` together so the score always matches the vector it came from; take `fixed_version` from whichever record has one; union the `aliases` so every merged record's id stays visible.
 
-Store both the bucket and the numeric score (score `0` + bucket `unknown` when absent). Sorting order everywhere: `critical > high > medium > low > unknown`; ties broken by CVSS score descending, then component name ascending, then vuln ID ascending. Use an existing CVSS parsing library only if already permitted by CLAUDE.md's dependency rule; otherwise implement the base-score computation with a full table-driven test against published example vectors. For v4 the MacroVector lookup table is data that cannot be derived: transcribe it from the reference implementation, record which commit it came from, and check the result against that implementation rather than against hand-computed values.
+Store both the bucket and the numeric score (score `0` + bucket `unknown` when absent). Sorting order everywhere: `critical > high > medium > low > unknown`; ties broken by CVSS score descending, then component name ascending, then vuln ID ascending. Base scores are computed in this repository rather than by a dependency, with a table-driven test of published vectors and their scores. For v4 the MacroVector lookup table is data that cannot be derived: transcribe it from the reference implementation, record which commit it came from, and check the result against that implementation rather than against hand-computed values.
 
 `FixedVersion`: from the OSV `affected[].ranges[].events` for the matching Debian/Alpine range, take the `fixed` event if present; empty string otherwise. If multiple ranges match, prefer the one whose `introduced`–`fixed` window contains the installed version. Where several still qualify — a release can carry more than one advisory for the same issue — report the **lowest**: the column answers what version stops being affected, not what version is newest, and without a rule the answer would depend on the order OSV returned the records in. Never report a version below the installed one; a fix that is known to be older is not an answer, and only a version whose ordering cannot be established at all may be reported without that check.
 
@@ -32,7 +32,7 @@ Where no matching window contains the installed version, the lowest fixed versio
 
 ## 2. Terminal report (default output, stdout)
 
-Plain ASCII; no color in v1 (color is a v1.x nicety — do not implement now). Fixed structure:
+Plain ASCII, no color (color is on the roadmap). Fixed structure:
 
 ```
 fwscan v0.1.0

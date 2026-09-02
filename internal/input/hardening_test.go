@@ -80,7 +80,7 @@ func TestNoTempDirsLeakOnFailure(t *testing.T) {
 			rootfs, cleanup, err := Open(context.Background(), path)
 			if err == nil {
 				cleanup()
-				t.Fatalf("Open(context.Background(), ) accepted a hostile archive, returning %v", rootfs)
+				t.Fatalf("Open() accepted a hostile archive, returning %v", rootfs)
 			}
 			if cleanup == nil {
 				t.Fatal("cleanup is nil on the error path")
@@ -138,7 +138,7 @@ func TestSymlinkEscapesAreNeverReadable(t *testing.T) {
 
 	rootfs, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v; escaping links should be dropped, not fatal", err)
+		t.Fatalf("Open() error = %v; escaping links should be dropped, not fatal", err)
 	}
 	defer cleanup()
 
@@ -294,7 +294,7 @@ func TestOrdinaryImagesDoNotTripTheExpansionGuard(t *testing.T) {
 			_, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", name))
 			defer cleanup()
 			if err != nil {
-				t.Errorf("Open(context.Background(), ) error = %v; a committed fixture must not trip the expansion guard", err)
+				t.Errorf("Open() error = %v; a committed fixture must not trip the expansion guard", err)
 			}
 		})
 	}
@@ -505,7 +505,7 @@ func TestDirectoryInputCannotReadThroughASymlink(t *testing.T) {
 
 	rootfs, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v; a directory holding an escaping link is still scannable", err)
+		t.Fatalf("Open() error = %v; a directory holding an escaping link is still scannable", err)
 	}
 	defer cleanup()
 

@@ -50,7 +50,7 @@ func TestDirectoryCatalogsLikeMapFS(t *testing.T) {
 
 	rootfs, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v", err)
+		t.Fatalf("Open() error = %v", err)
 	}
 	defer cleanup()
 
@@ -77,7 +77,7 @@ func TestOpenCleanupIsNoopForDirectories(t *testing.T) {
 	root := writeRootfs(t)
 	_, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v", err)
+		t.Fatalf("Open() error = %v", err)
 	}
 	if cleanup == nil {
 		t.Fatal("cleanup is nil; callers defer it unconditionally")
@@ -114,7 +114,7 @@ func TestOpenErrors(t *testing.T) {
 			}
 			cleanup()
 			if err == nil {
-				t.Fatal("Open(context.Background(), ) error = nil, want an error")
+				t.Fatal("Open() error = nil, want an error")
 			}
 			if tt.wantErrIs != nil && !errors.Is(err, tt.wantErrIs) {
 				t.Errorf("error %v does not wrap %v", err, tt.wantErrIs)
@@ -145,13 +145,13 @@ func TestDirOpenRejectsNonDirectory(t *testing.T) {
 	}
 }
 
-// os.DirFS confines reads to the root, so a cataloger cannot be walked out of
-// the image by a crafted path.
-func TestDirFSConfinesReads(t *testing.T) {
+// Reads are confined to the root, so a cataloger cannot be walked out of the
+// image by a crafted path.
+func TestReadsAreConfinedToTheRoot(t *testing.T) {
 	root := writeRootfs(t)
 	rootfs, cleanup, err := Open(context.Background(), root)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v", err)
+		t.Fatalf("Open() error = %v", err)
 	}
 	defer cleanup()
 
@@ -177,7 +177,7 @@ func TestDetect(t *testing.T) {
 		wantErr         bool
 	}{
 		{"directory", dir, FormatDirectory, CompressionNone, false},
-		{"regular file is not yet recognised", file, FormatUnknown, CompressionNone, false},
+		{"a file that is not an archive", file, FormatUnknown, CompressionNone, false},
 		{"missing", filepath.Join(dir, "absent"), FormatUnknown, CompressionNone, true},
 	}
 	for _, tt := range tests {

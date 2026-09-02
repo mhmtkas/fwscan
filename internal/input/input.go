@@ -59,9 +59,9 @@ func Open(ctx context.Context, path string) (fs.FS, CleanupFunc, error) {
 	return rootfs, cleanup, nil
 }
 
-// sourceFor maps a detected format to its handler. Formats that are recognised
-// but not yet implemented get a clear message rather than a confusing one; the
-// remaining handlers arrive in T5 and T11.
+// sourceFor maps a detected format to its handler. Anything unrecognised gets a
+// message that says what fwscan can read and where to start, rather than a
+// confusing one.
 func sourceFor(path string, format Format, compression Compression) (Source, error) {
 	switch format {
 	case FormatDirectory:

@@ -20,10 +20,9 @@ var ErrUnsafePath = errors.New("archive entry escapes the extraction directory")
 // Extraction bounds. A firmware rootfs is large but not unbounded, and this
 // code is handed untrusted images (CLAUDE.md rule 9).
 //
-// The totals are deliberately far below what a disk holds. The previous 16 GiB
-// and 8 GiB were a formality rather than a bound: no firmware rootfs comes near
-// them, and on most systems the extraction directory is a tmpfs, so the ceiling
-// is really the machine's memory.
+// The totals are deliberately far below what a disk holds: no firmware rootfs
+// comes near them, and on most systems the extraction directory is a tmpfs, so
+// the real ceiling is the machine's memory.
 const (
 	maxTotalBytes    = 4 << 30 // 4 GiB written in total
 	maxSingleFile    = 2 << 30 // 2 GiB for any one file
@@ -290,9 +289,7 @@ func extractTar(ctx context.Context, tr *tar.Reader, root *os.Root, budget *extr
 				return fmt.Errorf("create parent of %s: %w", header.Name, err)
 			}
 			if err := root.Link(source, name); err != nil && !errors.Is(err, os.ErrExist) {
-				// The path in the OS error is inside a temp directory the user
-				// never named, so only the archive's own name is reported.
-				return fmt.Errorf("cannot create the hard link %s", header.Name)
+				return fmt.Errorf("cannot create the hard link %s: %w", header.Name, err)
 			}
 		default:
 			// Character devices, block devices, FIFOs and sockets are not

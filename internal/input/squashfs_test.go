@@ -91,7 +91,7 @@ func TestSquashFSWithAbsoluteSymlinks(t *testing.T) {
 
 	rootfs, cleanup, err := Open(context.Background(), buildSquashFS(t, src))
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v; a rootfs with absolute symlinks is an ordinary image, not a hostile one", err)
+		t.Fatalf("Open() error = %v; a rootfs with absolute symlinks is an ordinary image, not a hostile one", err)
 	}
 	defer cleanup()
 
@@ -157,7 +157,7 @@ func TestSquashFSCompressionMatrix(t *testing.T) {
 
 			rootfs, cleanup, err := Open(context.Background(), path)
 			if err != nil {
-				t.Fatalf("Open(context.Background(), ) error = %v", err)
+				t.Fatalf("Open() error = %v", err)
 			}
 			defer cleanup()
 
@@ -195,7 +195,7 @@ func TestSquashFSCleanupRemovesTempDir(t *testing.T) {
 	path := filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs")
 	rootfs, cleanup, err := Open(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v", err)
+		t.Fatalf("Open() error = %v", err)
 	}
 	if _, err := rootfs.Open(catalog.DpkgStatusPath); err != nil {
 		t.Fatalf("status not readable before cleanup: %v", err)
@@ -217,7 +217,7 @@ func TestSquashFSMissingUnsquashfs(t *testing.T) {
 	cleanup()
 
 	if err == nil {
-		t.Fatal("Open(context.Background(), ) returned no error with unsquashfs missing")
+		t.Fatal("Open() returned no error with unsquashfs missing")
 	}
 	if !errors.Is(err, ErrUnsquashfsMissing) {
 		t.Errorf("error %v does not wrap ErrUnsquashfsMissing", err)
@@ -251,7 +251,7 @@ func TestSquashFSCorruptImage(t *testing.T) {
 	_, cleanup, err := Open(context.Background(), path)
 	cleanup()
 	if err == nil {
-		t.Fatal("Open(context.Background(), ) on a corrupt image returned no error")
+		t.Fatal("Open() on a corrupt image returned no error")
 	}
 	if strings.Count(err.Error(), "\n") > 0 {
 		t.Errorf("error spans multiple lines: %q", err)
@@ -313,7 +313,7 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 
 	bare, cleanup, err := Open(context.Background(), filepath.Join("..", "..", "testdata", "images", "mini-rootfs.squashfs"))
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) on the bare image error = %v", err)
+		t.Fatalf("Open() on the bare image error = %v", err)
 	}
 	reference, err := catalog.NewDpkg().Catalog(context.Background(), bare)
 	cleanup()
@@ -357,7 +357,7 @@ func TestSquashFSWrappedInAnOuterCompression(t *testing.T) {
 
 			rootfs, cleanup, err := Open(context.Background(), path)
 			if err != nil {
-				t.Fatalf("Open(context.Background(), ) error = %v; a wrapped image is supported input", err)
+				t.Fatalf("Open() error = %v; a wrapped image is supported input", err)
 			}
 			defer cleanup()
 

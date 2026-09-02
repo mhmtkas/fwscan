@@ -14,8 +14,7 @@ var ErrUnsupportedFormat = errors.New("unsupported format")
 // Format is what the input is.
 type Format string
 
-// The formats fwscan recognises. Handlers for tar and squashfs arrive in T5
-// and T11; the constants exist now so detection has something to return.
+// The formats fwscan recognises.
 const (
 	FormatUnknown   Format = "unknown"
 	FormatDirectory Format = "directory"

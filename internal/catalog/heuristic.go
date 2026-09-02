@@ -24,7 +24,7 @@ import (
 // query them. Asking OSV about a version that was inferred from a filename,
 // without knowing which distribution it belongs to, reintroduces exactly the
 // cross-release false positives the release qualifier exists to prevent
-// (spike/NOTES.md T0.3). See open question 5 there.
+// (spike/NOTES.md T0.3, and question 5 under T0.5).
 type Heuristic struct{}
 
 // NewHeuristic returns the heuristic cataloger.
@@ -149,7 +149,7 @@ func scanForBanner(r io.Reader, re *regexp.Regexp) string {
 	for {
 		n, err := reader.Read(buf)
 		if n > 0 {
-			window := append(carry, buf[:n]...) //nolint:gocritic // carry is intentionally rebuilt
+			window := append(carry, buf[:n]...) // carry is intentionally rebuilt
 			if m := re.FindSubmatch(window); m != nil {
 				return string(m[1])
 			}
@@ -185,9 +185,8 @@ var libraryDirs = []string{
 // OpenSSL one does not — libssl.so.3 names the ABI, and every 3.x shares it —
 // so what is recorded is the soname, and the low confidence is doing real work.
 var libraryPatterns = []struct {
-	name    string
-	re      *regexp.Regexp
-	comment string
+	name string
+	re   *regexp.Regexp
 }{
 	{name: "glibc", re: regexp.MustCompile(`^libc-([0-9]+\.[0-9]+(\.[0-9]+)?)\.so$`)},
 	{name: "openssl", re: regexp.MustCompile(`^libssl\.so\.([0-9]+(\.[0-9]+)*)$`)},

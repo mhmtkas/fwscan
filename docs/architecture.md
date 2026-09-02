@@ -25,14 +25,17 @@ refactor.
 
 `input` produces an `fs.FS`. That single decision is why the rest is simple:
 
-- Every input handler only has to produce one. A directory is `os.DirFS`; a
-  tarball and a squashfs image are extracted to a temp directory and then are
-  also `os.DirFS`.
+- Every input handler only has to produce one. A directory is opened as an
+  `os.Root` and served through `Root.FS`; a tarball and a squashfs image are
+  extracted to a temp directory and then served the same way.
 - Every cataloger only has to read one, which makes it testable against
   `fstest.MapFS` with no fixture files at all. Most of the cataloger tests are
   ten-line string literals.
-- Reads are confined. `os.DirFS` rejects absolute paths and paths climbing out
-  of the root, so a crafted image cannot walk a cataloger onto the host.
+- Reads are confined where the kernel resolves the path, not where a string is
+  inspected. `os.Root` refuses any path component — including one reached
+  through a symlink — that leaves the directory, so a crafted image cannot walk
+  a cataloger onto the host. `os.DirFS` would not do: it rejects a path that
+  spells its way out and follows a symlink wherever it points.
 
 `input.Open` always returns a non-nil cleanup, including on its error paths, so
 `defer cleanup()` immediately after the call is always correct.
@@ -47,11 +50,23 @@ read off real files during the spike rather than copied from documentation,
 which is how the fact that tar has no magic at offset 0 (`ustar` sits at 257)
 ended up recorded rather than discovered in production.
 
-Extraction is hostile-input territory: entry paths go through `safeJoin`, which
-refuses anything resolving outside the temp directory; symlinks pointing out are
-dropped rather than created, because `os.DirFS` follows symlinks through the
-operating system; entry count, total bytes and single-file size are all bounded;
-and `io.Copy` is capped rather than trusting the declared header size.
+Extraction is hostile-input territory, and the guarantee is layered. Every
+write goes through the same `os.Root` the reads will use, so a path that only
+becomes an escape once symlinks are followed — `a -> ..` then `b -> a/..`, each
+step reading as inside — is refused by the kernel-side resolution rather than by
+a string check. `safeName` still runs first, so a hostile entry name produces an
+error naming the entry instead of a temp path. Symlinks pointing out are dropped
+rather than created; hard links must point inside. The entry count, total bytes
+and single-file size are bounded, `io.Copy` is capped rather than trusting the
+declared header size, and the whole extraction is bounded against the size of
+the archive on disk — more than 64 MiB at over 5000× the source is refused,
+which is what catches a PAX sparse entry that expands without a byte passing
+through the decompressor. Extraction checks the context between entries, so an
+interrupted scan stops and its cleanup runs.
+
+`unsquashfs` writes outside `os.Root`, so it cannot be confined the same way; it
+runs under a deadline and the caller's cancellation with bounded output, and
+what fwscan then reads from its output directory is confined exactly as above.
 
 ### `internal/catalog`
 
@@ -103,8 +118,8 @@ only, never findings.
 
 ## Adding a cataloger
 
-Say you want opkg, the OpenWrt package manager. (It is a v1.1 non-goal today —
-this is the walkthrough, not an invitation.)
+Say you want opkg, the OpenWrt package manager. (It is on the roadmap and not
+in this release — this is the walkthrough, not an invitation.)
 
 **1. Write the parser.** New file in `internal/catalog`, one type with the two
 interface methods:

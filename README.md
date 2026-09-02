@@ -1,7 +1,6 @@
 # fwscan
 
 [![ci](https://github.com/mhmtkas/fwscan/actions/workflows/ci.yml/badge.svg)](https://github.com/mhmtkas/fwscan/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/mhmtkas/fwscan.svg)](https://pkg.go.dev/github.com/mhmtkas/fwscan)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 **Point it at a firmware image, get a CycloneDX SBOM and a prioritized CVE report.**
@@ -76,11 +75,6 @@ tar -xzf fwscan.tar.gz fwscan
 sudo install fwscan /usr/local/bin/
 fwscan version
 ```
-
-The URL names the release twice on purpose. `releases/latest/download/…` cannot
-be combined with a versioned file name — the path would resolve to whatever is
-newest while asking for a file called `0.1.0`, and it breaks silently on the day
-the next version ships.
 
 Or with Go:
 
@@ -160,7 +154,7 @@ Deliberately out of scope for v1:
 
 | Not supported | Why |
 |---|---|
-| Binary fingerprinting of unmanaged binaries | A large accuracy problem; v2 |
+| Binary fingerprinting of unmanaged binaries | An accuracy problem with no bottom; not planned |
 | Encrypted or obfuscated firmware | Per-vendor work |
 | SPDX output | CycloneDX covers the CRA; SPDX behind a flag later |
 | opkg and rpm databases | Debian and Alpine first |
@@ -188,15 +182,15 @@ spike measured, mostly old issues Debian itself marked minor. They are visible i
 the report and invisible to the exit code, so read the output as well as the
 status.
 
-Second: components identified by filename heuristics rather than by a package
-database are listed in the report and the SBOM, but are never looked up. A
-version guessed from a filename carries no release to scope the query to, and an
-unscoped query invents vulnerabilities rather than finding them. They are
-counted separately on the `Packages` line so the difference is visible.
+**Components identified by filename heuristics are never looked up.** They are
+listed in the report and the SBOM, but a version guessed from a filename carries
+no release to scope a query to, and an unscoped query invents vulnerabilities
+rather than finding them. They are counted separately on the `Packages` line so
+the difference is visible.
 
-Severity comes from the record's CVSS vector, v3.1 or v4.0, scored locally: v4
-base scores match FIRST's reference calculator across the whole base metric
-space.
+Severity is scored locally from the record's CVSS vector — v3.1, v4.0 or v2, in
+that order of preference. The v4 scorer matches FIRST's reference calculator
+across the whole base metric space.
 
 ## Roadmap
 
@@ -215,13 +209,13 @@ distributed through GitHub releases and is not connected to it.
 
 ```sh
 make build            # -> bin/fwscan
-make test             # go test ./... -race -cover
+make test             # go test ./... -cover, with -race where the kernel supports it
 make lint             # golangci-lint run
 make fixtures         # rebuild the squashfs test images
 make validate-sbom    # generate an SBOM and check it against the CycloneDX schema
 make test-integration # the tests that hit the real OSV API
-make test-apk-oracle  # check the apk version comparator against apk itself
-make test-cvss4-oracle # check CVSS v4 scores against FIRST's calculator
+make test-apk-oracle  # check the apk version comparator against apk itself (needs Docker)
+make test-cvss4-oracle # check CVSS v4 scores against FIRST's calculator (needs Docker)
 make snapshot         # build release artifacts locally
 make demo             # scan the fixture, for an asciinema recording
 make third-party-licenses # regenerate THIRD_PARTY_LICENSES.txt after a dependency change

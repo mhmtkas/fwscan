@@ -159,8 +159,6 @@ func keyFor(c model.Component) queryKey {
 	}
 }
 
-// kindOf reads the package type off the component's purl. Components with no
-// purl are heuristic results, which nothing knows how to look up.
 // ecosystem returns the OSV ecosystem string for an apk key, e.g.
 // "Alpine:v3.16". It is empty for Debian, which is matched by purl instead.
 func (k queryKey) ecosystem() string {
@@ -183,6 +181,8 @@ func (k queryKey) advisoryEcosystem() string {
 	return ""
 }
 
+// kindOf reads the package type off the component's purl. Components with no
+// purl are heuristic results, which nothing knows how to look up.
 func kindOf(c model.Component) packageKind {
 	switch {
 	case strings.HasPrefix(c.PURL, "pkg:deb/"):

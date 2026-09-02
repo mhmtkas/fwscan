@@ -86,9 +86,8 @@ type jsonFinding struct {
 
 // JSON writes the machine-readable report to w.
 //
-// findings being nil rather than empty is meaningful: in --no-network mode
-// nothing was looked up, and the summary is zeroed while the array is empty.
-// The document is otherwise identical, so a CI pipeline can parse one shape.
+// A --no-network scan produces the same document with an empty findings array
+// and a zeroed summary, so a CI pipeline parses one shape either way.
 func JSON(w io.Writer, version string, info ScanInfo, comps []model.Component, findings []model.Finding) error {
 	report := BuildJSON(version, info, comps, findings)
 
@@ -131,7 +130,7 @@ func BuildJSON(version string, info ScanInfo, comps []model.Component, findings 
 			// Written out field by field rather than converted from
 			// PackageCounts: the wire schema is fixed by the output spec and
 			// must stay free to diverge from the internal counting type.
-			//nolint:staticcheck // S1016: the coupling is deliberate
+			//nolint:staticcheck // S1016: the two types are kept separate on purpose
 			Packages: jsonPackageSummary{
 				Total:          packages.Total,
 				HighConfidence: packages.HighConfidence,
@@ -195,9 +194,8 @@ func PlainVersion(version string) string {
 // A release binary is stamped with a tag, so "0.1.0" becomes "v0.1.0". Anything
 // else is not a version number and must not be dressed as one: the default in
 // main.go is "dev", `go install` leaves that in place, and `make build` stamps
-// `git describe`, so the two most common ways to obtain this tool printed
-// "fwscan vdev" and "fwscan v20cc89e" before this. The first thing a new user
-// sees should not look broken.
+// `git describe`, and "vdev" or "v20cc89e" would read as broken to the first
+// person who sees it.
 func DisplayVersion(version string) string {
 	if version == "" || !startsWithDigit(version) {
 		return version

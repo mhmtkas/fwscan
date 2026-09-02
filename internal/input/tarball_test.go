@@ -180,7 +180,7 @@ func TestTarballAllCompressions(t *testing.T) {
 
 			rootfs, cleanup, err := Open(context.Background(), path)
 			if err != nil {
-				t.Fatalf("Open(context.Background(), ) error = %v", err)
+				t.Fatalf("Open() error = %v", err)
 			}
 			defer cleanup()
 
@@ -204,7 +204,7 @@ func TestTarballCleanupRemovesTempDir(t *testing.T) {
 	path := writeTemp(t, "rootfs.tar", buildTar(t))
 	rootfs, cleanup, err := Open(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v", err)
+		t.Fatalf("Open() error = %v", err)
 	}
 	if _, err := rootfs.Open(catalog.DpkgStatusPath); err != nil {
 		t.Fatalf("status not readable before cleanup: %v", err)
@@ -245,7 +245,7 @@ func TestTarballRejectsEscapingEntries(t *testing.T) {
 			_, cleanup, err := Open(context.Background(), path)
 			cleanup()
 			if err == nil {
-				t.Fatal("Open(context.Background(), ) error = nil, want the entry rejected")
+				t.Fatal("Open() error = nil, want the entry rejected")
 			}
 			if !errors.Is(err, ErrUnsafePath) {
 				t.Errorf("error %v does not wrap ErrUnsafePath", err)
@@ -278,7 +278,7 @@ func TestTarballDropsEscapingSymlinks(t *testing.T) {
 	path := writeTemp(t, "links.tar", buf.Bytes())
 	rootfs, cleanup, err := Open(context.Background(), path)
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v, want escaping symlinks to be dropped rather than fatal", err)
+		t.Fatalf("Open() error = %v, want escaping symlinks to be dropped rather than fatal", err)
 	}
 	defer cleanup()
 
@@ -316,7 +316,7 @@ func TestTarballKeepsInternalSymlinks(t *testing.T) {
 
 	rootfs, cleanup, err := Open(context.Background(), writeTemp(t, "links.tar", buf.Bytes()))
 	if err != nil {
-		t.Fatalf("Open(context.Background(), ) error = %v", err)
+		t.Fatalf("Open() error = %v", err)
 	}
 	defer cleanup()
 
@@ -444,7 +444,7 @@ func TestExtractBounds(t *testing.T) {
 		_, cleanup, err := Open(context.Background(), path)
 		cleanup()
 		if err == nil {
-			t.Error("Open(context.Background(), ) on a truncated archive returned no error")
+			t.Error("Open() on a truncated archive returned no error")
 		}
 	})
 }

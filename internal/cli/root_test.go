@@ -21,8 +21,20 @@ func TestVersionCmd(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	if got := out.String(); !strings.HasPrefix(got, "fwscan 1.2.3 (") {
+	// Rendered the same way as the report header: a version number gets its
+	// "v", and a source-build stamp such as "dev" is left alone.
+	if got := out.String(); !strings.HasPrefix(got, "fwscan v1.2.3 (") {
 		t.Errorf("version output = %q, want it to start with the injected version", got)
+	}
+	out.Reset()
+	root = NewRootCmd("dev")
+	root.SetOut(&out)
+	root.SetArgs([]string{"version"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if got := out.String(); !strings.HasPrefix(got, "fwscan dev (") {
+		t.Errorf("version output = %q, want a source build to stay undressed", got)
 	}
 }
 

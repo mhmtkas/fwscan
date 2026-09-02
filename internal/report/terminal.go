@@ -11,19 +11,15 @@ import (
 
 // noValue is what a column shows when there is nothing to put in it: the FIXED
 // column when no fix is known, and the SCORE column when no score was derived.
-// output-spec section 2 names both.
-//
-// It was called noFixedVersion while the SCORE column used it too, which read
-// as a bug in the score rather than as one shared glyph.
-// output-spec section 2 specifies this glyph literally, which is why it is the
-// one non-ASCII character in the output.
+// output-spec section 2 names both and specifies the glyph literally, which is
+// why it is the one non-ASCII character in the output.
 const noValue = "—"
 
 // Terminal writes the human-readable report to w, which is stdout. Diagnostics
 // never come here: stdout carries only the report so it stays pipe-safe.
 //
-// Passing findings as nil is not the same as passing an empty slice.
-// noNetwork distinguishes "we looked and found nothing" from "we did not look".
+// noNetwork distinguishes "we looked and found nothing" from "we did not look";
+// findings are read only when the lookup ran.
 func Terminal(w io.Writer, version string, info ScanInfo, comps []model.Component, findings []model.Finding, noNetwork bool) error {
 	packages := CountPackages(comps)
 

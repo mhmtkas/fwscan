@@ -117,8 +117,8 @@ func (s SquashFS) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, er
 	ctx, cancel := context.WithTimeout(ctx, unsquashfsTimeout)
 	defer cancel()
 
-	// #nosec G204 -- binary comes from LookPath and the only variable argument
-	// is the user's own scan target. This is the one sanctioned shell-out.
+	// binary comes from LookPath and the only variable argument is the user's
+	// own scan target. This is the one sanctioned shell-out (CLAUDE.md rule 8).
 	cmd := exec.CommandContext(ctx, binary, "-no-progress", "-quiet", "-d", target, image)
 	// Bounded rather than CombinedOutput: the output belongs to the image too,
 	// and only the first line of it is ever shown.
@@ -152,20 +152,12 @@ func (s SquashFS) Open(ctx context.Context, path string) (fs.FS, CleanupFunc, er
 // openExtracted opens what unsquashfs produced and confines every later read to
 // it.
 //
-// This used to walk the extracted tree, resolve every symlink, and abort the
-// scan if one pointed outside. That check was wrong in both directions.
-//
-// It aborted on ordinary images. A rootfs is full of absolute symlinks --
-// bin/sh pointing at /bin/busybox, and everything update-alternatives creates
-// -- and when the machine running the scan happened to have that path too,
-// which on Linux it usually does, the link resolved outside the temp directory
-// and the scan died accusing the user's own image of being hostile. The first
-// real OpenWrt or Yocto image anyone scanned hit it.
-//
-// And it never checked what it claimed to. unsquashfs does the writing here, so
-// the promise at stake is that nothing lands outside the temp directory -- and
-// walking the inside of that directory cannot discover what was written beyond
-// it. The check read as a guarantee while providing none.
+// A rootfs is full of absolute symlinks -- bin/sh pointing at /bin/busybox, and
+// everything update-alternatives creates -- and on the machine running the
+// scan those targets usually exist, so resolving them and refusing the image is
+// not an option: it would refuse every real OpenWrt or Yocto image. Nor can
+// what unsquashfs wrote be verified from inside its output directory, since a
+// walk of the inside cannot discover what landed beyond it.
 //
 // What can be guaranteed is what fwscan itself reads. os.Root refuses to
 // resolve a path out of the extracted tree, so a link aimed at the host is not

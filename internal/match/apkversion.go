@@ -23,10 +23,12 @@ import "strings"
 //
 // It matters because go-deb-version, which handles the Debian side, does not
 // reject an apk version -- it silently answers by Debian's rules. It orders
-// 1.0_alpha1 above 1.0, where apk orders it below, and that is the direction
-// that hides a vulnerability: an installed pre-release sorts above the fixed
-// version, so the "installed is older than the fix" test fails and the finding
-// is dropped (spike/NOTES.md T0.5, question 4).
+// 1.0_alpha1 above 1.0, where apk orders it below. OSV decides on the server
+// which versions a record affects, so a wrong local ordering cannot suppress a
+// finding; what it corrupts is the choice of fixed version, which picks the fix
+// window containing the installed version and, under the wrong rules, names a
+// later release's fix than the one that applies (spike/NOTES.md T0.5, question
+// 4).
 //
 // Three rules the manual page does not state are taken from apk's observed
 // behaviour, and apkversion_oracle_test.go holds them against apk itself:

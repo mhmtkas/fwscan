@@ -87,11 +87,9 @@ reports known vulnerabilities from OSV.dev.
 
 ### Note on this changelog
 
-An earlier draft of this section was dated 30 August and never tagged. A
-pre-publication review followed, and the twenty-odd defects it found — a GPL
-port that could not ship, two ways out of the extraction directory, a quadratic
-parser, findings that were dropped or left unranked — were fixed before anything
-was released. None of them ever reached a user, so none is a changelog entry;
-they are in the commit history, each with the measurement that found it.
+This is the first release, so there is nothing to compare it against. The
+defects fixed during the pre-publication review never reached a user and are
+not changelog entries; they are in the commit history, each with the
+measurement that found it.
 
 [0.1.0]: https://github.com/mhmtkas/fwscan/releases/tag/v0.1.0

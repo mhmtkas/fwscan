@@ -3,6 +3,10 @@
 **Go module path: `github.com/mhmtkas/fwscan`** — fixed by the T0.0 initial
 commit; all Go code uses this path.
 
+`T<nn>` identifiers throughout refer to the maintainer's task list, which is
+not part of the repository; the `T0.x` ones are sections of this file. The
+commit history references the same ids.
+
 This file is the binding decision log for Phase 0. Later tasks are gated on the
 conclusions recorded here (T3 and T6 on the purl format from T0.3, T11 on the
 squashfs plan from T0.4). Every conclusion must be backed by recorded
