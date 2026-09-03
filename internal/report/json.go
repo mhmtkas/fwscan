@@ -15,9 +15,11 @@ import (
 // output-spec section 3, and is bumped only by a deliberate format change.
 const SchemaVersion = "1"
 
-// findingSource names where a finding came from. Only OSV exists in v1; the
-// field is present so a second source can be added without a schema break.
-const findingSource = "osv.dev"
+// defaultFindingSource names where a finding came from when it does not say.
+// Every path but one leads to OSV; the exception is the Debian security
+// tracker, read directly for a release OSV no longer carries, and a finding
+// from there names itself.
+const defaultFindingSource = "osv.dev"
 
 // JSONReport is the top-level document. Field names are final (output-spec
 // section 3) and every one of them is snake_case.
@@ -175,10 +177,17 @@ func BuildJSON(version string, info ScanInfo, comps []model.Component, findings 
 			CVSSScore:        f.CVSS,
 			CVSSVector:       f.CVSSVector,
 			Confidence:       string(f.Component.Confidence),
-			Source:           findingSource,
+			Source:           sourceOf(f),
 		})
 	}
 	return report
+}
+
+func sourceOf(f model.Finding) string {
+	if f.Source != "" {
+		return f.Source
+	}
+	return defaultFindingSource
 }
 
 // PlainVersion strips a leading "v". output-spec renders the version with a "v"

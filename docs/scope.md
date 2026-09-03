@@ -39,7 +39,8 @@ deep binary analysis, and RTOS, bare-metal, Windows or VxWorks images.
 
 1. Scan a Linux firmware rootfs and identify installed packages with versions.
 2. Emit a valid CycloneDX 1.6 JSON SBOM.
-3. Match components against known vulnerabilities via OSV.dev.
+3. Match components against known vulnerabilities via OSV.dev, falling back to
+   Debian's own security tracker for a release OSV no longer carries.
 4. Produce a human-readable, severity-sorted terminal report.
 5. Render the scan as evidence toward the vulnerability-handling obligations in
    Annex I, Part II of the Cyber Resilience Act — the three of the eight a

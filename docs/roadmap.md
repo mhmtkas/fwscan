@@ -23,6 +23,13 @@ An opkg cataloger for OpenWrt; colour output; SPDX as a second SBOM format; NVD
 as a secondary vulnerability source; a false-positive suppression file; ext4
 image input; an rpm cataloger.
 
+Ubuntu releases past free support are the near neighbour of the Debian fallback
+that shipped in v0.1.0, and need no new source: their data is already in OSV
+under the `Ubuntu:Pro:…` ecosystems, which fwscan deliberately does not report
+because a fix only a subscriber can install is not an answer for a supported
+release. For a release where those tiers are the *only* answer, reporting them
+with the subscription named is better than reporting nothing.
+
 ## Not planned
 
 Binary fingerprinting of unmanaged binaries, encrypted or obfuscated firmware,

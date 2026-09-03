@@ -16,6 +16,7 @@ import (
 
 	"github.com/mhmtkas/fwscan/internal/model"
 	"github.com/mhmtkas/fwscan/internal/purl"
+	"github.com/mhmtkas/fwscan/internal/release"
 )
 
 // DefaultBaseURL is the public OSV API. No key is needed, and the spike drew no
@@ -52,6 +53,16 @@ type OSV struct {
 	HTTPClient  *http.Client
 	BatchSize   int
 	Concurrency int
+	// TrackerBase is where the Debian security tracker's lists are read from.
+	// Empty disables the fallback entirely, which is what unit tests want: the
+	// fallback only runs for a release past free support, and no test should
+	// reach the real salsa.debian.org.
+	TrackerBase string
+	// Now decides which support window a release is in, and so whether the
+	// fallback runs at all. Injectable because the answer changes on a date --
+	// Debian 11 left free support on 2026-08-31 -- and a test that depended on
+	// the real clock would start failing on its own.
+	Now func() time.Time
 }
 
 // NewOSV returns a matcher pointed at the public API.
@@ -61,6 +72,8 @@ func NewOSV() *OSV {
 		HTTPClient:  &http.Client{Timeout: defaultTimeout},
 		BatchSize:   defaultBatchSize,
 		Concurrency: defaultConcurrency,
+		TrackerBase: DefaultTrackerBase,
+		Now:         time.Now,
 	}
 }
 
@@ -334,9 +347,117 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 			}
 		}
 	}
+	fallback, err := o.debianFallback(ctx, comps)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, fallback...)
+
 	findings = dedupeFindings(findings)
 	slices.SortFunc(findings, model.CompareFindings)
 	return findings, nil
+}
+
+// debianFallback fills in what OSV cannot answer for a Debian release past free
+// support.
+//
+// OSV's Debian data is built from the security tracker's JSON export, and that
+// export carries a release for exactly as long as it is freely supported. The
+// day Debian 11 left free support its packages stopped appearing, and a scan of
+// a bullseye image went from a full report to an empty one -- not because the
+// image had been fixed but because the data had gone. Measured on 2026-09-03:
+// 0 findings through OSV, 111 through the tracker's own lists.
+//
+// It runs only in that case. A freely supported release is answered by OSV,
+// which is smaller, keyed and versioned; paying tens of megabytes for a second
+// opinion there would be waste. This is the fallback for when the alternative
+// is nothing at all.
+func (o *OSV) debianFallback(ctx context.Context, comps []model.Component) ([]model.Finding, error) {
+	if o.TrackerBase == "" {
+		return nil, nil
+	}
+	now := time.Now
+	if o.Now != nil {
+		now = o.Now
+	}
+
+	release, sources, bySource := debianFallbackTargets(comps, now())
+	if release == "" {
+		return nil, nil
+	}
+
+	entries, err := fetchDebianTracker(ctx, o.httpClient(), o.TrackerBase, release, sources)
+	if err != nil {
+		return nil, err
+	}
+	findings := trackerFindings(entries, bySource)
+	if len(findings) == 0 {
+		return nil, nil
+	}
+
+	// The tracker says which vulnerabilities apply and whether Debian intends
+	// to fix them. It does not score them -- its own urgency field is a triage
+	// label, not CVSS -- so severity comes from OSV's record for the plain CVE,
+	// which exists independently of any distribution's data. A CVE OSV has
+	// never heard of stays unknown, which output-spec section 1 already covers.
+	ids := make([]string, 0, len(findings))
+	seen := make(map[string]bool, len(findings))
+	for _, f := range findings {
+		if !seen[f.ID] {
+			seen[f.ID] = true
+			ids = append(ids, f.ID)
+		}
+	}
+	slices.Sort(ids)
+	if len(ids) > maxRecordsPerScan {
+		return nil, fmt.Errorf("the debian tracker named %d distinct vulnerabilities for this image, more than fwscan will fetch", len(ids))
+	}
+	severities := o.fetchSeverities(ctx, ids)
+	if err := ctx.Err(); err != nil {
+		// The lookup tolerates its own failures, so a cancellation during it
+		// would otherwise pass through as a full-looking report with every
+		// finding left at unknown.
+		return nil, fmt.Errorf("osv: %w", err)
+	}
+	for i := range findings {
+		severity, score, vector := severityOf(vulnRecord{Severity: severities[findings[i].ID]})
+		findings[i].Severity, findings[i].CVSS, findings[i].CVSSVector = severity, score, vector
+	}
+	return findings, nil
+}
+
+// debianFallbackTargets reports the release to ask the tracker about, and the
+// source packages to ask for, or an empty release when the fallback does not
+// apply.
+//
+// It applies to a Debian image whose release is known and is past free support.
+// Ubuntu is deliberately not here: its extended tiers are in OSV already, under
+// the Ubuntu Pro ecosystems, so the answer for an Ubuntu image out of free
+// support is a different one and belongs with that data rather than here.
+func debianFallbackTargets(comps []model.Component, now time.Time) (string, map[string]bool, map[string][]model.Component) {
+	var target string
+	sources := map[string]bool{}
+	bySource := map[string][]model.Component{}
+
+	for _, c := range comps {
+		if c.Confidence != model.ConfidenceHigh || c.Source == "" ||
+			purl.Namespace(c.DistroID) != purl.NamespaceDebian || c.DistroID == "" || c.Distro == "" {
+			continue
+		}
+		if target == "" {
+			support, ok := release.Lookup(c.DistroID, c.Distro, c.DistroVersion, now)
+			if !ok || support.FreelySupported() {
+				return "", nil, nil
+			}
+			target = c.Distro
+		}
+		if c.Distro != target {
+			continue
+		}
+		sources[c.Source] = true
+		bySource[c.Source] = append(bySource[c.Source], c)
+	}
+	return target, sources, bySource
 }
 
 // queryBatch asks OSV about every key, in chunks, returning the vulnerability
@@ -522,9 +643,28 @@ func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecor
 			needed[from] = true
 		}
 	}
-	borrowed := map[string][]severityEntry{}
-	if len(needed) == 0 {
-		return borrowed
+	ids := make([]string, 0, len(needed))
+	for from := range needed {
+		ids = append(ids, from)
+	}
+	slices.Sort(ids)
+	return o.fetchSeverities(ctx, ids)
+}
+
+// fetchSeverities reads the assessment off each record, tolerating a record
+// that is not there.
+//
+// Both callers are asking a question the scan can proceed without. Borrowing
+// looks up the per-CVE record an advisory did not carry a vector on; the Debian
+// fallback looks up a CVE the tracker named and OSV may never have imported --
+// it answers 404 for those, and a 404 there is an ordinary result rather than a
+// failure. An absent vector leaves the finding at unknown severity, which
+// output-spec section 1 already provides for, and failing the scan instead
+// would trade a complete report for no report.
+func (o *OSV) fetchSeverities(ctx context.Context, ids []string) map[string][]severityEntry {
+	found := map[string][]severityEntry{}
+	if len(ids) == 0 {
+		return found
 	}
 
 	var mu sync.Mutex
@@ -535,41 +675,36 @@ func (o *OSV) borrowSeverities(ctx context.Context, records map[string]vulnRecor
 	if workers <= 0 {
 		workers = defaultConcurrency
 	}
-	workers = min(workers, len(needed))
+	workers = min(workers, len(ids))
 
 	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for from := range work {
-				var source vulnRecord
-				if err := o.getJSON(ctx, "/v1/vulns/"+url.PathEscape(from), &source); err != nil {
+			for id := range work {
+				var record vulnRecord
+				if err := o.getJSON(ctx, "/v1/vulns/"+url.PathEscape(id), &record); err != nil {
 					continue // an absent vector is the status quo, not a failure
 				}
-				if len(source.Severity) == 0 {
+				if len(record.Severity) == 0 {
 					continue
 				}
 				mu.Lock()
-				borrowed[from] = source.Severity
+				found[id] = record.Severity
 				mu.Unlock()
 			}
 		}()
 	}
 
-	ids := make([]string, 0, len(needed))
-	for from := range needed {
-		ids = append(ids, from)
-	}
-	slices.Sort(ids)
-	for _, from := range ids {
+	for _, id := range ids {
 		select {
-		case work <- from:
+		case work <- id:
 		case <-ctx.Done():
 		}
 	}
 	close(work)
 	wg.Wait()
-	return borrowed
+	return found
 }
 
 // userAgent identifies fwscan to the API. The URL is there so an operator
@@ -614,24 +749,30 @@ func (o *OSV) getJSON(ctx context.Context, path string, out any) error {
 	return o.do(req, out)
 }
 
+// httpClient returns the client every request goes through.
+//
+// A redirect that changes host is not followed. The default policy would carry
+// the request -- and on a POST, the body -- to wherever the response pointed,
+// which for a scanner reading an answer it will act on is a decision worth
+// making deliberately rather than inheriting.
+func (o *OSV) httpClient() *http.Client {
+	client := o.HTTPClient
+	if client == nil {
+		client = &http.Client{Timeout: defaultTimeout}
+	}
+	if client.CheckRedirect == nil {
+		client = withSameHostRedirects(client)
+	}
+	return client
+}
+
 func (o *OSV) do(req *http.Request, out any) error {
 	// Identify the caller. An unattributed client is one OSV cannot ask to slow
 	// down or contact about a problem, and every other tool that queries this
 	// API says who it is.
 	req.Header.Set("User-Agent", userAgent)
 
-	client := o.HTTPClient
-	if client == nil {
-		client = &http.Client{Timeout: defaultTimeout}
-	}
-	// A redirect that changes host is not followed. The default policy would
-	// carry the request -- and on a POST, the body -- to wherever the response
-	// pointed, which for a scanner reading an answer it will act on is a
-	// decision worth making deliberately rather than inheriting.
-	if client.CheckRedirect == nil {
-		client = withSameHostRedirects(client)
-	}
-	resp, err := client.Do(req)
+	resp, err := o.httpClient().Do(req)
 	if err != nil {
 		// A cancelled or expired context is not a network problem, and telling
 		// whoever pressed Ctrl-C to check their network is wrong twice over.

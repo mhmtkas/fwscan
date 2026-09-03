@@ -77,4 +77,9 @@ type Finding struct {
 	// FixedVersion is empty when no fix is known, which the terminal report
 	// renders as an em dash.
 	FixedVersion string
+	// Source names the database the finding came from, for the JSON report's
+	// source field. Empty means OSV, which is where all but one path leads;
+	// the exception is the Debian security tracker, read directly for a
+	// release OSV no longer carries.
+	Source string
 }

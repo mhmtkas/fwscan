@@ -105,6 +105,8 @@ Top-level schema (field names are final):
 }
 ```
 
+**`source` names the database.** `osv.dev` for everything but one path. A Debian release past free security support is not in OSV's data at all — the export OSV imports carries a release for exactly as long as it is freely supported — and findings recovered from Debian's own security tracker instead carry `security-tracker.debian.org`. A reader filtering on it can tell which half of a report came from where.
+
 Rules: keys snake_case; timestamps RFC 3339 UTC; purl percent-encoding per the purl spec (note `+` → `%2B`); `components` sorted by name; `findings` sorted by the severity ordering from §1; `cvss_vector` empty string when severity came from a non-CVSS path; file written atomically (temp + rename); trailing newline at EOF. The exact purl string construction (including any `distro` qualifier) follows `spike/NOTES.md`, but the encoding and JSON placement follow this spec.
 
 **Identifier derivation.** OSV names its Debian and Alpine records `DEBIAN-CVE-…` and `ALPINE-CVE-…`, leaves `aliases` empty, and puts the plain CVE in an `upstream` array. So `id` is the `CVE-…` entry in `upstream[]` when there is one and the OSV record id otherwise; `aliases` is the OSV record id, then the `upstream` entry that names the same CVE under the database's prefix (`DEBIAN-CVE-…`), then whatever the record's own `aliases` holds, de-duplicated and in that order. This keeps the id ecosystem-neutral, as the example above shows, without losing the record id the finding came from.

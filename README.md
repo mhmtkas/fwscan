@@ -242,23 +242,26 @@ path more than 256 levels deep. No real firmware image is near any of these.
 report the ones a distribution has chosen not to fix**, because OSV's data for
 those thins out as a release ages, and disappears once it leaves support.
 
-On supported releases this costs little and fwscan is level with grype or ahead
-of it: 182 findings to 179 on a Debian bookworm rootfs, 148 to 144 on trixie,
-140 to 101 on Ubuntu 22.04, 56 to 58 on Alpine 3.21. On a release past free
-support it costs a great deal — on a fully patched Debian 11 rootfs fwscan
-reports **nothing** where grype reports 211 and trivy 222, none of which carry a
-fixed version, because Debian has published none. fwscan names the cause on
-stderr and in the evidence report, with the date, instead of leaving you with
-"No known vulnerabilities found".
+On Debian and Ubuntu fwscan is level with grype and trivy or ahead of them: 182
+findings to 179 and 188 on a Debian bookworm rootfs, 208 to 211 and 222 on
+Debian 11, 140 to 101 and 67 on Ubuntu 22.04. On an end-of-life Alpine release
+it is far behind — 27 findings to grype's 94 — and
+[`docs/comparison.md`](docs/comparison.md) says why.
 
 Where both tools report a finding they agree on Alpine. On Debian they often
 differ on severity, because fwscan scores the CVSS vector and grype reports
 Debian's own rating, which is `negligible` for a great many CVEs.
 Debian and Ubuntu are queried against their own OSV data, and an Ubuntu image
 is never told about a fix that only an Ubuntu Pro subscription ships.
-[`docs/comparison.md`](docs/comparison.md) has the full table — seven real
-images — and the commands to re-derive it. A second data source, which is what
-would close the gap, is on the roadmap and is not in v0.1.0.
+
+**Debian releases past free support are read from Debian's own security
+tracker.** OSV's Debian data is built from an export that carries a release only
+while it is freely supported, so Debian 11 vanished from it on 2026-08-31 and a
+scan of a bullseye image went from a full report to an empty one. For that case,
+and only that case, fwscan reads the export's input instead. Checked against
+trivy on the same image the same day: 111 CVEs in both, none that fwscan reports
+and trivy does not. [`docs/comparison.md`](docs/comparison.md) has the full
+table — seven real images, three tools — and the commands to re-derive it.
 
 **Some findings carry no severity**, land in the `unknown` bucket, and so never
 trigger `--fail-on` — roughly a fifth of Debian's OSV records, 57 of the 292 the

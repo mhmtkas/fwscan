@@ -1,0 +1,4 @@
+[01 Mar 2026] DSA-9001-1 zlib - security update
+	{CVE-2026-90007}
+	[bullseye] - zlib 1:1.2.11.dfsg-2+deb11u1
+	[buster] - zlib 1:1.2.11.dfsg-1+deb10u1

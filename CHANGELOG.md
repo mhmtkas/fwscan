@@ -42,6 +42,17 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 
 - OSV.dev matcher, release-aware for Debian, Ubuntu and Alpine, so a package
   patched by a security backport is reported as fixed rather than vulnerable.
+- Debian's own security tracker as a fallback for a release past free support.
+  OSV's Debian data is built from an export that carries a release for exactly
+  as long as it is freely supported, so Debian 11 left it on 2026-08-31 and a
+  scan of a bullseye image reported nothing at all. fwscan now reads the
+  export's input instead — the CVE list plus the DSA and DLA advisories, which
+  are not optional: a CVE closed by an advisory carries no per-release line, and
+  without them every such CVE is a false positive. On a real Debian 11 rootfs
+  that is 0 findings against 208. Checked against trivy on the same image with a
+  database built the same day: 111 CVEs in both, none fwscan reports and trivy
+  does not. It runs only for a release OSV has dropped; a supported release is
+  answered by OSV alone and fetches none of it.
 - Lookups batched and deduplicated by source package; vulnerability details
   fetched through a bounded worker pool.
 - CVSS v3 and v2 base scores computed from their vectors, mapped to the severity

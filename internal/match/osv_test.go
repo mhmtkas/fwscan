@@ -35,6 +35,10 @@ func newFakeOSV(t *testing.T) *OSV {
 	osv := NewOSV()
 	osv.BaseURL = server.URL
 	osv.HTTPClient = server.Client()
+	// Nothing in this file may reach salsa.debian.org (CLAUDE.md rule 6). The
+	// fallback is off unless a test asks for it, and a test that does points it
+	// at a server of its own.
+	osv.TrackerBase = ""
 	return osv
 }
 

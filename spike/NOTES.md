@@ -714,3 +714,126 @@ before it reached the README.
 - The fixtures are 100% `install ok installed`, so the status filter needs
   synthetic coverage (T0.1, T0.2).
 - tar has no magic number at offset 0 (T0.4).
+
+## T58 — A second data source for releases past free support — DONE 3 Sep 2026 — **BINDING ON T58**
+
+Opened by the T18a note above, which said closing the oldstable gap "needs a
+second source". This is that source, and the measurements that chose it.
+
+### The gap is in the data, not the query
+
+`Debian:11` for `glibc` returns 5 records, every one a DSA or a DLA:
+
+```
+$ curl -sS -X POST https://api.osv.dev/v1/query \
+    -d '{"package":{"name":"glibc","ecosystem":"Debian:11"}}' | jq '.vulns|length'
+5
+$ … | jq -r '.vulns[].id' | cut -d- -f1 | sort | uniq -c
+      2 DLA
+      3 DSA
+```
+
+The purl query returns nothing at all. And OSV does hold a per-CVE record for
+the CVE trivy reports — it simply does not cover Debian 11:
+
+```
+$ curl -sS https://api.osv.dev/v1/vulns/DEBIAN-CVE-2023-4806 | jq -r '.affected[].package.ecosystem'
+Debian:12
+Debian:13
+Debian:14
+```
+
+So this is not a matching bug and no query shape recovers it.
+
+### Why: the export drops the release the day free support ends
+
+OSV's Debian importer reads `security-tracker.debian.org/tracker/data/json`.
+That file carries four releases and bullseye is not among them:
+
+```
+$ curl -sS https://security-tracker.debian.org/tracker/data/json \
+  | jq -r '[.[]|.[]|.releases|keys[]]|group_by(.)|map({(.[0]):length})|add'
+{ "bookworm": 59217, "forky": 57845, "sid": 63652, "trixie": 58216 }
+```
+
+`distro-info-data` says why: Debian 11's `eol-lts` is **2026-08-31**, three days
+before this was measured. Bookworm's `eol` has also passed, and it is still in
+the export, so the line is not "supported" but "freely supported" — which is
+what `internal/release` computes and what gates this fallback.
+
+### The source that does carry it
+
+`data/CVE/list` in the security tracker's own repository, 60 MB, 19,258 lines
+mentioning bullseye. It is the export's input rather than its output.
+
+**`data/CVE/list` alone is not enough, and getting this wrong ships false
+positives.** A CVE closed by an advisory carries no per-release line at all:
+
+```
+CVE-2018-25032 (zlib before 1.2.12 allows memory corruption …)
+	{DSA-5111-1 DLA-2993-1 DLA-2968-1}
+	- zlib 1:1.2.11.dfsg-4 (bug #1008265)
+```
+
+There is no `[bullseye]` line. Comparing the installed `1:1.2.11.dfsg-2+deb11u2`
+against unstable's `1:1.2.11.dfsg-4` finds it behind and reports a
+vulnerability — which `DSA-5111-1` fixed for that release at
+`1:1.2.11.dfsg-2+deb11u1`, recorded in `data/DSA/list`:
+
+```
+[01 Apr 2022] DSA-5111-1 zlib - security update
+	{CVE-2018-25032}
+	[buster] - zlib 1:1.2.11.dfsg-1+deb10u1
+	[bullseye] - zlib 1:1.2.11.dfsg-2+deb11u1
+```
+
+`DSA/list` (1.1 MB) and `DLA/list` (843 KB) are therefore not optional. Before
+adding them the parser produced 108 findings trivy did not, every one a CVE an
+advisory had already closed.
+
+### Resolution order, and the ground truth for it
+
+For a source package P, release R and CVE C: a `[R]` line wins; otherwise an
+advisory that fixed P in R supplies the fixed version; otherwise the installed
+version is compared against unstable's fix, and a release already past it is not
+affected. `<removed>` is context-dependent — on the unstable line it means gone
+from unstable, which says nothing about a release still shipping the package,
+and the image being scanned demonstrably does ship it.
+
+Ground truth is trivy 0.74.0 with a database built the same day, on the same
+Debian 11 rootfs:
+
+| | CVEs |
+|---|---|
+| in both | 111 |
+| trivy only | 9 |
+| fwscan only | **0** |
+
+All 9 are `TEMP-…` identifiers, Debian's internal names for issues with no CVE
+assigned. They resolve to nothing outside Debian's own tracker and carry no
+score anywhere, so they are refused along with the `CVE-YYYY-XXXX` placeholders
+the file uses while an identifier is pending — of which there are hundreds, all
+sharing one name.
+
+### Severity comes from OSV, not from the tracker
+
+The tracker's `urgency` field is a triage label (`unimportant`, `low`, `medium`,
+`high`, `not yet assigned`), not CVSS, and output-spec section 1 scores vectors.
+OSV's record for the plain CVE carries one and exists independently of any
+distribution's data:
+
+```
+$ curl -sS https://api.osv.dev/v1/vulns/CVE-2023-4806 | jq -r '.severity[].score'
+CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:H
+```
+
+Not every CVE is there — `CVE-2026-18374` is not — so that lookup tolerates a
+404 and the finding stays at unknown severity, which section 1 already provides
+for. Failing the scan instead would trade a complete report for no report.
+
+### Result
+
+Debian 11 rootfs, 98 packages: **0 findings before, 208 after**, 111 distinct
+CVEs, none with a fix because Debian has published none for that release. A
+freely supported release never fetches any of this: bookworm 182 findings in 5s,
+trixie 148 in 5s, Ubuntu 22.04 140 in 4s, unchanged.

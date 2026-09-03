@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/mhmtkas/fwscan/internal/match"
 )
@@ -35,6 +36,14 @@ func TestEndToEndAgainstRecordedResponses(t *testing.T) {
 		osv := match.NewOSV()
 		osv.BaseURL = server.URL
 		osv.HTTPClient = server.Client()
+		// The fixture is a bullseye rootfs, and bullseye left free support on
+		// 2026-08-31, after which the matcher falls back to the Debian security
+		// tracker. Two things follow. The clock is frozen to the golden's own
+		// scan date, so this file does not change its meaning on a date nobody
+		// edited it; and the tracker is pointed at the same recorded server, so
+		// no test can reach salsa.debian.org (CLAUDE.md rule 6).
+		osv.Now = func() time.Time { return time.Date(2026, 8, 30, 0, 0, 0, 0, time.UTC) }
+		osv.TrackerBase = server.URL + "/tracker/"
 		return osv
 	}
 	t.Cleanup(func() { newMatcher = previous })

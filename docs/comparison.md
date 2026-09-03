@@ -1,14 +1,17 @@
-# fwscan next to syft and grype
+# fwscan next to syft, grype and trivy
 
-Measured, not asserted. Everything below was run on 2 September 2026 against the
-two images committed in `testdata/images/`, with syft 1.51.1, grype 0.118.0 and
-the fwscan tree released as v0.1.0. The commands are given so the numbers can
-be re-derived rather than trusted; fwscan queries OSV live, so its counts move as
-OSV's data moves.
+Measured, not asserted. The fixture comparisons were run on 2 September 2026
+against the images committed in `testdata/images/`, with syft 1.51.1 and grype
+0.118.0; the real-image table and the trivy column were run on 3 September 2026
+with trivy 0.74.0, both databases rebuilt that day. The commands are given so
+the numbers can be re-derived rather than trusted; fwscan queries its sources
+live, so its counts move as their data moves.
 
-The short version: **grype reports three times as many findings as fwscan on
-the Debian 11 image, and on the findings they share the two agree.** The gap
-has one cause, set out below, and it is not fwscan's to close.
+The short version: **on Debian and Ubuntu the three tools are level, and where
+they differ the cause is the data rather than the matching.** grype reports
+three times as many findings as fwscan on an end-of-life Alpine image, which is
+the one row with a gap fwscan cannot close. What fwscan has that the others do
+not is squashfs and tarball input, and `--cra`.
 
 ## Cataloging
 
@@ -132,20 +135,28 @@ official Alpine minirootfs images, Debian and Ubuntu rootfs images pulled from
 the official ones, and an OpenWrt 23.05.5 x86-64 squashfs rootfs. Same day,
 same tools, fwscan v0.1.0.
 
-| Image | Size | fwscan packages | fwscan | grype |
-|---|---|---|---|---|
-| Debian 11 bullseye | 52 MB | 98 | **0** | 211 |
-| Debian 12 bookworm | 47 MB | 88 | 182 | 179 |
-| Debian 13 trixie | 48 MB | 79 | 148 | 144 |
-| Ubuntu 22.04 | 29 MB | 102 | 140 | 101 |
-| Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94 |
-| Alpine 3.19 | 3.1 MB | 18 | 42 | 46 |
-| Alpine 3.21 | 3.7 MB | 18 | 56 | 58 |
-| OpenWrt 23.05.5 squashfs | 4.3 MB | 2, all heuristic | — | — |
+| Image | Size | fwscan packages | fwscan | grype | trivy |
+|---|---|---|---|---|---|
+| Debian 11 bullseye | 52 MB | 98 | 208 | 211 | 222 |
+| Debian 12 bookworm | 47 MB | 88 | 182 | 179 | 188 |
+| Debian 13 trixie | 48 MB | 79 | 148 | 144 | — |
+| Ubuntu 22.04 | 29 MB | 102 | 140 | 101 | 67 |
+| Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94 | — |
+| Alpine 3.19 | 3.1 MB | 18 | 42 | 46 | — |
+| Alpine 3.21 | 3.7 MB | 18 | 56 | 58 | — |
+| OpenWrt 23.05.5 squashfs | 4.3 MB | 2, all heuristic | — | — | not scanned |
 
-On a supported release the two tools are level, and fwscan is ahead on both
-current Debian releases and on Ubuntu. The row in bold, and the Alpine 3.16
-row, are where they are not, and each has a specific cause.
+fwscan is level or ahead on every Debian and Ubuntu row. The Alpine 3.16 row is
+where it is not, and that has a specific cause.
+
+The trivy column is worth reading twice. It reads an extracted rootfs directory
+natively and quickly — a cold run including its database download took 13
+seconds, a warm one 0.35 against fwscan's 2.8 — at the cost of 1.3 GB of local
+cache (grype's is 2.0 GB). What it does not do is take a tarball or a squashfs
+image: both come back "not scanned". grype reads the tarball and returns 0
+artifacts for the squashfs. That, and `--cra`, is the whole of what fwscan has
+that they do not; the matching itself is a commodity and this page exists to say
+so.
 
 The Ubuntu column is worth a note: 40 of the 98 findings the two share are ones
 fwscan gives a fixed version and grype reports as not fixed. Checked against
@@ -155,29 +166,39 @@ one. Ubuntu records also carry entries for the Pro and FIPS tiers, under the
 same release number and sometimes with no fix at all; fwscan reports none of
 them, because the purl qualifier separates `jammy` from `esm-apps/jammy`.
 
-### One sentence explains most of the table
+### The Debian 11 row used to say 0
 
-**fwscan reports the CVEs a distribution has issued a fix for. grype also
-reports the ones it has not.**
+OSV's Debian data is built from the security tracker's JSON export, and that
+export carries a release for exactly as long as it is freely supported. Debian
+11 left free support on **2026-08-31**, dropped out of the export, and a scan of
+a bullseye image went from a full report to an empty one — not because the image
+had been fixed but because the data had gone. Checked directly: `Debian:11` for
+glibc returns 5 records, all DSA or DLA, and `DEBIAN-CVE-2023-4806` lists
+Debian:12, 13 and 14 and not 11.
 
-OSV's Debian export carries a `DEBIAN-CVE-…` record per CVE for a *supported*
-release — including the many a release never fixes. For an oldstable release
-those records drop the release, and only the DSA and DLA advisories remain. An
-advisory exists exactly when a fix shipped. So on a fully patched Debian 11
-image every advisory is satisfied and the answer is zero, while the 211 findings
-grype reports are, every one of them, CVEs Debian has not fixed: 145 `not-fixed`
-and 66 `wont-fix`, none with a fix available. Checked directly — OSV returns 18
-records for glibc on bookworm, all per-CVE, and 5 for glibc on bullseye, all
-advisories.
+For that case, and only that case, fwscan reads Debian's own security tracker
+instead — the export's input rather than its output, which keeps every release.
+The 208 above are the result. Against trivy 0.74.0 with a database built the
+same day, on the same image: **111 CVEs in both, 0 that fwscan reports and trivy
+does not, 9 that trivy reports and fwscan does not.** All 9 are `TEMP-…`
+identifiers, Debian's internal names for issues with no CVE assigned; they
+resolve to nothing outside Debian's tracker and carry no score anywhere.
+
+None of the 208 has a fix, because Debian publishes none for that release. That
+is the finding, and it is what the `--cra` report says above its table: a
+product shipping a release past free support carries vulnerabilities nobody
+will fix.
+
+A freely supported release never fetches any of this. Bookworm and trixie are
+answered by OSV alone, in five seconds each.
 
 Alpine 3.16 is the same shape in a different ecosystem: fwscan finds 27 and
 grype's count of *fixed* findings is 29. The other 65 are CVEs with no fix in an
 end-of-life release.
 
-A scan that reports zero findings for a Debian image now carries a warning
-saying why zero may not mean clean. That is the case where the difference
-actually misleads, and it is the one place a reader should not be left with
-"No known vulnerabilities found."
+Every scan also says which support tier covers the image's release, until when,
+and whether that tier's updates are free. That is the sentence a reader needs
+before reading any count on this page.
 
 ### Severity: the same finding, two ratings
 
