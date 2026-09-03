@@ -438,6 +438,23 @@ func (o *OSV) debianFallback(ctx context.Context, comps []model.Component) ([]mo
 	return findings, nil
 }
 
+// droppedByOSV reports whether OSV has stopped carrying this release.
+//
+// The condition is "past free support", not "not freely supported", and the
+// difference is a whole release. OSV's Debian data is built from the security
+// tracker's JSON export, and that export carries sid, the stable releases in
+// free support, and the *unreleased* branch -- measured on 2026-09-03 as
+// bookworm, trixie, forky and sid. A development branch is in no support window
+// yet, which makes FreelySupported false, but OSV covers it perfectly well.
+//
+// Gating on the weaker condition sent every forky scan to fetch 62 MB of
+// tracker lists that contributed nothing: all 143 findings on a real forky
+// rootfs came from osv.dev, and a transient EOF on that download failed a scan
+// that had no need of it.
+func droppedByOSV(s release.Support) bool {
+	return !s.FreelySupported() && !s.Unreleased()
+}
+
 // debianFallbackTargets reports the release to ask the tracker about, and the
 // source packages to ask for, or an empty release when the fallback does not
 // apply.
@@ -458,7 +475,7 @@ func debianFallbackTargets(comps []model.Component, now time.Time) (string, map[
 		}
 		if target == "" {
 			support, ok := release.Lookup(c.DistroBase, c.Distro, c.DistroVersion, now)
-			if !ok || support.FreelySupported() {
+			if !ok || !droppedByOSV(support) {
 				return "", nil, nil
 			}
 			target = c.Distro

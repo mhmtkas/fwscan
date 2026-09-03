@@ -666,3 +666,24 @@ func TestFetchDebianTrackerRefusesNothingToDo(t *testing.T) {
 		})
 	}
 }
+
+// The fallback's gate is "past free support", not "not in a support window".
+// An unreleased branch is in no window yet and OSV covers it anyway: the export
+// OSV imports carries sid, the freely supported releases, and the development
+// branch. Fetching tens of megabytes for a release that is already answered is
+// waste, and it turned a transient network failure into a failed scan.
+func TestFallbackSkipsAnUnreleasedBranch(t *testing.T) {
+	comps := []model.Component{{
+		Name: "libc6", Version: "2.43-3", Source: "glibc", SourceVersion: "2.43-3",
+		Confidence: model.ConfidenceHigh,
+		DistroID:   "debian", DistroBase: "debian", Distro: "forky", DistroVersion: "14",
+	}}
+	if got, _, _ := debianFallbackTargets(comps, mustDay(t, "2026-09-03")); got != "" {
+		t.Errorf("the fallback fired for an unreleased branch: %q", got)
+	}
+	// The released-but-unsupported case must still reach it.
+	comps[0].Distro, comps[0].DistroVersion = "bullseye", "11"
+	if got, _, _ := debianFallbackTargets(comps, mustDay(t, "2026-09-03")); got != "bullseye" {
+		t.Errorf("the fallback stopped firing for a release past free support: %q", got)
+	}
+}

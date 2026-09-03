@@ -831,6 +831,30 @@ Not every CVE is there — `CVE-2026-18374` is not — so that lookup tolerates 
 404 and the finding stays at unknown severity, which section 1 already provides
 for. Failing the scan instead would trade a complete report for no report.
 
+### Which releases the export actually carries — addendum, T69
+
+Recorded from the same file, and it is not "the supported ones":
+
+```
+$ curl -sS https://security-tracker.debian.org/tracker/data/json \
+  | jq -r '[.[]|.[]|.releases|keys[]]|unique[]'
+bookworm
+forky
+sid
+trixie
+```
+
+`forky` is the unreleased development branch and it is **in** the export, so OSV
+covers it. The gate on the fallback was "not freely supported", which is true of
+an unreleased branch — it is in no support window yet — and that sent every
+forky scan to fetch 62 MB it had no use for. All 143 findings on a real forky
+rootfs came from `osv.dev`; the tracker contributed nothing, and a transient
+`unexpected EOF` on that download failed a scan that did not need it.
+
+The condition is **past** free support, not outside a support window. Verified
+after the change: forky 4s and 143 findings from OSV alone, bullseye 30s and 232
+from the tracker, both unchanged in what they report.
+
 ### Result
 
 Debian 11 rootfs, 98 packages: **0 findings before, 208 after**, 111 distinct
