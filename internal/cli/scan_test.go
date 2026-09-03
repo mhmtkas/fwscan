@@ -689,6 +689,21 @@ func TestSupportWarnings(t *testing.T) {
 			want:  "left free security support on 2026-08-31",
 		},
 		{
+			// The matcher falls back to Debian's own tracker for this, so the
+			// report is not incomplete and must not say it is.
+			name:  "a debian release names the source that still has the data",
+			comps: []model.Component{deb("debian", "bullseye", "11")},
+			now:   "2026-09-03",
+			want:  "read from Debian's own security tracker",
+		},
+		{
+			// Ubuntu has no such fallback, so there the warning stands.
+			name:  "an ubuntu release out of free support is still called incomplete",
+			comps: []model.Component{deb("ubuntu", "bionic", "18.04")},
+			now:   "2026-09-03",
+			want:  "findings for this image are incomplete",
+		},
+		{
 			// The same image, three days earlier, is a different answer. The
 			// warning is about a date, so it has to be computed from one.
 			name:    "the same release before that date is not warned about",

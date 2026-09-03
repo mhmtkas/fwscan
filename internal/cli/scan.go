@@ -329,12 +329,23 @@ func supportWarnings(comps []model.Component, now time.Time) []string {
 			"; nobody publishes security updates for it, and no vulnerability database " +
 			"tracks it, so this scan cannot be complete"}
 	}
-	return []string{fmt.Sprintf(
-		"%s left free security support on %s and is now covered only by %s, until %s. "+
-			"OSV tracks releases while they are freely supported, so findings for this "+
-			"image are incomplete and a fix it does name may need a paid subscription",
+
+	left := fmt.Sprintf("%s left free security support on %s and is now covered only by %s, until %s",
 		name, support.LastFree().Format(time.DateOnly), support.Current.Name,
-		support.Current.Until.Format(time.DateOnly))}
+		support.Current.Until.Format(time.DateOnly))
+
+	// What follows depends on whether anything still has data for the release.
+	// For Debian it does, because the matcher falls back to Debian's own
+	// security tracker; saying the report is incomplete there would be telling
+	// the reader to distrust a report that is not.
+	if purl.Namespace(pkg.DistroID) == purl.NamespaceDebian {
+		return []string{left + ". OSV drops a release when free support ends, so the " +
+			"vulnerabilities below were read from Debian's own security tracker instead; " +
+			"nothing there carries a fix, because none is published for this release"}
+	}
+	return []string{left + ". Vulnerability databases track releases while they are " +
+		"freely supported, so findings for this image are incomplete and a fix one " +
+		"does name may need a paid subscription"}
 }
 
 // endedOn renders the day the last tier ran out, for a release past all of

@@ -2,8 +2,10 @@ package report
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mhmtkas/fwscan/internal/model"
 )
@@ -269,4 +271,57 @@ func TestCRAIsDeterministic(t *testing.T) {
 	if first != second {
 		t.Error("two renderings of the same scan differ")
 	}
+}
+
+// A release out of free support puts the reader in one of two situations, and
+// the document has to say which. Either the vulnerabilities below were
+// recovered from the vendor's own records, or there was nothing to recover them
+// from and the list is short because the data is gone. Telling somebody to
+// distrust a report that is complete is its own kind of wrong, and it is the
+// wording this project would most deserve to be criticised for getting lazy
+// about.
+func TestCRASaysWhereRecoveredFindingsCameFrom(t *testing.T) {
+	comps, findings := sampleFindings()
+
+	// After bullseye left free support on 2026-08-31.
+	info := fixedInfo()
+	info.StartedAt = time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)
+
+	render := func(t *testing.T, findings []model.Finding) string {
+		t.Helper()
+		var buf bytes.Buffer
+		if err := CRA(&buf, "0.1.0", info, comps, findings, CRAOptions{}); err != nil {
+			t.Fatalf("CRA: %v", err)
+		}
+		return buf.String()
+	}
+
+	t.Run("recovered from a fallback source", func(t *testing.T) {
+		recovered := slices.Clone(findings)
+		for i := range recovered {
+			recovered[i].Source = "security-tracker.debian.org"
+		}
+		got := render(t, recovered)
+		if !strings.Contains(got, "read from security-tracker.debian.org") {
+			t.Errorf("the document does not name the source it fell back to:\n%s", got)
+		}
+		if strings.Contains(got, "the section below is incomplete") {
+			t.Errorf("the document calls a recovered section incomplete:\n%s", got)
+		}
+	})
+
+	t.Run("nothing recovered it", func(t *testing.T) {
+		got := render(t, findings)
+		if !strings.Contains(got, "the section below is incomplete") {
+			t.Errorf("the document does not warn that the data is gone:\n%s", got)
+		}
+	})
+
+	t.Run("the support status itself is stated either way", func(t *testing.T) {
+		for _, f := range [][]model.Finding{findings, nil} {
+			if got := render(t, f); !strings.Contains(got, "Support status: paid tier only") {
+				t.Errorf("the support status is missing:\n%s", got)
+			}
+		}
+	})
 }

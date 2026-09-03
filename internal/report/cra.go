@@ -50,7 +50,7 @@ func CRA(w io.Writer, version string, info ScanInfo, comps []model.Component, fi
 	var b strings.Builder
 	writeCRAScope(&b)
 	writeCRAScan(&b, version, info)
-	writeCRAInventory(&b, comps, info, opts)
+	writeCRAInventory(&b, comps, findings, info, opts)
 	writeCRAVulnerabilities(&b, findings, opts)
 	writeCRALowConfidence(&b, comps)
 	writeCRALimitations(&b, findings, opts)
@@ -94,7 +94,7 @@ func writeCRAScan(b *strings.Builder, version string, info ScanInfo) {
 	b.WriteString("\n")
 }
 
-func writeCRAInventory(b *strings.Builder, comps []model.Component, info ScanInfo, opts CRAOptions) {
+func writeCRAInventory(b *strings.Builder, comps []model.Component, findings []model.Finding, info ScanInfo, opts CRAOptions) {
 	counts := CountPackages(comps)
 	b.WriteString("## 2. Component inventory\n\n")
 	fmt.Fprintf(b, "%d components were identified: %d from a package database, %d from filename heuristics.\n\n",
@@ -103,7 +103,7 @@ func writeCRAInventory(b *strings.Builder, comps []model.Component, info ScanInf
 	if distros := distributions(comps); len(distros) > 0 {
 		b.WriteString("Distributions found in the image: " + mdCell(strings.Join(distros, ", ")) + ".\n\n")
 	}
-	writeCRASupport(b, comps, info.StartedAt)
+	writeCRASupport(b, comps, findings, info.StartedAt)
 
 	if opts.SBOMPath != "" {
 		b.WriteString("The inventory itself is the CycloneDX 1.6 SBOM this run wrote, which is\n" +
@@ -125,7 +125,7 @@ func writeCRAInventory(b *strings.Builder, comps []model.Component, info ScanInf
 // took the vulnerability table at face value without this paragraph would
 // conclude the opposite of the truth, because the table is shorter for exactly
 // the releases where it should be longer.
-func writeCRASupport(b *strings.Builder, comps []model.Component, at time.Time) {
+func writeCRASupport(b *strings.Builder, comps []model.Component, findings []model.Finding, at time.Time) {
 	pkg := distroComponent(comps)
 	if pkg == nil {
 		return
@@ -152,16 +152,46 @@ func writeCRASupport(b *strings.Builder, comps []model.Component, at time.Time) 
 	case !support.FreelySupported():
 		fmt.Fprintf(b, "**Support status: paid tier only.** %s left free security support\n"+
 			"on %s and is covered until %s by %s. Updates in that tier are not published\n"+
-			"to everyone: a fix named below may require that subscription, and\n"+
-			"vulnerability databases track releases while they are freely supported, so\n"+
-			"the section below is incomplete.\n\n",
+			"to everyone, so a fix named below may require that subscription.\n\n",
 			mdCell(name), support.LastFree().Format(time.DateOnly),
 			support.Current.Until.Format(time.DateOnly), mdCell(support.Current.Name))
+		writeCRARecovered(b, findings)
 	default:
 		fmt.Fprintf(b, "**Support status: supported.** %s receives free security updates\n"+
 			"under %s until %s.\n\n",
 			mdCell(name), mdCell(support.Current.Name), support.Current.Until.Format(time.DateOnly))
 	}
+}
+
+// writeCRARecovered says where the vulnerabilities came from when they did not
+// come from the usual place.
+//
+// A release out of free support is dropped by the database that normally
+// answers for it, and the reader has to be told which of two situations they
+// are in: the list below was recovered from the vendor's own records, or there
+// was nothing to recover it from and the list is short because the data is
+// gone. Saying "incomplete" in the first case would tell somebody to distrust a
+// report that is not.
+func writeCRARecovered(b *strings.Builder, findings []model.Finding) {
+	sources := map[string]bool{}
+	for _, f := range findings {
+		if f.Source != "" {
+			sources[f.Source] = true
+		}
+	}
+	if len(sources) == 0 {
+		b.WriteString("Vulnerability databases track a release while it is freely supported,\n" +
+			"and no fallback source covers this one, so the section below is incomplete.\n\n")
+		return
+	}
+	names := make([]string, 0, len(sources))
+	for s := range sources {
+		names = append(names, s)
+	}
+	slices.Sort(names)
+	b.WriteString("The vulnerabilities below were read from " + mdCell(strings.Join(names, ", ")) +
+		",\nthe vendor's own records, because the database that normally answers for this\n" +
+		"release stopped carrying it when free support ended.\n\n")
 }
 
 // distroComponent picks the component the release is read from: any one that
