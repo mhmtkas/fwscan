@@ -567,8 +567,13 @@ func TestUnreadDatabaseWarnings(t *testing.T) {
 // from the data. Measured on a real Debian 11 rootfs: fwscan 0, a scanner
 // reading the Debian Security Tracker 211, all of them unfixed.
 func TestEmptyResultWarnings(t *testing.T) {
-	deb := model.Component{Name: "libc6", Version: "2.31-13+deb11u14", PURL: "pkg:deb/debian/libc6@2.31-13%2Bdeb11u14?arch=amd64&distro=bullseye"}
+	deb := model.Component{Name: "libc6", Version: "2.31-13+deb11u14", Distro: "bullseye",
+		PURL: "pkg:deb/debian/libc6@2.31-13%2Bdeb11u14?arch=amd64&distro=bullseye"}
 	apk := model.Component{Name: "musl", Version: "1.2.4-r2", PURL: "pkg:apk/alpine/musl@1.2.4-r2?arch=x86_64"}
+	// A package with no release is never queried, so an empty result for it is
+	// not a result and must not be reported as a suspicious zero.
+	unscoped := model.Component{Name: "libc6", Version: "2.31-13+deb11u14",
+		PURL: "pkg:deb/debian/libc6@2.31-13%2Bdeb11u14?arch=amd64"}
 	finding := model.Finding{Component: deb, ID: "CVE-2024-0001", Severity: model.SeverityHigh}
 
 	tests := []struct {
@@ -582,6 +587,8 @@ func TestEmptyResultWarnings(t *testing.T) {
 		{"an alpine image with nothing found", []model.Component{apk}, nil, false},
 		{"no components at all", nil, nil, false},
 		{"a mixed image with nothing found", []model.Component{apk, deb}, nil, true},
+		{"a debian image whose packages were never queried", []model.Component{unscoped}, nil, false},
+		{"one queryable package among unqueryable ones", []model.Component{unscoped, deb}, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

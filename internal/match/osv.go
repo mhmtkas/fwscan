@@ -233,6 +233,18 @@ func kindOf(c model.Component) packageKind {
 func queryFor(key queryKey) (query, bool) {
 	switch key.kind {
 	case kindDeb:
+		if key.distro == "" {
+			// Without the release the query is unscoped, and an unscoped
+			// Debian query does not return nothing -- it returns everything.
+			// OSV matches the source package across every release at once, so
+			// a Yocto image with a dpkg database and no VERSION_CODENAME came
+			// back with 182 findings for six packages, carrying fixed versions
+			// from Debian 6, 8, 9, 10, 11, 12, 13 and unstable, none of which
+			// that image can install. The release qualifier is what prevents
+			// that (spike/NOTES.md T0.3, and T66 for this measurement), and a
+			// query that cannot carry one is not made.
+			return query{}, false
+		}
 		var q query
 		q.Package.PURL = purl.Source(key.namespace, key.source, key.version, key.distro)
 		return q, true
@@ -264,7 +276,7 @@ func (o *OSV) Match(ctx context.Context, comps []model.Component) ([]model.Findi
 	grouped := make(map[queryKey][]model.Component, len(comps))
 	for _, c := range comps {
 		key := keyFor(c)
-		if key.source == "" || key.version == "" || key.kind == kindUnknown {
+		if _, ok := queryFor(key); !ok || key.source == "" || key.version == "" {
 			continue // nothing that can be looked up
 		}
 		if _, seen := grouped[key]; !seen {

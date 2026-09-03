@@ -73,6 +73,13 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 - `--fail-on` and the exit codes from `docs/output-spec.md` section 5: 0 clean,
   1 findings at or above the threshold, 2 the scan could not complete.
 - `--no-network` to produce the SBOM without any vulnerability lookup.
+- A dpkg image with no release in os-release is cataloged but not looked up.
+  Without a release the query carries no distro qualifier and matches the source
+  package in every Debian release at once: a Yocto image built with
+  `package_deb`, six packages, produced 182 findings with fixed versions from
+  eight different Debian releases, none installable there. The SBOM is
+  unaffected, and the scan says which packages were skipped and why. This
+  matches what the apk path already did.
 - Derivative distributions are looked up in the data of the base they declare in
   os-release's `ID_LIKE`, under the release their `VERSION_CODENAME` names, and
   the scan says which base it used. Raspberry Pi OS, Armbian and Linux Mint all

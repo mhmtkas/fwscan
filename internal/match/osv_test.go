@@ -1491,3 +1491,78 @@ func TestUbuntuIsQueriedUnderItsOwnNamespace(t *testing.T) {
 		t.Errorf("advisoryEcosystem for Debian = %q, want Debian:11", eco)
 	}
 }
+
+// A dpkg image with no release is not queried at all.
+//
+// Without a release the purl carries no distro qualifier, and an unscoped
+// Debian query does not return nothing -- it returns everything, matching the
+// source package across every release at once. Measured on a Yocto image built
+// with package_deb, which writes a real dpkg status and no VERSION_CODENAME:
+// six packages produced 182 findings carrying fixed versions from Debian 6, 8,
+// 9, 10, 11, 12, 13 and unstable, none of them installable there. The release
+// qualifier is what prevents this (spike/NOTES.md T0.3 and T66); a query that
+// cannot carry one is not made.
+func TestUnscopedDebianQueryIsNotMade(t *testing.T) {
+	var asked int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&asked, 1)
+		_, _ = io.WriteString(w, `{"results":[{}]}`)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+	osv.TrackerBase = ""
+
+	// A Yocto package: a real dpkg entry, a Yocto revision, and no release.
+	findings, err := osv.Match(context.Background(), []model.Component{{
+		Name: "openssl", Version: "3.0.8-r0", Arch: "cortexa53",
+		Source: "openssl", SourceVersion: "3.0.8-r0",
+		PURL:       "pkg:deb/debian/openssl@3.0.8-r0?arch=cortexa53",
+		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
+		DistroID: "poky",
+	}})
+	if err != nil {
+		t.Fatalf("Match: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Errorf("got %d findings for a package with no release, want 0", len(findings))
+	}
+	if n := atomic.LoadInt32(&asked); n != 0 {
+		t.Errorf("sent %d queries for a package with no release, want 0", n)
+	}
+}
+
+// The same package with a release is queried as it always was, so the guard
+// above cannot be silencing the ordinary case.
+func TestScopedDebianQueryIsStillMade(t *testing.T) {
+	var asked int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /v1/querybatch", func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&asked, 1)
+		_, _ = io.WriteString(w, `{"results":[{}]}`)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	osv := NewOSV()
+	osv.BaseURL = server.URL
+	osv.HTTPClient = server.Client()
+	osv.TrackerBase = ""
+
+	if _, err := osv.Match(context.Background(), []model.Component{{
+		Name: "libssl1.1", Version: "1.1.1k-1+deb11u1",
+		Source: "openssl", SourceVersion: "1.1.1k-1+deb11u1",
+		PURL:       "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u1?arch=source&distro=bullseye",
+		Confidence: model.ConfidenceHigh,
+		DistroID:   "debian", DistroBase: "debian", Distro: "bullseye", DistroVersion: "11",
+	}}); err != nil {
+		t.Fatalf("Match: %v", err)
+	}
+	if n := atomic.LoadInt32(&asked); n != 1 {
+		t.Errorf("sent %d queries for a scoped package, want 1", n)
+	}
+}

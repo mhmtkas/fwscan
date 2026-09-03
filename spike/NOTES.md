@@ -837,3 +837,65 @@ Debian 11 rootfs, 98 packages: **0 findings before, 208 after**, 111 distinct
 CVEs, none with a fix because Debian has published none for that release. A
 freely supported release never fetches any of this: bookworm 182 findings in 5s,
 trixie 148 in 5s, Ubuntu 22.04 140 in 4s, unchanged.
+
+## T66 — An unscoped Debian query returns everything — DONE 3 Sep 2026 — **BINDING**
+
+T0.3 established that the release qualifier is mandatory and recorded what
+happens without it. What it did not record is what the *tool* did when an image
+gave it no release to use: it warned and queried anyway. This is the measurement
+of that, and the reason the query is now refused instead.
+
+### The image
+
+Yocto built with `package_deb`, which is an ordinary configuration and writes a
+real `var/lib/dpkg/status`. Its os-release has `ID=poky` and `VERSION_ID` but no
+`VERSION_CODENAME`, because Yocto releases are not Debian releases and have no
+codename in Debian's sense. Six packages, on Yocto's `<upstream>-r<N>` revision
+scheme:
+
+```
+openssl 3.0.8-r0   busybox 1.35.0-r0   zlib 1.2.13-r0
+base-files 3.0.14-r89   glibc 2.35-r1   libgcc 11.4.0-r0
+```
+
+### The result
+
+**182 findings.** Not "nothing", which is the failure mode the existing warning
+described. The fixed versions they carried, by the release each came from:
+
+| release | findings |
+|---|---|
+| Debian 12 | 60 |
+| unstable or no release in the string | 56 |
+| Debian 13 | 22 |
+| no fix | 15 |
+| Debian 8 | 13 |
+| Debian 11 | 12 |
+| Debian 9 | 2 |
+| Debian 10 | 1 |
+| Debian 6 | 1 |
+
+Nine releases at once. `CVE-2016-2148` was reported against `busybox 1.35.0-r0`
+with a fix at `1:1.22.0-9+deb8u2` — a Debian 8 package, against a busybox
+thirteen minor versions newer, on an image that has no Debian archive at all.
+Every one of these is a version the image cannot install.
+
+The mechanism is T0.3's, seen from the other side. Without a distro qualifier
+the purl matches the source package in every release OSV holds, and Yocto's
+`-r0` revision sorts below every Debian revision, so nothing is ever filtered
+out by version either.
+
+### The decision
+
+A `kindDeb` query that cannot carry a release is not made. This mirrors what
+`kindApk` already did — its comment reads "without the release there is no
+ecosystem to ask about, and a bare Alpine returns nothing" — and the Debian case
+is worse than Alpine's, because it returns everything rather than nothing.
+
+The image still gets a complete SBOM, which is the artifact that does not depend
+on a release, and one warning saying which packages were not looked up and why.
+Verified after the change: the same image reports 0 findings, and Debian 11,
+Debian 12, Ubuntu 22.04 and Alpine 3.19 are unchanged.
+
+`TestUnscopedDebianQueryIsNotMade` was run against a build of the previous
+commit and fails there, so it tests the fix rather than restating it.

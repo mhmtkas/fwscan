@@ -287,6 +287,7 @@ Deliberately out of scope for v1:
 
 | Not supported | Why |
 |---|---|
+| Yocto, Buildroot and other custom builds | No package database fwscan reads, or one with no distribution release behind it; the kernel and busybox are found by heuristics and nothing is looked up |
 | Binary fingerprinting of unmanaged binaries | An accuracy problem with no bottom; not planned |
 | Encrypted or obfuscated firmware | Per-vendor work |
 | SPDX output | CycloneDX covers the CRA; SPDX behind a flag later |
@@ -349,6 +350,24 @@ there and check that section of the report by hand.
 There is no reliable automatic fix for the last two: the information needed to
 tell the cases apart is not in the file being read. Naming the failure is the
 honest option, and a version-plausibility guess would be a worse one.
+
+### Images with no distribution release
+
+An image whose os-release carries no `VERSION_CODENAME` — a Yocto build, a
+hand-assembled rootfs — has its dpkg packages **cataloged but not looked up**,
+and the scan says so.
+
+That is not caution. Without a release the query carries no distro qualifier and
+matches the source package in every Debian release at once. A Yocto image built
+with `package_deb`, six packages, produced 182 findings that way, with fixed
+versions from Debian 6, 8, 9, 10, 11, 12, 13 and unstable — including a Debian 8
+busybox offered as the fix for a busybox thirteen minor versions newer. None of
+them installable on that image. The measurement is in
+[`spike/NOTES.md`](spike/NOTES.md) under T66.
+
+The SBOM is unaffected and complete: it does not depend on a release. If your
+build can put a `VERSION_CODENAME` in os-release that names the distribution
+release your packages actually came from, the lookup works normally.
 
 ### Derivative distributions
 

@@ -274,14 +274,18 @@ func emptyResultWarnings(comps []model.Component, findings []model.Finding) []st
 	if len(findings) > 0 {
 		return nil
 	}
-	debian := false
+	// A package with no release was never queried (osv.go, queryFor), so an
+	// empty result for it is not a result at all and the release warning has
+	// already said why. Telling the reader to distrust a zero that was never
+	// computed would send them looking in the wrong place.
+	queried := false
 	for _, c := range comps {
-		if strings.HasPrefix(c.PURL, "pkg:deb/debian/") {
-			debian = true
+		if strings.HasPrefix(c.PURL, "pkg:deb/debian/") && c.Distro != "" {
+			queried = true
 			break
 		}
 	}
-	if !debian {
+	if !queried {
 		return nil
 	}
 	return []string{"no findings for a Debian image with " + strconv.Itoa(len(comps)) +
@@ -385,8 +389,16 @@ func releaseWarnings(rootfs fs.FS, comps []model.Component) []string {
 
 	var warnings []string
 	if dpkg.Distro == "" {
-		warnings = append(warnings, "no release found in os-release; the vulnerability lookup is not "+
-			"scoped to a Debian release and may name fixes from other releases")
+		// This is the binding one: nothing was queried, so the sentences below
+		// about which data was queried do not apply and are not printed.
+		// Not "may name fixes from other releases" -- it did, 182 times on a
+		// six-package Yocto image, from eight Debian releases at once. Without
+		// a release the query is unscoped and an unscoped Debian query returns
+		// every release's answer, so it is not made at all.
+		return append(warnings, "no release found in os-release, so the dpkg packages were "+
+			"not looked up: without a release the query matches every Debian release at once and "+
+			"reports fixes the image cannot install. The SBOM is still complete; add "+
+			"VERSION_CODENAME to os-release, or scan a rootfs that has it")
 	}
 	// A derivative is not a problem when it says what it is derived from.
 	// os-release's ID_LIKE exists for exactly this, Raspberry Pi OS and Armbian
