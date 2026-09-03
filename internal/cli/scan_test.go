@@ -568,11 +568,15 @@ func TestUnreadDatabaseWarnings(t *testing.T) {
 // reading the Debian Security Tracker 211, all of them unfixed.
 func TestEmptyResultWarnings(t *testing.T) {
 	deb := model.Component{Name: "libc6", Version: "2.31-13+deb11u14", Distro: "bullseye",
+		DistroID: "debian", DistroBase: "debian", Confidence: model.ConfidenceHigh,
 		PURL: "pkg:deb/debian/libc6@2.31-13%2Bdeb11u14?arch=amd64&distro=bullseye"}
-	apk := model.Component{Name: "musl", Version: "1.2.4-r2", PURL: "pkg:apk/alpine/musl@1.2.4-r2?arch=x86_64"}
+	apk := model.Component{Name: "musl", Version: "1.2.4-r2", Distro: "v3.19",
+		DistroID: "alpine", DistroBase: "alpine", Confidence: model.ConfidenceHigh,
+		PURL: "pkg:apk/alpine/musl@1.2.4-r2?arch=x86_64"}
 	// A package with no release is never queried, so an empty result for it is
 	// not a result and must not be reported as a suspicious zero.
 	unscoped := model.Component{Name: "libc6", Version: "2.31-13+deb11u14",
+		DistroID: "debian", DistroBase: "debian", Confidence: model.ConfidenceHigh,
 		PURL: "pkg:deb/debian/libc6@2.31-13%2Bdeb11u14?arch=amd64"}
 	finding := model.Finding{Component: deb, ID: "CVE-2024-0001", Severity: model.SeverityHigh}
 
@@ -584,7 +588,10 @@ func TestEmptyResultWarnings(t *testing.T) {
 	}{
 		{"a debian image with nothing found", []model.Component{deb}, nil, true},
 		{"a debian image with findings", []model.Component{deb}, []model.Finding{finding}, false},
-		{"an alpine image with nothing found", []model.Component{apk}, nil, false},
+		// An apk image is queried like any other, and the silent failure mode
+		// the spike records for it -- a wrong ecosystem string returning zero
+		// -- is the reason this warning is not Debian-only.
+		{"an alpine image with nothing found", []model.Component{apk}, nil, true},
 		{"no components at all", nil, nil, false},
 		{"a mixed image with nothing found", []model.Component{apk, deb}, nil, true},
 		{"a debian image whose packages were never queried", []model.Component{unscoped}, nil, false},
@@ -596,12 +603,12 @@ func TestEmptyResultWarnings(t *testing.T) {
 			if (len(got) > 0) != tt.want {
 				t.Fatalf("got %q, want a warning: %v", got, tt.want)
 			}
-			// The reason zero can be wrong now comes from supportWarnings,
-			// which names the release and the date its support ended rather
-			// than gesturing at "oldstable". This warning's job is only to say
-			// that a Debian image with no findings is worth a second look.
-			if tt.want && !strings.Contains(got[0], "no findings for a Debian image") {
-				t.Errorf("warning = %q, want it to flag the empty result", got[0])
+			// The warning names what was asked rather than calling the zero
+			// suspicious: a fully patched image legitimately reports nothing,
+			// and what a reader cannot otherwise tell is that case apart from
+			// a lookup that asked the wrong question.
+			if tt.want && !strings.Contains(got[0], "were looked up in") {
+				t.Errorf("warning = %q, want it to name the lookup", got[0])
 			}
 		})
 	}

@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Fetch a Debian rootfs layer straight from the Docker Hub registry (no daemon)
-# and extract it. Args: <tag> <outdir>
+# Fetch a rootfs layer straight from the Docker Hub registry (no daemon) and
+# extract it. Args: <tag> <outdir>; REPO_OVERRIDE picks a repository other than
+# library/debian, which is how scripts/real-image-matrix.sh reaches Ubuntu,
+# Alpine and the rpm-based images.
 set -euo pipefail
-TAG="$1"; OUT="$2"; REPO="library/debian"; ARCH="amd64"
+TAG="$1"; OUT="$2"; REPO="${REPO_OVERRIDE:-library/debian}"; ARCH="amd64"
 TOKEN=$(curl -sf "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${REPO}:pull" \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
 AH="Authorization: Bearer $TOKEN"

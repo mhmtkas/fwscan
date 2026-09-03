@@ -38,7 +38,7 @@ func TestApkCatalog(t *testing.T) {
 				"D:so:libc.musl-x86_64.so.1\n",
 			want: []model.Component{{
 				Name: "zlib", Version: "1.2.12-r1", Arch: "x86_64",
-				Source: "zlib", SourceVersion: "1.2.12-r1", Distro: "v3.16",
+				Source: "zlib", SourceVersion: "1.2.12-r1", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 				PURL:       "pkg:apk/alpine/zlib@1.2.12-r1?arch=x86_64&distro=alpine-3.16",
 				Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 			}},
@@ -52,7 +52,7 @@ func TestApkCatalog(t *testing.T) {
 				"o:openssl\n",
 			want: []model.Component{{
 				Name: "libssl1.1", Version: "1.1.1o-r0", Arch: "x86_64",
-				Source: "openssl", SourceVersion: "1.1.1o-r0", Distro: "v3.16",
+				Source: "openssl", SourceVersion: "1.1.1o-r0", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 				PURL:       "pkg:apk/alpine/libssl1.1@1.1.1o-r0?arch=x86_64&distro=alpine-3.16",
 				Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 			}},
@@ -65,7 +65,7 @@ func TestApkCatalog(t *testing.T) {
 				"A:x86_64\n",
 			want: []model.Component{{
 				Name: "scanelf", Version: "1.3.4-r0", Arch: "x86_64",
-				Source: "scanelf", SourceVersion: "1.3.4-r0", Distro: "v3.16",
+				Source: "scanelf", SourceVersion: "1.3.4-r0", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 				PURL:       "pkg:apk/alpine/scanelf@1.3.4-r0?arch=x86_64&distro=alpine-3.16",
 				Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 			}},
@@ -78,7 +78,7 @@ func TestApkCatalog(t *testing.T) {
 				"o:broken\n",
 			want: []model.Component{{
 				Name: "broken", Arch: "x86_64",
-				Source: "broken", Distro: "v3.16",
+				Source: "broken", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 				PURL:       "pkg:apk/alpine/broken?arch=x86_64&distro=alpine-3.16",
 				Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 			}},
@@ -94,19 +94,19 @@ func TestApkCatalog(t *testing.T) {
 			want: []model.Component{
 				{
 					Name: "musl", Version: "1.2.3-r0", Arch: "x86_64",
-					Source: "musl", SourceVersion: "1.2.3-r0", Distro: "v3.16",
+					Source: "musl", SourceVersion: "1.2.3-r0", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 					PURL:       "pkg:apk/alpine/musl@1.2.3-r0?arch=x86_64&distro=alpine-3.16",
 					Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 				},
 				{
 					Name: "busybox", Version: "1.35.0-r13", Arch: "x86_64",
-					Source: "busybox", SourceVersion: "1.35.0-r13", Distro: "v3.16",
+					Source: "busybox", SourceVersion: "1.35.0-r13", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 					PURL:       "pkg:apk/alpine/busybox@1.35.0-r13?arch=x86_64&distro=alpine-3.16",
 					Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 				},
 				{
 					Name: "ssl_client", Version: "1.35.0-r13", Arch: "x86_64",
-					Source: "busybox", SourceVersion: "1.35.0-r13", Distro: "v3.16",
+					Source: "busybox", SourceVersion: "1.35.0-r13", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 					PURL:       "pkg:apk/alpine/ssl_client@1.35.0-r13?arch=x86_64&distro=alpine-3.16",
 					Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 				},
@@ -121,6 +121,9 @@ func TestApkCatalog(t *testing.T) {
 			want: []model.Component{{
 				Name: "musl", Version: "1.2.3-r0", Arch: "x86_64",
 				Source: "musl", SourceVersion: "1.2.3-r0",
+				// The distribution is still alpine; it is the release that is
+				// missing, and that is what costs the query its scope.
+				DistroID: "alpine", DistroBase: "alpine",
 				PURL:       "pkg:apk/alpine/musl@1.2.3-r0?arch=x86_64",
 				Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 			}},
@@ -139,7 +142,7 @@ func TestApkCatalog(t *testing.T) {
 				"F:etc\n",
 			want: []model.Component{{
 				Name: "apk-tools", Version: "2.12.9-r3", Arch: "x86_64",
-				Source: "apk-tools", SourceVersion: "2.12.9-r3", Distro: "v3.16",
+				Source: "apk-tools", SourceVersion: "2.12.9-r3", DistroID: "alpine", DistroBase: "alpine", Distro: "v3.16",
 				PURL:       "pkg:apk/alpine/apk-tools@2.12.9-r3?arch=x86_64&distro=alpine-3.16",
 				Confidence: model.ConfidenceHigh, Evidence: ApkInstalledPath,
 			}},

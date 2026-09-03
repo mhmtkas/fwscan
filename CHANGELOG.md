@@ -81,6 +81,12 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 - `--fail-on` and the exit codes from `docs/output-spec.md` section 5: 0 clean,
   1 findings at or above the threshold, 2 the scan could not complete.
 - `--no-network` to produce the SBOM without any vulnerability lookup.
+- A scan that finds nothing says what it looked up, for every ecosystem rather
+  than only Debian. A fully patched image legitimately reports zero, and so does
+  a lookup that asked the wrong question — the silent failure mode the spike
+  records for both ecosystems — and nothing in the output told them apart. It
+  now names the distribution and release that were queried, and leaves the
+  conclusion to whoever knows the image.
 - A dpkg image with no release in os-release is cataloged but not looked up.
   Without a release the query carries no distro qualifier and matches the source
   package in every Debian release at once: a Yocto image built with

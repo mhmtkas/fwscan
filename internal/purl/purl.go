@@ -18,6 +18,10 @@ import (
 const (
 	NamespaceDebian = "debian"
 	NamespaceUbuntu = "ubuntu"
+	// NamespaceAlpine is not used in a purl -- apk purls carry
+	// pkg:apk/alpine/ from Apk() -- but it names the distribution for a
+	// component and a report, so it belongs with the other two.
+	NamespaceAlpine = "alpine"
 )
 
 // Namespace maps an os-release ID to the purl namespace to query under.

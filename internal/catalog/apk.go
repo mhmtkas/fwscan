@@ -142,10 +142,15 @@ func apkComponent(fields map[string]string, release string) model.Component {
 		// apk records no separate origin version: the origin is built at the
 		// same version as its binaries.
 		SourceVersion: version,
-		Distro:        release,
-		PURL:          purl.Apk(name, version, arch, release),
-		Confidence:    model.ConfidenceHigh,
-		Evidence:      ApkInstalledPath,
+		// Alpine is not read from os-release -- the release comes from
+		// etc/alpine-release -- but the distribution is still what answers for
+		// these packages, and the report names it.
+		DistroID:   purl.NamespaceAlpine,
+		DistroBase: purl.NamespaceAlpine,
+		Distro:     release,
+		PURL:       purl.Apk(name, version, arch, release),
+		Confidence: model.ConfidenceHigh,
+		Evidence:   ApkInstalledPath,
 	}
 }
 

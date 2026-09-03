@@ -6,7 +6,6 @@ import (
 	"io"
 	"io/fs"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -278,18 +277,34 @@ func emptyResultWarnings(comps []model.Component, findings []model.Finding) []st
 	// empty result for it is not a result at all and the release warning has
 	// already said why. Telling the reader to distrust a zero that was never
 	// computed would send them looking in the wrong place.
-	queried := false
-	for _, c := range comps {
-		if strings.HasPrefix(c.PURL, "pkg:deb/debian/") && c.Distro != "" {
-			queried = true
+	var queried *model.Component
+	for i := range comps {
+		if comps[i].Confidence == model.ConfidenceHigh && comps[i].PURL != "" && comps[i].Distro != "" {
+			queried = &comps[i]
 			break
 		}
 	}
-	if !queried {
+	if queried == nil {
 		return nil
 	}
-	return []string{"no findings for a Debian image with " + strconv.Itoa(len(comps)) +
-		" packages, which is worth checking rather than trusting"}
+
+	// Not "this is suspicious": a fully patched image legitimately reports
+	// nothing, and warning on every one of those would be noise nobody reads.
+	// What a reader cannot otherwise tell is a clean image from a lookup that
+	// returned nothing because it asked the wrong question -- which the spike
+	// records as the silent failure mode of both ecosystems. So the warning
+	// names what was asked, and leaves the conclusion to whoever knows the
+	// image.
+	where := queried.DistroBase
+	if where == "" {
+		where = queried.DistroID
+	}
+	if where == "" {
+		where = "the distribution"
+	}
+	return []string{fmt.Sprintf("no findings. %d packages were looked up in %s's data for %s, "+
+		"which is the expected result for a fully patched image and also what a lookup that "+
+		"asked the wrong question returns", len(comps), where, queried.Distro)}
 }
 
 // supportWarnings says whether the release still receives security updates, and

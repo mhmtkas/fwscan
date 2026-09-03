@@ -58,6 +58,12 @@ needs `squashfs-tools` 4.4 or newer — earlier builds lack lz4 and zstd support
   at a server of its own. One did not, and the end-to-end test quietly started
   fetching 60 MB from salsa.debian.org on every run.
 - **`make lint test` green**, and coverage not going backwards.
+- **`scripts/real-image-matrix.sh` before a release.** Unit tests cover the
+  code; that script covers the claims, over every class of image fwscan says it
+  handles. Every bug worth having found in this repository was a case nobody had
+  run, not a subtle mistake in a case somebody had — a Yocto image with no
+  release, an unreleased Debian branch, a fully patched Alpine. It fetches
+  around 700 MB and is not in CI.
 - **`CHANGELOG.md` updated** under `[Unreleased]`.
 - **Conventional Commits**: `feat:`, `fix:`, `test:`, `docs:`, `chore:`.
 

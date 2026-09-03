@@ -229,18 +229,23 @@ them.
 | Ubuntu 22.04 | 140 | 101 | 67 |
 | Ubuntu 24.04 | 120 | 101 | 74 |
 | Ubuntu 26.04 | 151 | 153 | 117 |
-| Alpine 3.21 | 56 | 58 | — |
-| Alpine 3.16 (end of life) | 27 | 94, of which 29 from Alpine's data | — |
+| Alpine 3.21.7 | 0 | 3, of which 0 from Alpine's data | — |
+| Alpine 3.16.9 (end of life) | 4 | 67, of which 4 from Alpine's data | — |
 | squashfs image | reads it | 0 artifacts | not scanned |
 | tarball | reads it | reads it | not scanned |
 
 On Debian 11, against trivy with a database built the same day: 111 CVEs in
 both, none that fwscan reports and trivy does not. Four hours later the same
 image gave fwscan 232 findings rather than 208, all from upstream publishing
-rather than any change here — which is what the caveat above is about. The Alpine 3.16 row is a
-difference in method rather than coverage — 65 of grype's 94 come from matching
-package names against NVD's CPE strings rather than from Alpine's data, which is
-a technique [`docs/scope.md`](docs/scope.md) excludes by name.
+rather than any change here — which is what the caveat above is about.
+
+On Alpine the two agree **exactly** on Alpine's own data: 4 to 4, 10 to 10 and 0
+to 0 across three releases. grype's larger totals come from matching package
+names against NVD's CPE strings, a technique
+[`docs/scope.md`](docs/scope.md) excludes by name, and the Alpine column above
+says which half is which. Those rows are the latest point release of each tag —
+3.16.9, 3.19.9, 3.21.7, fully patched; an earlier pass using the `.0` images
+reported 27, 42 and 56 from the same tool.
 
 On Debian the two often differ on severity, because fwscan scores the CVSS
 vector and grype reports Debian's own rating, which is `negligible` for a great

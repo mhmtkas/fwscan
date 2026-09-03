@@ -153,9 +153,9 @@ with no change to the tool.
 | Ubuntu 22.04 | 29 MB | 102 | 140 | 101 | 67 |
 | Ubuntu 24.04 | 30 MB | 93 | 120 | 101 | 74 |
 | Ubuntu 26.04 | 42 MB | 88 | 151 | 153 | 117 |
-| Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94, of which 29 from Alpine's data | — |
-| Alpine 3.19 | 3.1 MB | 18 | 42 | 46 | — |
-| Alpine 3.21 | 3.7 MB | 18 | 56 | 58 | — |
+| Alpine 3.16.9 (end of life) | 2.5 MB | 17 | 4 | 67, of which **4** from Alpine's data | — |
+| Alpine 3.19.9 | 3.1 MB | 18 | 10 | 14, of which **10** from Alpine's data | — |
+| Alpine 3.21.7 | 3.7 MB | 18 | 0 | 3, of which **0** from Alpine's data | — |
 | OpenWrt 23.05.5 squashfs | 4.3 MB | 2, all heuristic | — | — | not scanned |
 
 fwscan is level or ahead on every Debian and Ubuntu row. The Alpine 3.16 row is
@@ -204,27 +204,36 @@ will fix.
 A freely supported release never fetches any of this. Bookworm and trixie are
 answered by OSV alone, in five seconds each.
 
-### Alpine 3.16 is a difference in method, not in data
+### Alpine: the two tools agree exactly on Alpine's data
 
-Alpine's own security database still carries 3.16 — 244 packages and 2,213 CVE
-references, two years after that release went end of life — and both tools read
-it. Split grype's 94 by where each finding came from:
+The Alpine rows above look like a rout and are the opposite. Split grype's
+findings by where each one came from:
 
 ```sh
-grype -q -o json alpine-3.16.tar.gz \
+grype -q -o json alpine-3.16/layer.tar.gz \
   | jq -r '[.matches[].vulnerability.namespace]|group_by(.)|map({(.[0]):length})|add'
 ```
 ```json
-{ "alpine:distro:alpine:3.16": 29, "nvd:cpe": 65 }
+{ "alpine:distro:alpine:3.16": 4, "nvd:cpe": 63 }
 ```
 
-Twenty-nine come from Alpine's data, against fwscan's 27. The other sixty-five
-come from matching the package's name and version against NVD's CPE strings,
-which is not Alpine data and is the technique `docs/scope.md` excludes by name:
-an accuracy problem with no bottom, and one that reports a vulnerability in
-something that merely shares a name. Whether those sixty-five are findings or
-noise is a judgement, and this is not the page to settle it — but the
-like-for-like comparison on this row is 27 to 29, not 27 to 94.
+Four from Alpine's data, against fwscan's four. The same holds on the other two
+rows: 10 to 10, and 0 to 0. On the data Alpine publishes, the two tools are
+**identical across three releases**.
+
+The rest comes from matching the package's name and version against NVD's CPE
+strings, which is not Alpine data and is the technique `docs/scope.md` excludes
+by name: an accuracy problem with no bottom, and one that reports a
+vulnerability in something that merely shares a name. Whether those are findings
+or noise is a judgement and this page does not settle it. It does say which
+column is which.
+
+**A note on point releases.** These numbers are `alpine:3.16` and the rest as
+the registry serves them today, which is 3.16.9, 3.19.9 and 3.21.7 — the latest
+point release of each, fully patched. An earlier pass of this table used the
+`.0` images and reported 27, 42 and 56. Same tool, same tags, images six point
+releases apart. If you re-derive these, check `etc/alpine-release` before
+comparing.
 
 Every scan also says which support tier covers the image's release, until when,
 and whether that tier's updates are free. That is the sentence a reader needs
