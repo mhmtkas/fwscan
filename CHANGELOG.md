@@ -73,6 +73,14 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 - `--fail-on` and the exit codes from `docs/output-spec.md` section 5: 0 clean,
   1 findings at or above the threshold, 2 the scan could not complete.
 - `--no-network` to produce the SBOM without any vulnerability lookup.
+- Derivative distributions are looked up in the data of the base they declare in
+  os-release's `ID_LIKE`, under the release their `VERSION_CODENAME` names, and
+  the scan says which base it used. Raspberry Pi OS, Armbian and Linux Mint all
+  declare one, and between them they are most of the Debian-derived device
+  images there are. A Raspberry Pi OS bullseye image gets the 45 findings Debian
+  bullseye gets for `libssl1.1`, not the 28 an unrecognised distribution gets.
+  An image that names no base fwscan knows is still queried as Debian, and still
+  says so.
 - Every scan reports whether the release in the image still receives security
   updates, and whether those updates are free. This is the explanation behind
   the tool's worst result: a Debian 11 image scanned after 2026-08-31 yields no

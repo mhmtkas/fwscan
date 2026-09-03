@@ -62,7 +62,7 @@ func highComponent(name, version string) model.Component {
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
 		// Carried by every dpkg component the pipeline produces, and rendered
 		// by the CRA report's inventory section.
-		DistroID: "debian", Distro: "bullseye", DistroVersion: "11",
+		DistroID: "debian", DistroBase: "debian", Distro: "bullseye", DistroVersion: "11",
 	}
 }
 

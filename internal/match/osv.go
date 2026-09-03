@@ -178,7 +178,7 @@ func keyFor(c model.Component) queryKey {
 	return queryKey{
 		source:    source,
 		version:   version,
-		namespace: purl.Namespace(c.DistroID),
+		namespace: purl.Namespace(c.DistroBase),
 		distro:    c.Distro,
 		release:   c.DistroVersion,
 		kind:      kindOf(c),
@@ -441,11 +441,11 @@ func debianFallbackTargets(comps []model.Component, now time.Time) (string, map[
 
 	for _, c := range comps {
 		if c.Confidence != model.ConfidenceHigh || c.Source == "" ||
-			purl.Namespace(c.DistroID) != purl.NamespaceDebian || c.DistroID == "" || c.Distro == "" {
+			c.DistroBase != purl.NamespaceDebian || c.Distro == "" {
 			continue
 		}
 		if target == "" {
-			support, ok := release.Lookup(c.DistroID, c.Distro, c.DistroVersion, now)
+			support, ok := release.Lookup(c.DistroBase, c.Distro, c.DistroVersion, now)
 			if !ok || support.FreelySupported() {
 				return "", nil, nil
 			}

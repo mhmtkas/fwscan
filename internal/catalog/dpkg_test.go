@@ -42,7 +42,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Description: Secure Sockets Layer toolkit\n",
 			want: []model.Component{{
 				Name: "openssl", Version: "3.0.11-1~deb12u2", Arch: "amd64",
-				Source: "openssl", SourceVersion: "3.0.11-1~deb12u2", DistroID: "debian", Distro: "bookworm",
+				Source: "openssl", SourceVersion: "3.0.11-1~deb12u2", DistroID: "debian", DistroBase: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/openssl@3.0.11-1~deb12u2?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -61,7 +61,7 @@ func TestDpkgCatalog(t *testing.T) {
 				" still the description\n",
 			want: []model.Component{{
 				Name: "real-pkg", Version: "1.0-1", Arch: "amd64",
-				Source: "real-pkg", SourceVersion: "1.0-1", DistroID: "debian", Distro: "bookworm",
+				Source: "real-pkg", SourceVersion: "1.0-1", DistroID: "debian", DistroBase: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/real-pkg@1.0-1?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -85,7 +85,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1.0-1\n",
 			want: []model.Component{{
 				Name: "present", Version: "1.0-1", Arch: "amd64",
-				Source: "present", SourceVersion: "1.0-1", DistroID: "debian", Distro: "bullseye",
+				Source: "present", SourceVersion: "1.0-1", DistroID: "debian", DistroBase: "debian", Distro: "bullseye",
 				PURL:       "pkg:deb/debian/present@1.0-1?arch=amd64&distro=bullseye",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -100,7 +100,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1:1.2.11.dfsg-2\n",
 			want: []model.Component{{
 				Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "amd64",
-				Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", DistroID: "debian", Distro: "bullseye",
+				Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", DistroID: "debian", DistroBase: "debian", Distro: "bullseye",
 				PURL:       "pkg:deb/debian/zlib1g@1:1.2.11.dfsg-2?arch=amd64&distro=bullseye",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -115,7 +115,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1:2.36.1-8+deb11u1\n",
 			want: []model.Component{{
 				Name: "bsdutils", Version: "1:2.36.1-8+deb11u1", Arch: "amd64",
-				Source: "util-linux", SourceVersion: "2.36.1-8+deb11u1", DistroID: "debian", Distro: "bullseye",
+				Source: "util-linux", SourceVersion: "2.36.1-8+deb11u1", DistroID: "debian", DistroBase: "debian", Distro: "bullseye",
 				PURL:       "pkg:deb/debian/bsdutils@1:2.36.1-8%2Bdeb11u1?arch=amd64&distro=bullseye",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -129,7 +129,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 2026b-0+deb12u1\n",
 			want: []model.Component{{
 				Name: "tzdata", Version: "2026b-0+deb12u1", Arch: "all",
-				Source: "tzdata", SourceVersion: "2026b-0+deb12u1", DistroID: "debian", Distro: "bookworm",
+				Source: "tzdata", SourceVersion: "2026b-0+deb12u1", DistroID: "debian", DistroBase: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/tzdata@2026b-0%2Bdeb12u1?arch=all&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -157,7 +157,7 @@ func TestDpkgCatalog(t *testing.T) {
 				"Version: 1.0\n",
 			want: []model.Component{{
 				Name: "survivor", Version: "1.0", Arch: "amd64",
-				Source: "survivor", SourceVersion: "1.0", DistroID: "debian", Distro: "bookworm",
+				Source: "survivor", SourceVersion: "1.0", DistroID: "debian", DistroBase: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/survivor@1.0?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},
@@ -168,7 +168,7 @@ func TestDpkgCatalog(t *testing.T) {
 			status:   "Package: last\nStatus: install ok installed\nArchitecture: amd64\nVersion: 2.0",
 			want: []model.Component{{
 				Name: "last", Version: "2.0", Arch: "amd64",
-				Source: "last", SourceVersion: "2.0", DistroID: "debian", Distro: "bookworm",
+				Source: "last", SourceVersion: "2.0", DistroID: "debian", DistroBase: "debian", Distro: "bookworm",
 				PURL:       "pkg:deb/debian/last@2.0?arch=amd64&distro=bookworm",
 				Confidence: model.ConfidenceHigh, Evidence: DpkgStatusPath,
 			}},

@@ -311,6 +311,52 @@ no release to scope a query to, and an unscoped query invents vulnerabilities
 rather than finding them. They are counted separately on the `Packages` line so
 the difference is visible.
 
+### Vendor packages in a vendor image
+
+`var/lib/dpkg/status` records what is installed. It does not record where a
+package came from, so fwscan cannot tell a package from the distribution's
+archive apart from one a vendor built and installed themselves. Three
+consequences, all measured on synthetic images:
+
+**A vendor version of a distribution package is handled correctly.** dpkg's
+version ordering understands a vendor suffix, so `libssl1.1
+1.1.1k-1+deb11u1acme1` gets the same findings as the stock version, and
+`zlib1g 1:1.2.11.dfsg-2+deb11u2acme1` — a vendor rebuild on top of the fixed
+version — is correctly not reported for the CVEs that fix closed. This is the
+common case and it works.
+
+**A vendor package the distribution has never shipped produces no findings**,
+which is right, but it is still described in the SBOM as
+`pkg:deb/debian/your-package@1.0.0`. That purl asserts a Debian archive package
+and is wrong. Treat the purls of your own packages as names rather than as
+identifiers a downstream tool can resolve.
+
+**A vendor package that shares a name with a distribution source package
+inherits its vulnerabilities.** A package called `curl` at version `0.1-acme1`
+sorts below every fix Debian ever published for curl and is reported against all
+of them — 163 findings for one package, in a test image. A vendor package whose
+`Source:` field names a distribution package does the same. If your build
+installs packages under names the distribution also uses, expect false positives
+there and check that section of the report by hand.
+
+There is no reliable automatic fix for the last two: the information needed to
+tell the cases apart is not in the file being read. Naming the failure is the
+honest option, and a version-plausibility guess would be a worse one.
+
+### Derivative distributions
+
+A derivative that declares its base in os-release's `ID_LIKE` — Raspberry Pi OS,
+Armbian, Linux Mint — is looked up in that base's data, under the release its
+`VERSION_CODENAME` names, and the scan says so. That is where its packages came
+from, so it is the right answer: a Raspberry Pi OS bullseye image gets the same
+45 findings for `libssl1.1` that Debian bullseye does, rather than the 28 it
+would get without.
+
+A dpkg-based image that names no base fwscan recognises is queried as Debian
+anyway, because that is what one is most likely built from — and the scan says
+that too, because if the derivative renumbered its packages the query returns
+nothing rather than an error.
+
 ## Roadmap
 
 Next is VEX output, then offline vulnerability data for air-gapped builds. An

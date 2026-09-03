@@ -404,7 +404,38 @@ func TestReleaseWarnings(t *testing.T) {
 				c.DistroID, c.Distro, c.DistroVersion = "linuxmint", "vanessa", "21"
 				return c
 			}()},
-			want: []string{"this is linuxmint"},
+			want: []string{"this is linuxmint and names no base fwscan knows"},
+		},
+		{
+			// The case this matters for: Raspberry Pi OS is Debian, says so in
+			// ID_LIKE, and its packages are Debian's packages. Telling the
+			// reader it "may find nothing" would be wrong and would send them
+			// looking for a problem that is not there.
+			name: "a derivative that names a base fwscan knows",
+			files: map[string]string{
+				"var/lib/dpkg/status": status,
+				"usr/lib/os-release":  "ID=raspbian\nID_LIKE=debian\nVERSION_ID=\"11\"\nVERSION_CODENAME=bullseye\n",
+			},
+			comps: []model.Component{func() model.Component {
+				c := deb
+				c.DistroID, c.DistroBase = "raspbian", "debian"
+				c.Distro, c.DistroVersion = "bullseye", "11"
+				return c
+			}()},
+			want: []string{"this is raspbian, built on debian"},
+		},
+		{
+			name: "a derivative whose base is ubuntu is not called debian",
+			files: map[string]string{
+				"var/lib/dpkg/status": status,
+				"usr/lib/os-release":  "ID=linuxmint\nID_LIKE=\"ubuntu debian\"\nVERSION_ID=\"21\"\nVERSION_CODENAME=jammy\n",
+			},
+			comps: []model.Component{func() model.Component {
+				c := deb
+				c.DistroID, c.DistroBase, c.Distro = "linuxmint", "ubuntu", "jammy"
+				return c
+			}()},
+			want: []string{"built on ubuntu; packages are looked up in ubuntu's data for jammy"},
 		},
 		{
 			name:  "an alpine image is not a debian lookup",
@@ -661,10 +692,14 @@ func TestScanCRAPathUnwritable(t *testing.T) {
 // image. Before this the scan could only say it had found nothing.
 func TestSupportWarnings(t *testing.T) {
 	deb := func(id, series, version string) model.Component {
+		base := id
+		if id != "debian" && id != "ubuntu" {
+			base = "" // a derivative that names no base fwscan knows
+		}
 		return model.Component{
 			Name: "openssl", Version: "1.1.1n", PURL: "pkg:deb/" + id + "/openssl@1.1.1n",
 			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
-			DistroID: id, Distro: series, DistroVersion: version,
+			DistroID: id, DistroBase: base, Distro: series, DistroVersion: version,
 		}
 	}
 	at := func(s string) time.Time {
@@ -748,7 +783,8 @@ func TestSupportWarnings(t *testing.T) {
 			name: "a low-confidence component is not read for a release",
 			comps: []model.Component{{
 				Name: "busybox", Version: "1.30.1", Confidence: model.ConfidenceLow,
-				Evidence: "bin/busybox", DistroID: "debian", Distro: "bullseye",
+				Evidence: "bin/busybox", DistroID: "debian", DistroBase: "debian",
+				Distro: "bullseye",
 			}},
 			now:     "2026-09-03",
 			wantNot: true,

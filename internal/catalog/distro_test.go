@@ -148,3 +148,98 @@ func TestDetectReleaseSurvivesAnUnreadableFile(t *testing.T) {
 		t.Errorf("detectRelease() = %q, %q, want both empty", codename, version)
 	}
 }
+
+// A derivative that says what it is derived from is a derivative fwscan can
+// answer for: its packages are the base's packages, under the base's release.
+// Raspberry Pi OS, Armbian and Linux Mint all set ID_LIKE, and between them
+// they are most of the Debian-derived device images in the world.
+func TestOSReleaseBase(t *testing.T) {
+	tests := []struct {
+		name string
+		in   OSRelease
+		want string
+	}{
+		{"a distribution fwscan knows is its own base", OSRelease{ID: "debian"}, "debian"},
+		{"ubuntu likewise", OSRelease{ID: "ubuntu"}, "ubuntu"},
+		{
+			name: "raspberry pi os names debian",
+			in:   OSRelease{ID: "raspbian", IDLike: []string{"debian"}},
+			want: "debian",
+		},
+		{
+			// os-release orders ID_LIKE from closest to most distant, so Mint
+			// is Ubuntu rather than Debian even though it names both.
+			name: "the closest base wins",
+			in:   OSRelease{ID: "linuxmint", IDLike: []string{"ubuntu", "debian"}},
+			want: "ubuntu",
+		},
+		{
+			name: "a base fwscan does not know is skipped for one it does",
+			in:   OSRelease{ID: "somethingos", IDLike: []string{"arch", "debian"}},
+			want: "debian",
+		},
+		{
+			// The ID is authoritative when fwscan knows it; a derivative that
+			// also names a base cannot redirect a distribution fwscan handles.
+			name: "the id outranks ID_LIKE",
+			in:   OSRelease{ID: "ubuntu", IDLike: []string{"debian"}},
+			want: "ubuntu",
+		},
+		{"case is not significant", OSRelease{ID: "Debian"}, "debian"},
+		{"a base in another case still matches", OSRelease{ID: "x", IDLike: []string{"Ubuntu"}}, "ubuntu"},
+		{"nothing recognised", OSRelease{ID: "acmeos"}, ""},
+		{"nothing recognised in either field", OSRelease{ID: "acmeos", IDLike: []string{"arch", "fedora"}}, ""},
+		{"an empty file", OSRelease{}, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.in.Base(); got != tt.want {
+				t.Errorf("Base() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadOSReleaseParsesIDLike(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			name: "raspberry pi os",
+			body: "PRETTY_NAME=\"Raspbian GNU/Linux 11 (bullseye)\"\nID=raspbian\nID_LIKE=debian\nVERSION_CODENAME=bullseye\n",
+			want: []string{"debian"},
+		},
+		{
+			name: "a quoted list",
+			body: "ID=linuxmint\nID_LIKE=\"ubuntu debian\"\nVERSION_CODENAME=jammy\n",
+			want: []string{"ubuntu", "debian"},
+		},
+		{
+			name: "no ID_LIKE at all",
+			body: "ID=debian\nVERSION_CODENAME=bookworm\n",
+			want: nil,
+		},
+		{
+			// A hostile file is not walked in full.
+			name: "a list longer than the bound is truncated",
+			body: "ID=x\nID_LIKE=\"a b c d e f g h i j k l\"\nVERSION_CODENAME=bullseye\n",
+			want: []string{"a", "b", "c", "d", "e", "f", "g", "h"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := fstest.MapFS{"etc/os-release": &fstest.MapFile{Data: []byte(tt.body)}}
+			got := ReadOSRelease(root).IDLike
+			if len(got) != len(tt.want) {
+				t.Fatalf("IDLike = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("IDLike[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}

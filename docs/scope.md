@@ -56,6 +56,7 @@ everything", and each row below is a place that creep would start.
 
 | Excluded | Why |
 |---|---|
+| Telling a vendor package apart from an archive package | `var/lib/dpkg/status` does not record a package's origin, so the distinction is not in the data. A guess would be worse than the documented limitation |
 | Binary fingerprinting of unmanaged binaries | An accuracy problem with no bottom; fwscan reports what a package database states and labels anything else as low confidence |
 | Encrypted or obfuscated firmware | Per-vendor work with no general solution |
 | SPDX output | CycloneDX covers the CRA obligation; a second format is a maintenance cost without a second use |

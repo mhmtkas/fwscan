@@ -130,18 +130,20 @@ func writeCRASupport(b *strings.Builder, comps []model.Component, findings []mod
 	if pkg == nil {
 		return
 	}
-	support, ok := release.Lookup(pkg.DistroID, pkg.Distro, pkg.DistroVersion, at)
+	support, ok := release.Lookup(pkg.DistroBase, pkg.Distro, pkg.DistroVersion, at)
 	if !ok {
-		b.WriteString("**Support status: unknown.** " + mdCell(pkg.DistroID) +
-			" is not a distribution whose release schedule this tool carries, so\n" +
-			"whether it still receives security updates has to be established by hand.\n\n")
+		named := pkg.DistroID
+		if named == "" {
+			named = "this image's distribution"
+		}
+		b.WriteString("**Support status: unknown.** " + mdCell(named) +
+			" is not a distribution whose release schedule this tool carries, and\n" +
+			"os-release names no base it recognises either, so whether it still receives\n" +
+			"security updates has to be established by hand.\n\n")
 		return
 	}
 
-	name := pkg.DistroID + " " + support.Version
-	if support.Series != "" {
-		name += " (" + support.Series + ")"
-	}
+	name := distroName(*pkg, support)
 	switch {
 	case support.EndOfLife():
 		b.WriteString("**Support status: end of life.** " + mdCell(name) + " is past every\n" +
@@ -194,12 +196,27 @@ func writeCRARecovered(b *strings.Builder, findings []model.Finding) {
 		"release stopped carrying it when free support ended.\n\n")
 }
 
+// distroName renders the distribution as the image describes itself, saying so
+// when the data behind it belongs to something else. A Raspberry Pi OS image is
+// answered by Debian's data, and a reader has to be told that rather than left
+// to wonder why the report says Debian.
+func distroName(c model.Component, support release.Support) string {
+	name := c.DistroBase + " " + support.Version
+	if support.Series != "" {
+		name += " (" + support.Series + ")"
+	}
+	if c.DistroID != "" && !strings.EqualFold(c.DistroID, c.DistroBase) {
+		name = c.DistroID + ", built on " + name
+	}
+	return name
+}
+
 // distroComponent picks the component the release is read from: any one that
 // came from a package database and named a distribution. They all name the same
 // one, because they all came from the same image.
 func distroComponent(comps []model.Component) *model.Component {
 	for i := range comps {
-		if comps[i].DistroID != "" && comps[i].Confidence == model.ConfidenceHigh {
+		if comps[i].DistroBase != "" && comps[i].Confidence == model.ConfidenceHigh {
 			return &comps[i]
 		}
 	}
@@ -327,6 +344,9 @@ func distributions(comps []model.Component) []string {
 	var names []string
 	for _, c := range comps {
 		name := c.DistroID
+		if name == "" {
+			name = c.DistroBase
+		}
 		if name == "" {
 			continue
 		}

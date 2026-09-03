@@ -41,10 +41,18 @@ type Component struct {
 	DistroVersion string
 
 	// DistroID is the distribution the image says it is -- os-release's ID,
-	// "debian" or "ubuntu". It decides which body of OSV data a query reaches,
-	// because OSV keys the two separately and a query under the wrong one
-	// returns nothing rather than an error.
+	// verbatim. It may be a derivative nobody has data for, such as "raspbian"
+	// or "linuxmint", so it is what the report calls the image and not what any
+	// lookup is keyed on.
 	DistroID string
+
+	// DistroBase is the distribution whose data answers for this image, from
+	// os-release's ID or, for a derivative that declares one, its ID_LIKE. It
+	// decides which body of OSV data a query reaches, which support dates
+	// apply, and whether the Debian fallback runs -- because the two are keyed
+	// separately and a query under the wrong one returns nothing rather than an
+	// error. Empty when the image claims no base fwscan recognises.
+	DistroBase string
 
 	// Distro is the release, under the name its ecosystem queries by: a Debian
 	// codename such as "bookworm", or an Alpine release such as "v3.16". Empty

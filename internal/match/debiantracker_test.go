@@ -229,7 +229,7 @@ func TestTrackerFindings(t *testing.T) {
 		return model.Component{
 			Name: name, Version: version, Source: source, SourceVersion: version,
 			Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
-			DistroID: "debian", Distro: "bullseye", DistroVersion: "11",
+			DistroID: "debian", DistroBase: "debian", Distro: "bullseye", DistroVersion: "11",
 		}
 	}
 	bySource := map[string][]model.Component{
@@ -318,7 +318,7 @@ func TestDebianFallbackTargets(t *testing.T) {
 		return model.Component{
 			Name: "libssl1.1", Version: "1.1.1n", Source: "openssl",
 			Confidence: model.ConfidenceHigh,
-			DistroID:   id, Distro: series, DistroVersion: version,
+			DistroID:   id, DistroBase: id, Distro: series, DistroVersion: version,
 		}
 	}
 	tests := []struct {
@@ -344,9 +344,26 @@ func TestDebianFallbackTargets(t *testing.T) {
 			want:  "",
 		},
 		{
-			name:  "a derivative whose release is unknown",
-			comps: []model.Component{comp("linuxmint", "vanessa", "21")},
-			want:  "",
+			// A Raspberry Pi OS image is Debian, says so in ID_LIKE, and its
+			// packages are Debian's under Debian's release. Leaving it out of
+			// the fallback would hand it an empty report for the same reason
+			// bullseye used to get one.
+			name: "a derivative built on a debian release past free support",
+			comps: []model.Component{func() model.Component {
+				c := comp("debian", "bullseye", "11")
+				c.DistroID = "raspbian"
+				return c
+			}()},
+			want: "bullseye",
+		},
+		{
+			name: "a derivative that names no base fwscan knows",
+			comps: []model.Component{func() model.Component {
+				c := comp("linuxmint", "vanessa", "21")
+				c.DistroBase = ""
+				return c
+			}()},
+			want: "",
 		},
 		{
 			name:  "an image with no release recorded",
@@ -357,7 +374,7 @@ func TestDebianFallbackTargets(t *testing.T) {
 			name: "a heuristic component is not read for a release",
 			comps: []model.Component{{
 				Name: "busybox", Version: "1.30.1", Confidence: model.ConfidenceLow,
-				DistroID: "debian", Distro: "bullseye",
+				DistroID: "debian", DistroBase: "debian", Distro: "bullseye",
 			}},
 			want: "",
 		},
@@ -390,7 +407,7 @@ func TestFallbackTurnsOnWhenFreeSupportEnds(t *testing.T) {
 	comps := []model.Component{{
 		Name: "libssl1.1", Version: "1.1.1n", Source: "openssl",
 		Confidence: model.ConfidenceHigh,
-		DistroID:   "debian", Distro: "bullseye", DistroVersion: "11",
+		DistroID:   "debian", DistroBase: "debian", Distro: "bullseye", DistroVersion: "11",
 	}}
 	if got, _, _ := debianFallbackTargets(comps, mustDay(t, "2026-08-31")); got != "" {
 		t.Errorf("the fallback fired while bullseye was still freely supported: %q", got)
@@ -461,7 +478,7 @@ func TestMatchFallsBackToTheDebianTracker(t *testing.T) {
 		Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2",
 		PURL:       "pkg:deb/debian/zlib@1:1.2.11.dfsg-2?arch=source&distro=bullseye",
 		Confidence: model.ConfidenceHigh, Evidence: "var/lib/dpkg/status",
-		DistroID: "debian", Distro: "bullseye", DistroVersion: "11",
+		DistroID: "debian", DistroBase: "debian", Distro: "bullseye", DistroVersion: "11",
 	}}
 
 	t.Run("past free support the tracker answers", func(t *testing.T) {
@@ -537,7 +554,7 @@ func TestTrackerFailureIsNotSilent(t *testing.T) {
 		Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2",
 		PURL:       "pkg:deb/debian/zlib@1:1.2.11.dfsg-2?arch=source&distro=bullseye",
 		Confidence: model.ConfidenceHigh,
-		DistroID:   "debian", Distro: "bullseye", DistroVersion: "11",
+		DistroID:   "debian", DistroBase: "debian", Distro: "bullseye", DistroVersion: "11",
 	}})
 	if err == nil {
 		t.Fatal("an unreachable tracker produced no error")

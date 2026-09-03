@@ -159,6 +159,7 @@ func TestCRACellsCannotBreakTheTable(t *testing.T) {
 		Confidence: model.ConfidenceHigh,
 		Evidence:   "var/lib/dpkg/status",
 		DistroID:   "debian",
+		DistroBase: "debian",
 		Distro:     "bullseye",
 	}
 	findings := []model.Finding{{
@@ -233,15 +234,15 @@ func TestDistributions(t *testing.T) {
 		{
 			name: "an id with no release still names itself",
 			comps: []model.Component{{
-				Name: "openssl", DistroID: "alpine", Confidence: model.ConfidenceHigh,
+				Name: "openssl", DistroID: "alpine", DistroBase: "alpine", Confidence: model.ConfidenceHigh,
 			}},
 			want: []string{"alpine"},
 		},
 		{
 			name: "two distributions are both named, in order",
 			comps: []model.Component{
-				{Name: "b", DistroID: "ubuntu", Distro: "jammy"},
-				{Name: "a", DistroID: "debian", Distro: "bullseye"},
+				{Name: "b", DistroID: "ubuntu", DistroBase: "ubuntu", Distro: "jammy"},
+				{Name: "a", DistroID: "debian", DistroBase: "debian", Distro: "bullseye"},
 			},
 			want: []string{"debian bullseye", "ubuntu jammy"},
 		},

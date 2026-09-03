@@ -129,13 +129,13 @@ func writeTemp(t *testing.T, name string, data []byte) string {
 var wantComponents = []model.Component{
 	{
 		Name: "openssl", Version: "1.1.1k-1+deb11u2", Arch: "amd64",
-		Source: "openssl", SourceVersion: "1.1.1k-1+deb11u2", DistroID: "debian", Distro: "bullseye",
+		Source: "openssl", SourceVersion: "1.1.1k-1+deb11u2", DistroID: "debian", DistroBase: "debian", Distro: "bullseye",
 		PURL:       "pkg:deb/debian/openssl@1.1.1k-1%2Bdeb11u2?arch=amd64&distro=bullseye",
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	},
 	{
 		Name: "zlib1g", Version: "1:1.2.11.dfsg-2", Arch: "amd64",
-		Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", DistroID: "debian", Distro: "bullseye",
+		Source: "zlib", SourceVersion: "1:1.2.11.dfsg-2", DistroID: "debian", DistroBase: "debian", Distro: "bullseye",
 		PURL:       "pkg:deb/debian/zlib1g@1:1.2.11.dfsg-2?arch=amd64&distro=bullseye",
 		Confidence: model.ConfidenceHigh, Evidence: catalog.DpkgStatusPath,
 	},

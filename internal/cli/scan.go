@@ -303,7 +303,7 @@ func emptyResultWarnings(comps []model.Component, findings []model.Finding) []st
 func supportWarnings(comps []model.Component, now time.Time) []string {
 	var pkg *model.Component
 	for i := range comps {
-		if comps[i].DistroID != "" && comps[i].Confidence == model.ConfidenceHigh {
+		if comps[i].DistroBase != "" && comps[i].Confidence == model.ConfidenceHigh {
 			pkg = &comps[i]
 			break
 		}
@@ -314,14 +314,17 @@ func supportWarnings(comps []model.Component, now time.Time) []string {
 	// An unknown release is not warned about here: releaseWarnings already
 	// says a derivative is queried as Debian, and guessing at a support date
 	// for one would be worse than saying nothing.
-	support, ok := release.Lookup(pkg.DistroID, pkg.Distro, pkg.DistroVersion, now)
+	support, ok := release.Lookup(pkg.DistroBase, pkg.Distro, pkg.DistroVersion, now)
 	if !ok || support.FreelySupported() {
 		return nil
 	}
 
-	name := pkg.DistroID + " " + support.Version
+	name := pkg.DistroBase + " " + support.Version
 	if support.Series != "" {
 		name += " (" + support.Series + ")"
+	}
+	if pkg.DistroID != "" && !strings.EqualFold(pkg.DistroID, pkg.DistroBase) {
+		name = pkg.DistroID + ", built on " + name
 	}
 	if support.EndOfLife() {
 		return []string{name + " reached the end of every support tier" +
@@ -338,7 +341,7 @@ func supportWarnings(comps []model.Component, now time.Time) []string {
 	// For Debian it does, because the matcher falls back to Debian's own
 	// security tracker; saying the report is incomplete there would be telling
 	// the reader to distrust a report that is not.
-	if purl.Namespace(pkg.DistroID) == purl.NamespaceDebian {
+	if pkg.DistroBase == purl.NamespaceDebian {
 		return []string{left + ". OSV drops a release when free support ends, so the " +
 			"vulnerabilities below were read from Debian's own security tracker instead; " +
 			"nothing there carries a fix, because none is published for this release"}
@@ -385,16 +388,36 @@ func releaseWarnings(rootfs fs.FS, comps []model.Component) []string {
 		warnings = append(warnings, "no release found in os-release; the vulnerability lookup is not "+
 			"scoped to a Debian release and may name fixes from other releases")
 	}
-	// OSV keys Debian and Ubuntu separately and fwscan queries both. Anything
-	// else dpkg-based is queried as Debian, which is what a derivative is most
-	// likely built from -- and if the derivative renumbered its packages, that
-	// query returns nothing rather than an error, so it is worth saying.
-	if id := catalog.ReadOSRelease(rootfs).ID; id != "" &&
-		id != purl.NamespaceDebian && id != purl.NamespaceUbuntu {
-		warnings = append(warnings, fmt.Sprintf("os-release says this is %s; the vulnerability lookup "+
-			"queries OSV's Debian data for it and may find nothing", id))
+	// A derivative is not a problem when it says what it is derived from.
+	// os-release's ID_LIKE exists for exactly this, Raspberry Pi OS and Armbian
+	// and Linux Mint all set it, and a derivative that names a base fwscan
+	// knows is queried against that base's data under that base's release --
+	// which is where its packages came from. One that names nothing is queried
+	// as Debian anyway, because that is what a dpkg image is most likely built
+	// from, and if it renumbered its packages the query returns nothing rather
+	// than an error. Both cases are worth saying, and they are not the same
+	// sentence.
+	// Both halves come from os-release rather than one from the file and one
+	// from a component, so the sentence cannot describe two different images.
+	info := catalog.ReadOSRelease(rootfs)
+	switch id, base := info.ID, info.Base(); {
+	case id == "" || strings.EqualFold(id, base):
+	case base != "":
+		warnings = append(warnings, fmt.Sprintf("os-release says this is %s, built on %s; "+
+			"packages are looked up in %s's data for %s", id, base, base, releaseOrElse(dpkg)))
+	default:
+		warnings = append(warnings, fmt.Sprintf("os-release says this is %s and names no base "+
+			"fwscan knows; the vulnerability lookup queries OSV's Debian data for it and may "+
+			"find nothing", id))
 	}
 	return warnings
+}
+
+func releaseOrElse(c *model.Component) string {
+	if c.Distro != "" {
+		return c.Distro
+	}
+	return "no release it could name"
 }
 
 func catalogAll(ctx context.Context, rootfs fs.FS) ([]model.Component, error) {

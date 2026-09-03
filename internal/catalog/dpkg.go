@@ -190,9 +190,10 @@ func componentFrom(fields map[string]string, info OSRelease) model.Component {
 		Source:        sourceName,
 		SourceVersion: sourceVersion,
 		DistroID:      info.ID,
+		DistroBase:    info.Base(),
 		Distro:        info.Codename,
 		DistroVersion: info.VersionID,
-		PURL:          purl.Binary(purl.Namespace(info.ID), name, version, arch, info.Codename),
+		PURL:          purl.Binary(purl.Namespace(info.Base()), name, version, arch, info.Codename),
 		Confidence:    model.ConfidenceHigh,
 		Evidence:      DpkgStatusPath,
 	}
