@@ -13,13 +13,19 @@ refactor.
 │         │        │          │         │          │        │           │
 │ dir     │        │ dpkg     │         │ OSV      │        │ terminal  │
 │ tar+    │        │ apk      │         │ querybatch│       │ json      │
-│  gz/xz/ │        │ heuristic│         │ + details │       │ exit code │
-│  zst/lz4│        │          │         │           │       │           │
-│ squashfs│        │          │         │           │       │  sbom     │
+│  gz/xz/ │        │ heuristic│         │ + details │       │ sbom      │
+│  zst/lz4│        │          │         │           │       │ cra       │
+│ squashfs│        │          │         │ debian    │       │ exit code │
+│         │        │          │         │ tracker   │       │           │
 └─────────┘        └──────────┘         └──────────┘        └───────────┘
-     │                                                            ▲
-     └── cleanup() removes the temp dir ─────────────────────────┘
+     │                   │                    ▲                   ▲
+     │                   └──── release ───────┴───────────────────┘
+     │                        (support dates)
+     └── cleanup() removes the temp dir
 ```
+
+`internal/release` is not a stage. It is a table consulted by two of them, and
+what it answers decides which data source a scan reaches at all.
 
 ## The seam that matters
 
@@ -92,8 +98,8 @@ type Matcher interface {
 }
 ```
 
-Three things here are not obvious and are all spike conclusions
-(`spike/NOTES.md`):
+Six things here are not obvious, and all of them are spike conclusions
+(`spike/NOTES.md`) rather than design preferences:
 
 1. **OSV keys Debian data on source packages.** Querying `libssl1.1` returns
    zero vulnerabilities — not an error, zero. The `Source:` field resolves the
@@ -113,6 +119,46 @@ Three things here are not obvious and are all spike conclusions
    fixed, with no severity of its own and no `distro` qualifier on its purl. So
    a record becomes one finding per CVE, each taking its assessment from that
    CVE's own record and the release from the advisory's `ecosystem` field.
+5. **A query that cannot carry a release is not made.** An unscoped Debian purl
+   does not return nothing — it returns every release at once. A Yocto image
+   with a dpkg database and no `VERSION_CODENAME` produced 182 findings for six
+   packages, carrying fixed versions from eight Debian releases (T66). The apk
+   path already refused for the same reason with the opposite symptom, and the
+   deb path now does too.
+6. **OSV stops carrying a Debian release the day it leaves free support**,
+   because its importer reads the security tracker's JSON export and that export
+   does. So the matcher has a second source for exactly that case: the tracker's
+   own `CVE/list`, plus the `DSA/list` and `DLA/list` files that hold the
+   per-release fixed versions a CVE closed by an advisory has nowhere else
+   (T58). It runs only when `internal/release` says the release is out of free
+   support, and a finding from it carries `source: security-tracker.debian.org`
+   so a reader can tell the halves apart.
+
+### `internal/release`
+
+A vendored copy of `distro-info-data`, the table Debian and Ubuntu maintain of
+when each release was made and when each support tier ends, embedded rather than
+fetched so an offline run still knows.
+
+It is consulted rather than chained, by `match` and by `report`, and it answers
+one question with three consequences: which support window covers this release
+today, and is that window free.
+
+- `match` uses it to decide whether OSV can answer at all, which is what gates
+  the Debian fallback above. Free support and OSV coverage are the same
+  boundary, because they come from the same export.
+- `report` uses it for the support paragraph the CRA document opens its
+  vulnerability section with, where a release past free support is the finding
+  rather than a footnote.
+- Three states, and they are exhaustive: in a window, past every window, and not
+  yet released. The third is not a shade of the second — a development branch
+  has no release date, so it sits in no window while not being dead — and code
+  that assumed two states dereferenced a nil window and crashed on a real forky
+  rootfs (T67).
+
+A distribution the table does not name is reported as unknown rather than
+guessed at. `catalog` resolves a derivative to its base first, through
+os-release's `ID_LIKE`, so Raspberry Pi OS is looked up as Debian.
 
 ### `internal/purl`
 
@@ -128,6 +174,18 @@ Everything these emit is fixed by [`output-spec.md`](output-spec.md). Files are
 written through a temp file and a rename, so a reader never sees a half-written
 report and a failure leaves any previous one intact. The SBOM carries components
 only, never findings.
+
+Four renderers over one set of results: the terminal table, the JSON report, the
+CycloneDX SBOM, and the CRA evidence document. The last needs nothing from the
+pipeline that the others do not already have, which is why it could be added
+without touching input, cataloging or matching — but it does read
+`internal/release`, because what it has to say about a release out of support is
+the part of it that matters.
+
+Anything from the image reaches all four through `report.Sanitize`, and the
+Markdown one escapes further: a pipe is a printable character that ends a table
+cell, so a crafted package name could otherwise forge a row in a compliance
+document.
 
 ## Adding a cataloger
 

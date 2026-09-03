@@ -50,8 +50,13 @@ needs `squashfs-tools` 4.4 or newer — earlier builds lack lz4 and zstd support
 - **One change.** Unrelated fixes go in unrelated pull requests.
 - **Tests.** Table-driven where the input space is a table. Catalogers are tested
   against `fstest.MapFS`, so a new one needs no fixture files.
-- **No network in unit tests.** OSV responses live in `testdata/osv/` as recorded
-  fixtures. Only the `integration` build tag may reach the real API.
+- **No network in unit tests.** OSV responses live in `testdata/osv/` and the
+  Debian security tracker's lists in `testdata/tracker/`, both as recorded or
+  hand-built fixtures. Only the `integration` build tag may reach a real API.
+  This is easy to break by accident: the matcher's defaults point at the real
+  services, so a test that constructs one must clear `TrackerBase` or point it
+  at a server of its own. One did not, and the end-to-end test quietly started
+  fetching 60 MB from salsa.debian.org on every run.
 - **`make lint test` green**, and coverage not going backwards.
 - **`CHANGELOG.md` updated** under `[Unreleased]`.
 - **Conventional Commits**: `feat:`, `fix:`, `test:`, `docs:`, `chore:`.

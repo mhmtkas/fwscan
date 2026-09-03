@@ -37,7 +37,8 @@ deep binary analysis, and RTOS, bare-metal, Windows or VxWorks images.
 
 ## Goals
 
-1. Scan a Linux firmware rootfs and identify installed packages with versions.
+1. Read a Linux root filesystem — a directory, a tarball or a squashfs image —
+   and identify the installed packages and their versions.
 2. Emit a valid CycloneDX 1.6 JSON SBOM.
 3. Match components against known vulnerabilities via OSV.dev, falling back to
    Debian's own security tracker for a release OSV no longer carries.

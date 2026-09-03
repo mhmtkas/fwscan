@@ -1,6 +1,8 @@
 # CLAUDE.md — fwscan agent instructions
 
-fwscan is an open source Go CLI that scans Linux-based firmware rootfs images, emits a CycloneDX 1.6 SBOM, and reports known vulnerabilities via OSV.dev.
+fwscan is an open source Go CLI that reads a Linux root filesystem — a directory, a tarball or a squashfs image — emits a CycloneDX 1.6 SBOM, reports known vulnerabilities from OSV.dev, and renders the scan as evidence toward the Cyber Resilience Act's vulnerability-handling obligations. It reads dpkg and apk, so Debian, Ubuntu and Alpine; it is not a firmware scanner in the binwalk sense and the README says so in its first paragraph.
+
+A Debian release past free security support is read from Debian's own security tracker instead, because OSV drops it. `internal/release` decides which of those applies.
 
 Authoritative documents, in order of precedence:
 1. `docs/output-spec.md` — exact output formats, severity mapping, exit codes
