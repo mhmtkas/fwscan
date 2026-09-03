@@ -48,9 +48,10 @@ stderr, which is the second half of the answer:
 
 ```
 fwscan: debian 11 (bullseye) left free security support on 2026-08-31 and is now
-covered only by Extended LTS (Freexian, commercial), until 2031-06-30. OSV tracks
-releases while they are freely supported, so findings for this image are
-incomplete and a fix it does name may need a paid subscription
+covered only by Extended LTS (Freexian, commercial), until 2031-06-30. OSV drops a
+release when free support ends, so the vulnerabilities below were read from Debian's
+own security tracker instead; nothing there carries a fix, because none is
+published for this release
 ```
 
 ## Why this exists, and when not to use it
@@ -63,10 +64,15 @@ from a registry, and want a vulnerability database staged first.
 
 fwscan takes a path. A directory, a tarball in any of five compressions, or a
 squashfs image — the shapes an appliance rootfs actually arrives in — and one
-command produces both artifacts. There is no database to provision and nothing
-to keep fresh, because the CVE data is fetched at scan time. That is the whole
-of the difference in workflow, and for a CI job that has to produce an SBOM per
-build it is a real one.
+command produces both artifacts. trivy will not read a tarball or a squashfs
+image at all; grype reads the tarball and returns nothing for the squashfs.
+
+It also keeps no state on disk: the vulnerability data is fetched per scan, so
+there is no database to stage and nothing to keep fresh. Be clear about the size
+of that. On a warm cache trivy scans the same rootfs in 0.35 seconds against
+fwscan's 2.8, and pays for it with 1.3 GB of local cache (grype's is 2.0 GB).
+The trade is disk and setup against speed and offline capability, and which side
+you want depends on whether your CI runners are ephemeral.
 
 **It is backport-aware**, which any usable Debian or Alpine scanner has to be.
 OpenSSL 1.1.1k looks vulnerable to CVE-2022-0778 and is not, if the installed
@@ -75,11 +81,20 @@ fwscan carries the release into every query, so it reports that as fixed. The
 evidence, including what happens without the release qualifier, is in
 [`spike/NOTES.md`](spike/NOTES.md).
 
-**grype is backport-aware too, and it is a good tool.** On current releases the
-two are level or fwscan is ahead; on a release past its support window fwscan is
-far behind, for a reason that is about the data source rather than the matching.
-[`docs/comparison.md`](docs/comparison.md) has the numbers and the commands to
-re-derive them. Read it before choosing this over grype.
+**grype and trivy are backport-aware too, and both are good tools.** On every
+Debian and Ubuntu image measured, the three are level or fwscan is ahead. The
+matching is a commodity and this README does not pretend otherwise;
+[`docs/comparison.md`](docs/comparison.md) has the numbers, three tools across
+seven real images, and the commands to re-derive them. Read it before choosing
+this over either.
+
+**Two things here have no equivalent in either.** `--cra` writes the scan up as
+evidence toward the Cyber Resilience Act's vulnerability-handling obligations,
+naming the ones it cannot speak to rather than letting a reader assume they are
+covered. And every scan says whether the release in the image still receives
+security updates and whether those updates are free — which, for a product being
+placed on the market, is a more important sentence than any row in the table.
+Both are below.
 
 **Use something else if** your image is OpenWrt, Yocto or rpm-based; if you need
 to scan a running host or a registry image; if you need offline operation or a
@@ -177,12 +192,57 @@ findings rather than find them. `libssl.so.3` names an ABI, not a release.
 - **`--cra evidence.md`** — the scan written up as evidence toward the Cyber
   Resilience Act's vulnerability-handling obligations. See below.
 
-Every scan also reports, on stderr and in the evidence report, whether the
-release in the image still receives security updates and whether those updates
-are free. A release past free support is why a scan can come back empty, and it
-is a more useful answer than the empty report on its own. The dates come from
-`distro-info-data`, the table Debian and Ubuntu maintain for the question,
-embedded in the binary rather than fetched.
+## Is this release still supported
+
+Every scan says whether the release in the image still receives security
+updates, and whether those updates are free — on stderr, and in the evidence
+report above the vulnerability table. Debian's LTS is volunteer work published
+to everyone; its Extended LTS is Freexian's to sell, and every Ubuntu tier past
+the first needs an Ubuntu Pro subscription. A reader told only "still supported"
+about a Debian 11 image would draw the opposite of the right conclusion.
+
+The dates are `distro-info-data`, the table Debian and Ubuntu maintain for this
+question, embedded in the binary rather than fetched, so an offline run still
+knows. A distribution the table does not carry is reported as unknown rather
+than guessed at.
+
+That answer also decides where the vulnerability data comes from. **A Debian
+release past free support is read from Debian's own security tracker.** OSV's
+Debian data is built from an export that carries a release only while it is
+freely supported, so Debian 11 left it on 2026-08-31 and a scan of a bullseye
+image went from a full report to an empty one — not because the image had been
+fixed but because the data had gone. For that case, and only that case, fwscan
+reads the export's input instead. A supported release fetches none of it.
+
+## How it compares
+
+| Image | fwscan | grype | trivy |
+|---|---|---|---|
+| Debian 11 bullseye | 208 | 211 | 222 |
+| Debian 12 bookworm | 182 | 179 | 188 |
+| Ubuntu 22.04 | 140 | 101 | 67 |
+| Alpine 3.21 | 56 | 58 | — |
+| Alpine 3.16 (end of life) | 27 | 94, of which 29 from Alpine's data | — |
+| squashfs image | reads it | 0 artifacts | not scanned |
+| tarball | reads it | reads it | not scanned |
+
+On Debian 11, against trivy with a database built the same day: 111 CVEs in
+both, none that fwscan reports and trivy does not. The Alpine 3.16 row is a
+difference in method rather than coverage — 65 of grype's 94 come from matching
+package names against NVD's CPE strings rather than from Alpine's data, which is
+a technique [`docs/scope.md`](docs/scope.md) excludes by name.
+
+On Debian the two often differ on severity, because fwscan scores the CVSS
+vector and grype reports Debian's own rating, which is `negligible` for a great
+many CVEs. Debian and Ubuntu are queried against their own data, and an Ubuntu
+image is never told about a fix that only an Ubuntu Pro subscription ships.
+
+Severity is scored locally from the record's CVSS vector — v3.1, v4.0 or v2, in
+that order of preference. The v4 scorer matches FIRST's reference calculator
+across the whole base metric space.
+
+[`docs/comparison.md`](docs/comparison.md) has the full table — seven real
+images, three tools — and every command needed to re-derive it.
 
 ## Cyber Resilience Act evidence
 
@@ -223,10 +283,10 @@ Deliberately out of scope for v1:
 | Binary fingerprinting of unmanaged binaries | An accuracy problem with no bottom; not planned |
 | Encrypted or obfuscated firmware | Per-vendor work |
 | SPDX output | CycloneDX covers the CRA; SPDX behind a flag later |
-| opkg and rpm databases | Debian and Alpine first |
+| opkg and rpm databases | Debian, Ubuntu and Alpine first |
 | Kernel config and kernel CVE applicability | Genuinely hard, config-dependent |
 | VEX exploitability statements | Needs a stable core first |
-| Offline operation | The lookup needs OSV.dev; `--no-network` gives the SBOM only |
+| Offline operation | The lookup needs the network; `--no-network` gives the SBOM only |
 | False-positive suppression config | Waiting for real users to report real false positives |
 
 Multi-partition flash dumps, UBI, JFFS2 and cramfs are not read directly:
@@ -239,48 +299,17 @@ contents are out of proportion to its size — more than 4 GiB in total, or over
 is an xz stream declaring a dictionary over 128 MiB (`xz -9` uses 64 MiB) and a
 path more than 256 levels deep. No real firmware image is near any of these.
 
-**fwscan reports the CVEs a distribution has issued a fix for. It does not
-report the ones a distribution has chosen not to fix**, because OSV's data for
-those thins out as a release ages, and disappears once it leaves support.
-
-On Debian and Ubuntu fwscan is level with grype and trivy or ahead of them: 182
-findings to 179 and 188 on a Debian bookworm rootfs, 208 to 211 and 222 on
-Debian 11, 140 to 101 and 67 on Ubuntu 22.04. On an end-of-life Alpine
-release grype reports 94 against fwscan's 27, but 65 of those come from CPE
-matching against NVD rather than from Alpine's data; on Alpine's own data the
-two are 27 and 29. [`docs/comparison.md`](docs/comparison.md) has the numbers
-and the commands.
-
-Where both tools report a finding they agree on Alpine. On Debian they often
-differ on severity, because fwscan scores the CVSS vector and grype reports
-Debian's own rating, which is `negligible` for a great many CVEs.
-Debian and Ubuntu are queried against their own OSV data, and an Ubuntu image
-is never told about a fix that only an Ubuntu Pro subscription ships.
-
-**Debian releases past free support are read from Debian's own security
-tracker.** OSV's Debian data is built from an export that carries a release only
-while it is freely supported, so Debian 11 vanished from it on 2026-08-31 and a
-scan of a bullseye image went from a full report to an empty one. For that case,
-and only that case, fwscan reads the export's input instead. Checked against
-trivy on the same image the same day: 111 CVEs in both, none that fwscan reports
-and trivy does not. [`docs/comparison.md`](docs/comparison.md) has the full
-table — seven real images, three tools — and the commands to re-derive it.
-
 **Some findings carry no severity**, land in the `unknown` bucket, and so never
-trigger `--fail-on` — roughly a fifth of Debian's OSV records, 57 of the 292 the
-spike measured, mostly old issues Debian itself marked minor. They are visible in
-the report and invisible to the exit code, so read the output as well as the
-status.
+trigger `--fail-on`: the record they came from published no CVSS vector. That is
+30 of 182 findings on a bookworm image and 71 of 208 on a bullseye one, mostly
+old issues the distribution itself marked minor. They are visible in the report
+and invisible to the exit code, so read the output as well as the status.
 
 **Components identified by filename heuristics are never looked up.** They are
 listed in the report and the SBOM, but a version guessed from a filename carries
 no release to scope a query to, and an unscoped query invents vulnerabilities
 rather than finding them. They are counted separately on the `Packages` line so
 the difference is visible.
-
-Severity is scored locally from the record's CVSS vector — v3.1, v4.0 or v2, in
-that order of preference. The v4 scorer matches FIRST's reference calculator
-across the whole base metric space.
 
 ## Roadmap
 
