@@ -136,6 +136,20 @@ for directories or tarballs.
 
 ## Quickstart
 
+No rootfs to hand? Any public image is one, if you have Docker:
+
+```sh
+id=$(docker create debian:bookworm)
+docker export "$id" > rootfs.tar && docker rm "$id" >/dev/null
+fwscan scan rootfs.tar
+```
+
+That is a 140 MB tar, 88 packages and — on the day this was written — 214
+findings, in about twenty seconds end to end. Swap in `ubuntu:24.04`,
+`alpine:3.21` or `debian:bullseye` to see the other things this README talks
+about: Ubuntu's data, an exact match with Alpine's, and a release OSV no longer
+carries.
+
 ```sh
 # an extracted rootfs directory
 fwscan scan ./rootfs
