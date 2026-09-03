@@ -326,3 +326,27 @@ func TestCRASaysWhereRecoveredFindingsCameFrom(t *testing.T) {
 		}
 	})
 }
+
+// The same nil that crashed the scan reaches the reporter by the same route: a
+// release in no support window, which is not the same as one past every window.
+func TestCRAHandlesAnUnreleasedBranch(t *testing.T) {
+	comps := []model.Component{{
+		Name: "libc6", Version: "2.43-3", Confidence: model.ConfidenceHigh,
+		Evidence: "var/lib/dpkg/status",
+		DistroID: "debian", DistroBase: "debian", Distro: "forky", DistroVersion: "14",
+	}}
+	info := fixedInfo()
+	info.StartedAt = time.Date(2026, 9, 3, 0, 0, 0, 0, time.UTC)
+
+	var buf bytes.Buffer
+	if err := CRA(&buf, "0.1.0", info, comps, nil, CRAOptions{}); err != nil {
+		t.Fatalf("CRA: %v", err)
+	}
+	got := buf.String()
+	if !strings.Contains(got, "Support status: not released") {
+		t.Errorf("the document does not say the branch is unreleased:\n%s", got)
+	}
+	if !strings.Contains(got, "not evidence about a product anyone can ship") {
+		t.Error("the document does not say what that means for this regulation")
+	}
+}

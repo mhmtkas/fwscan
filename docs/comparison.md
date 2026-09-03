@@ -136,7 +136,9 @@ official Alpine minirootfs images, Debian and Ubuntu rootfs images pulled from
 the official ones, and an OpenWrt 23.05.5 x86-64 squashfs rootfs. Same day,
 same tools, fwscan v0.1.0.
 
-All three tools' counts move as their sources publish; the fwscan column below
+Every current Debian and Ubuntu release is here, including the two newest LTSes
+and one unreleased development branch. All three tools' counts move as their
+sources publish; the fwscan column below
 was taken in the same hour as the grype and trivy ones so the row is a fair
 comparison, not so that the number can be quoted later. Re-running this table
 four hours after it was written gave fwscan 232 on Debian 11 rather than 208,
@@ -146,8 +148,11 @@ with no change to the tool.
 |---|---|---|---|---|---|
 | Debian 11 bullseye | 52 MB | 98 | 208 | 211 | 222 |
 | Debian 12 bookworm | 47 MB | 88 | 182 | 179 | 188 |
-| Debian 13 trixie | 48 MB | 79 | 148 | 144 | — |
+| Debian 13 trixie | 48 MB | 79 | 184 | 144 | — |
+| Debian 14 forky (unreleased) | 50 MB | 77 | 143 | 107 | — |
 | Ubuntu 22.04 | 29 MB | 102 | 140 | 101 | 67 |
+| Ubuntu 24.04 | 30 MB | 93 | 120 | 101 | 74 |
+| Ubuntu 26.04 | 42 MB | 88 | 151 | 153 | 117 |
 | Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94, of which 29 from Alpine's data | — |
 | Alpine 3.19 | 3.1 MB | 18 | 42 | 46 | — |
 | Alpine 3.21 | 3.7 MB | 18 | 56 | 58 | — |

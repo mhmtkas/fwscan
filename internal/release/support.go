@@ -70,6 +70,17 @@ func (s Support) EndOfLife() bool {
 	return s.Current == nil && !s.Released.IsZero()
 }
 
+// Unreleased reports whether the release has not shipped yet: a development
+// branch such as Debian forky or sid.
+//
+// It is a third state, not a shade of the other two. Such a release is in no
+// support window, so Current is nil and FreelySupported is false, which reads
+// exactly like end of life -- and a caller that assumed those two cases were
+// the only ones would dereference Current and crash. One did.
+func (s Support) Unreleased() bool {
+	return s.Current == nil && s.Released.IsZero()
+}
+
 // FreelySupported reports whether the release is in a tier whose updates are
 // published to everyone. This is also what predicts OSV coverage for Debian:
 // the security tracker's JSON export, which OSV's Debian data is built from,

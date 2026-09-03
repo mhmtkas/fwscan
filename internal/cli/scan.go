@@ -330,6 +330,11 @@ func supportWarnings(comps []model.Component, now time.Time) []string {
 	if pkg.DistroID != "" && !strings.EqualFold(pkg.DistroID, pkg.DistroBase) {
 		name = pkg.DistroID + ", built on " + name
 	}
+	if support.Unreleased() {
+		return []string{name + " has not been released; it is a development branch, its " +
+			"packages change daily, and a scan of it describes the day it was taken and " +
+			"nothing more"}
+	}
 	if support.EndOfLife() {
 		return []string{name + " reached the end of every support tier" +
 			endedOn(support.LastFree(), support.Windows) +

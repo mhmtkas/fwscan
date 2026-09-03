@@ -14,6 +14,11 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
 **Scanning**
 
 - Debian, Ubuntu and Alpine packages, each queried against its own OSV dataset.
+  Measured on every current release of both: Debian 11, 12, 13 and the
+  unreleased 14, and Ubuntu 22.04, 24.04 and 26.04. A release that has not
+  shipped is reported as a development branch rather than as one past support,
+  which is a third state and not a shade of the other two -- treating it as one
+  dereferenced a nil window and crashed the scan on a real forky rootfs.
   Debian and Ubuntu are keyed separately and a query under the wrong one returns
   nothing rather than an error, so the distribution travels from os-release into
   every purl. Entries for the Ubuntu Pro and FIPS tiers, which share a release

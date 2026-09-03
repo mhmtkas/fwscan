@@ -27,6 +27,7 @@ func TestLookup(t *testing.T) {
 		wantWindow      string
 		wantFree        bool
 		wantEOL         bool
+		wantUnreleased  bool
 	}{
 		{
 			// The case this package was written for. Debian 11 left free
@@ -91,7 +92,15 @@ func TestLookup(t *testing.T) {
 			// cannot be running on anything.
 			name: "an unreleased series is in no support window",
 			id:   "debian", series: "duke", ver: "15", at: "2026-09-03",
-			found: true, wantWindow: "",
+			found: true, wantWindow: "", wantUnreleased: true,
+		},
+		{
+			// forky has a row and a creation date but no release date. A
+			// caller that treated "no window" as end of life dereferenced
+			// Current and crashed on a real image, so the state is named.
+			name: "a development branch is unreleased rather than dead",
+			id:   "debian", series: "forky", ver: "14", at: "2026-09-03",
+			found: true, wantWindow: "", wantUnreleased: true,
 		},
 	}
 
@@ -119,6 +128,14 @@ func TestLookup(t *testing.T) {
 			}
 			if got.EndOfLife() != tt.wantEOL {
 				t.Errorf("EndOfLife() = %v, want %v", got.EndOfLife(), tt.wantEOL)
+			}
+			if got.Unreleased() != tt.wantUnreleased {
+				t.Errorf("Unreleased() = %v, want %v", got.Unreleased(), tt.wantUnreleased)
+			}
+			// The three states are exclusive, and a caller reaching past all
+			// three finds a nil Current. That is what crashed.
+			if got.Current == nil && !got.EndOfLife() && !got.Unreleased() {
+				t.Error("no current window and neither end of life nor unreleased")
 			}
 		})
 	}

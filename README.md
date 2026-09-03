@@ -225,7 +225,10 @@ them.
 |---|---|---|---|
 | Debian 11 bullseye | 208 | 211 | 222 |
 | Debian 12 bookworm | 182 | 179 | 188 |
+| Debian 13 trixie | 184 | 144 | — |
 | Ubuntu 22.04 | 140 | 101 | 67 |
+| Ubuntu 24.04 | 120 | 101 | 74 |
+| Ubuntu 26.04 | 151 | 153 | 117 |
 | Alpine 3.21 | 56 | 58 | — |
 | Alpine 3.16 (end of life) | 27 | 94, of which 29 from Alpine's data | — |
 | squashfs image | reads it | 0 artifacts | not scanned |

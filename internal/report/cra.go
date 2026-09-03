@@ -145,6 +145,11 @@ func writeCRASupport(b *strings.Builder, comps []model.Component, findings []mod
 
 	name := distroName(*pkg, support)
 	switch {
+	case support.Unreleased():
+		b.WriteString("**Support status: not released.** " + mdCell(name) + " is a\n" +
+			"development branch rather than a release. Its packages change daily and no\n" +
+			"support window applies, so this document describes the day it was taken and\n" +
+			"is not evidence about a product anyone can ship.\n\n")
 	case support.EndOfLife():
 		b.WriteString("**Support status: end of life.** " + mdCell(name) + " is past every\n" +
 			"support tier its vendor offers. No security updates are published for it by\n" +

@@ -772,6 +772,17 @@ func TestSupportWarnings(t *testing.T) {
 			want:  "ESM (Ubuntu Pro)",
 		},
 		{
+			// The crash. An unreleased branch is in no support window, so
+			// Current is nil and FreelySupported is false -- which reads
+			// exactly like end of life, except EndOfLife is false too, and the
+			// code fell through to Current.Name and panicked on a real forky
+			// rootfs.
+			name:  "an unreleased development branch does not crash",
+			comps: []model.Component{deb("debian", "forky", "14")},
+			now:   "2026-09-03",
+			want:  "has not been released",
+		},
+		{
 			name:  "a release past every tier says nobody publishes updates",
 			comps: []model.Component{deb("debian", "jessie", "8")},
 			now:   "2026-09-03",
