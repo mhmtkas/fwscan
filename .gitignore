@@ -14,7 +14,9 @@ dist/
 # The nested spike module builds into its own directory.
 spike/vercmp/vercmp
 
-# Editors.
+# Editors and agent working directories. Untracked already; listed so a
+# `git add -A` in a hurry cannot make them tracked.
 .idea/
 .vscode/
 *.swp
+.claude/

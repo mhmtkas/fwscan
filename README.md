@@ -8,8 +8,9 @@ CycloneDX SBOM and a CVE report.**
 
 fwscan reads the dpkg or apk database inside a Linux root filesystem, emits a
 CycloneDX 1.6 SBOM, and queries [OSV.dev](https://osv.dev) for known
-vulnerabilities. One static binary, no configuration, no API key, no database to
-provision.
+vulnerabilities — falling back to the distribution's own records for a release
+OSV has stopped carrying. One static binary, no configuration, no API key,
+nothing to install or keep fresh on disk.
 
 It reads **Debian, Ubuntu and Alpine** packages. It does not read opkg, rpm,
 buildroot or Yocto manifests, so it will not tell you much about an OpenWrt or a
