@@ -8,10 +8,11 @@ the numbers can be re-derived rather than trusted; fwscan queries its sources
 live, so its counts move as their data moves.
 
 The short version: **on Debian and Ubuntu the three tools are level, and where
-they differ the cause is the data rather than the matching.** grype reports
-three times as many findings as fwscan on an end-of-life Alpine image, which is
-the one row with a gap fwscan cannot close. What fwscan has that the others do
-not is squashfs and tarball input, and `--cra`.
+they differ the cause is the data rather than the matching.** The one row that
+looks like a rout — grype's 94 against fwscan's 27 on an end-of-life Alpine
+image — is a difference in method rather than in coverage, set out below. What
+fwscan has that the others do not is squashfs and tarball input, `--cra`, and a
+statement of whether the release still receives security updates.
 
 ## Cataloging
 
@@ -141,7 +142,7 @@ same tools, fwscan v0.1.0.
 | Debian 12 bookworm | 47 MB | 88 | 182 | 179 | 188 |
 | Debian 13 trixie | 48 MB | 79 | 148 | 144 | — |
 | Ubuntu 22.04 | 29 MB | 102 | 140 | 101 | 67 |
-| Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94 | — |
+| Alpine 3.16 (end of life) | 2.5 MB | 17 | 27 | 94, of which 29 from Alpine's data | — |
 | Alpine 3.19 | 3.1 MB | 18 | 42 | 46 | — |
 | Alpine 3.21 | 3.7 MB | 18 | 56 | 58 | — |
 | OpenWrt 23.05.5 squashfs | 4.3 MB | 2, all heuristic | — | — | not scanned |
@@ -192,9 +193,27 @@ will fix.
 A freely supported release never fetches any of this. Bookworm and trixie are
 answered by OSV alone, in five seconds each.
 
-Alpine 3.16 is the same shape in a different ecosystem: fwscan finds 27 and
-grype's count of *fixed* findings is 29. The other 65 are CVEs with no fix in an
-end-of-life release.
+### Alpine 3.16 is a difference in method, not in data
+
+Alpine's own security database still carries 3.16 — 244 packages and 2,213 CVE
+references, two years after that release went end of life — and both tools read
+it. Split grype's 94 by where each finding came from:
+
+```sh
+grype -q -o json alpine-3.16.tar.gz \
+  | jq -r '[.matches[].vulnerability.namespace]|group_by(.)|map({(.[0]):length})|add'
+```
+```json
+{ "alpine:distro:alpine:3.16": 29, "nvd:cpe": 65 }
+```
+
+Twenty-nine come from Alpine's data, against fwscan's 27. The other sixty-five
+come from matching the package's name and version against NVD's CPE strings,
+which is not Alpine data and is the technique `docs/scope.md` excludes by name:
+an accuracy problem with no bottom, and one that reports a vulnerability in
+something that merely shares a name. Whether those sixty-five are findings or
+noise is a judgement, and this is not the page to settle it — but the
+like-for-like comparison on this row is 27 to 29, not 27 to 94.
 
 Every scan also says which support tier covers the image's release, until when,
 and whether that tier's updates are free. That is the sentence a reader needs

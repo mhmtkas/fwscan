@@ -244,9 +244,11 @@ those thins out as a release ages, and disappears once it leaves support.
 
 On Debian and Ubuntu fwscan is level with grype and trivy or ahead of them: 182
 findings to 179 and 188 on a Debian bookworm rootfs, 208 to 211 and 222 on
-Debian 11, 140 to 101 and 67 on Ubuntu 22.04. On an end-of-life Alpine release
-it is far behind — 27 findings to grype's 94 — and
-[`docs/comparison.md`](docs/comparison.md) says why.
+Debian 11, 140 to 101 and 67 on Ubuntu 22.04. On an end-of-life Alpine
+release grype reports 94 against fwscan's 27, but 65 of those come from CPE
+matching against NVD rather than from Alpine's data; on Alpine's own data the
+two are 27 and 29. [`docs/comparison.md`](docs/comparison.md) has the numbers
+and the commands.
 
 Where both tools report a finding they agree on Alpine. On Debian they often
 differ on severity, because fwscan scores the CVSS vector and grype reports
