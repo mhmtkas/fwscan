@@ -56,8 +56,11 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
   without them every such CVE is a false positive. On a real Debian 11 rootfs
   that is 0 findings against 208. Checked against trivy on the same image with a
   database built the same day: 111 CVEs in both, none fwscan reports and trivy
-  does not. It runs only for a release OSV has dropped; a supported release is
-  answered by OSV alone and fetches none of it. Where it runs, the scan and the
+  does not. It runs only for a release OSV has dropped — one *past* free support,
+  which is not the same as one outside a support window: an unreleased
+  development branch is in no window yet and OSV carries it anyway. A supported
+  release, and a development branch, are answered by OSV alone and fetch none
+  of it. Where it runs, the scan and the
   evidence report name it as the source rather than warning that the results are
   incomplete: they are not, and telling a reader to distrust a complete report
   is its own kind of wrong. Where no fallback covers the release — an Ubuntu
