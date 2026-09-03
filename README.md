@@ -107,12 +107,22 @@ Download a binary from the [releases page](https://github.com/mhmtkas/fwscan/rel
 
 ```sh
 VERSION=0.1.0   # the release you want; see the releases page
-curl -sSfL -o fwscan.tar.gz \
-  "https://github.com/mhmtkas/fwscan/releases/download/v${VERSION}/fwscan_${VERSION}_linux_amd64.tar.gz"
-tar -xzf fwscan.tar.gz fwscan
+ARCH=linux_amd64                    # or linux_arm64, darwin_arm64
+BASE=https://github.com/mhmtkas/fwscan/releases/download/v${VERSION}
+
+curl -sSfL -O "$BASE/fwscan_${VERSION}_${ARCH}.tar.gz"
+curl -sSfL -O "$BASE/checksums.txt"
+sha256sum -c checksums.txt --ignore-missing   # shasum -a 256 -c on macOS
+
+tar -xzf "fwscan_${VERSION}_${ARCH}.tar.gz" fwscan
 sudo install fwscan /usr/local/bin/
 fwscan version
 ```
+
+The checksum step is two lines and this is a tool you are about to point at
+untrusted images, so it is written out rather than left as an exercise. `-O`
+rather than `-o` keeps the archive's own name, which is what `checksums.txt`
+lists; renaming it on the way down is why that check is usually skipped.
 
 Or with Go:
 
