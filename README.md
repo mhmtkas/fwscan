@@ -400,8 +400,14 @@ opkg cataloger, SPDX, NVD as a second source and the rest follow.
 
 ## Name
 
-An unrelated, low-activity `fwscan` package exists on PyPI. This is a Go tool
-distributed through GitHub releases and is not connected to it.
+`fw` is short for firmware, which is the audience rather than the capability:
+this reads dpkg and apk, so a Debian, Ubuntu or Alpine rootfs, and the first
+screen above says so. It does not extract or fingerprint binaries the way
+binwalk does.
+
+An abandoned `fwscan` package exists on PyPI at 0.0.5, and a handful of
+unrelated GitHub repositories share the name. None is connected to this. This
+one is a Go tool distributed through GitHub releases.
 
 ## Development
 
