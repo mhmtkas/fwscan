@@ -85,7 +85,7 @@ evidence, including what happens without the release qualifier, is in
 Debian and Ubuntu image measured, the three are level or fwscan is ahead. The
 matching is a commodity and this README does not pretend otherwise;
 [`docs/comparison.md`](docs/comparison.md) has the numbers, three tools across
-seven real images, and the commands to re-derive them. Read it before choosing
+eleven real images, and the commands to re-derive them. Read it before choosing
 this over either.
 
 **Two things here have no equivalent in either.** `--cra` writes the scan up as
