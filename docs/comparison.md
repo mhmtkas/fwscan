@@ -136,6 +136,12 @@ official Alpine minirootfs images, Debian and Ubuntu rootfs images pulled from
 the official ones, and an OpenWrt 23.05.5 x86-64 squashfs rootfs. Same day,
 same tools, fwscan v0.1.0.
 
+All three tools' counts move as their sources publish; the fwscan column below
+was taken in the same hour as the grype and trivy ones so the row is a fair
+comparison, not so that the number can be quoted later. Re-running this table
+four hours after it was written gave fwscan 232 on Debian 11 rather than 208,
+with no change to the tool.
+
 | Image | Size | fwscan packages | fwscan | grype | trivy |
 |---|---|---|---|---|---|
 | Debian 11 bullseye | 52 MB | 98 | 208 | 211 | 222 |

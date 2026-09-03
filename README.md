@@ -216,6 +216,11 @@ reads the export's input instead. A supported release fetches none of it.
 
 ## How it compares
 
+Measured on 3 September 2026, with grype 0.118.0 and trivy 0.74.0, both
+databases rebuilt that day. fwscan fetches its data per scan and the others
+ship a database, so all three counts move; re-derive them rather than quote
+them.
+
 | Image | fwscan | grype | trivy |
 |---|---|---|---|
 | Debian 11 bullseye | 208 | 211 | 222 |
@@ -227,7 +232,9 @@ reads the export's input instead. A supported release fetches none of it.
 | tarball | reads it | reads it | not scanned |
 
 On Debian 11, against trivy with a database built the same day: 111 CVEs in
-both, none that fwscan reports and trivy does not. The Alpine 3.16 row is a
+both, none that fwscan reports and trivy does not. Four hours later the same
+image gave fwscan 232 findings rather than 208, all from upstream publishing
+rather than any change here — which is what the caveat above is about. The Alpine 3.16 row is a
 difference in method rather than coverage — 65 of grype's 94 come from matching
 package names against NVD's CPE strings rather than from Alpine's data, which is
 a technique [`docs/scope.md`](docs/scope.md) excludes by name.
