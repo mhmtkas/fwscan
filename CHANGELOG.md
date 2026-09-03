@@ -52,7 +52,11 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
   that is 0 findings against 208. Checked against trivy on the same image with a
   database built the same day: 111 CVEs in both, none fwscan reports and trivy
   does not. It runs only for a release OSV has dropped; a supported release is
-  answered by OSV alone and fetches none of it.
+  answered by OSV alone and fetches none of it. Where it runs, the scan and the
+  evidence report name it as the source rather than warning that the results are
+  incomplete: they are not, and telling a reader to distrust a complete report
+  is its own kind of wrong. Where no fallback covers the release — an Ubuntu
+  release on ESM, say — the warning stands.
 - Lookups batched and deduplicated by source package; vulnerability details
   fetched through a bounded worker pool.
 - CVSS v3 and v2 base scores computed from their vectors, mapped to the severity
