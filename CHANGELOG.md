@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-09-04
+
+A documentation and build-infrastructure release. Nothing under `internal/` or
+`cmd/` changed; a binary built from this tag behaves exactly as 0.1.0 does. It
+exists because the release archive carries `README.md`, and that README
+changed.
+
+### Changed
+
+- The README's quickstart offers a way to try the tool with no rootfs to hand:
+  export any public image with Docker and scan the tarball. Three lines, about
+  twenty seconds, and the four images it names each show something the README
+  talks about — including a fully patched Alpine that reports nothing and says
+  what it looked up, and a Debian 11 that is read from Debian's own tracker.
+- The pointer to `docs/comparison.md` said seven real images; the table has had
+  eleven since the newest Ubuntu and Debian releases were added.
+- CI and release workflows moved to `actions/checkout@v7`,
+  `actions/setup-go@v7` and `goreleaser/goreleaser-action@v7`, all on the
+  Node 24 runtime GitHub is moving to. No workflow uses `pull_request_target`,
+  so checkout's changed defaults for it do not apply.
+
 ## [0.1.0] — 2026-09-03
 
 First release. Reads the dpkg or apk database in a Linux root filesystem, emits

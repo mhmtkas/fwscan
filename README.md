@@ -106,7 +106,7 @@ Download a binary from the [releases page](https://github.com/mhmtkas/fwscan/rel
 — linux/amd64, linux/arm64, darwin/arm64:
 
 ```sh
-VERSION=0.1.0   # the release you want; see the releases page
+VERSION=0.1.1   # the release you want; see the releases page
 ARCH=linux_amd64                    # or linux_arm64, darwin_arm64
 BASE=https://github.com/mhmtkas/fwscan/releases/download/v${VERSION}
 
