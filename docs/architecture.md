@@ -130,8 +130,10 @@ Six things here are not obvious, and all of them are spike conclusions
    does. So the matcher has a second source for exactly that case: the tracker's
    own `CVE/list`, plus the `DSA/list` and `DLA/list` files that hold the
    per-release fixed versions a CVE closed by an advisory has nowhere else
-   (T58). It runs only when `internal/release` says the release is out of free
-   support, and a finding from it carries `source: security-tracker.debian.org`
+   (T58). It runs only when `internal/release` says the release is *past* free
+   support — not merely outside a window, because an unreleased branch is in
+   no window yet and OSV carries it anyway (T69) — and a finding from it
+   carries `source: security-tracker.debian.org`
    so a reader can tell the halves apart.
 
 ### `internal/release`

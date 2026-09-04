@@ -183,8 +183,9 @@ a CycloneDX SBOM, and reports known vulnerabilities from OSV.dev.
   grype — 182 findings to 179 on a Debian bookworm rootfs — and on a fully
   patched Debian 11 rootfs it reports nothing where grype reports 211, all of
   them unfixed. A scan of a Debian image that finds nothing says so rather than
-  reporting a clean result. `docs/comparison.md` measures seven real images. A
-  second data source is on the roadmap.
+  reporting a clean result. `docs/comparison.md` measures eleven real images.
+  The second data source that closes the Debian 11 gap is the security-tracker
+  fallback described below.
 - A dpkg-based distribution that is neither Debian nor Ubuntu is queried against
   Debian's data, which may have nothing for it. The scan says so on stderr.
 - Roughly a fifth of Debian's OSV records carry no severity and land in the

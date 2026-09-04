@@ -6,7 +6,10 @@ labels: bug
 
 **What happened**
 
-<!-- Include the exact command and the output. Redact paths if you need to. -->
+<!-- Include the exact command and the output, including anything fwscan
+     printed on stderr: the warnings are usually the diagnosis. If you can,
+     re-run with --output report.json and attach it; every finding in it names
+     the data source it came from. Redact paths if you need to. -->
 
 **What you expected instead**
 

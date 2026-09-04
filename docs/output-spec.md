@@ -57,7 +57,8 @@ Rules:
 - The low-confidence footnote appears only when ≥1 low-confidence component exists.
 - Low-confidence components are cataloged, counted in `Packages` and written to the SBOM and the JSON `components` array, but are **not** queried against OSV in v1, so no finding carries `low` in the `CONF` column. A version inferred from a filename has no release to scope the query to, and an unscoped query manufactures findings instead of finding them (`spike/NOTES.md` T0.3). The column still accepts `high|low` so that enabling the lookup later is a matcher change, not a format change.
 - With `--no-network`: skip the `Findings` line and table entirely; after the header print `Cataloged 412 packages. CVE lookup skipped (--no-network).`
-- All diagnostics/progress/warnings go to **stderr**; stdout carries only the report, so it stays pipe-safe.
+- All diagnostics/progress/warnings go to **stderr**; stdout carries only the report, so it stays pipe-safe
+- Every diagnostic is one line, prefixed `fwscan: `, lowercase, sanitised like the report. The conditions that produce one are fixed, because a scan that is silent in one of them is a bug: no package database found; a package database found but not read (opkg, rpm); a dpkg image with no release in os-release, whose packages are therefore not looked up; a distribution whose base had to be taken from `ID_LIKE`, or that names no base fwscan knows; a release past free security support, past every tier, or not yet released; and a lookup that returned nothing, which names what it asked. The wording is not part of the contract; the presence is..
 
 ## 3. JSON report (`--output <file>`)
 

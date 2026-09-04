@@ -3,8 +3,9 @@
 ## Reporting a vulnerability in fwscan
 
 Please report security issues **privately** through GitHub's
-[private vulnerability reporting](https://github.com/mhmtkas/fwscan/security/advisories/new).
-Do not open a public issue for a security problem.
+[private vulnerability reporting](https://github.com/mhmtkas/fwscan/security/advisories/new),
+or by email to <mhmt.kas@gmail.com> with `fwscan` in the subject if you cannot
+use GitHub. Do not open a public issue for a security problem.
 
 Include what you have: affected version or commit, a description of the impact,
 and the smallest input that reproduces it. If the trigger is an image, attach

@@ -64,6 +64,10 @@ needs `squashfs-tools` 4.4 or newer — earlier builds lack lz4 and zstd support
   run, not a subtle mistake in a case somebody had — a Yocto image with no
   release, an unreleased Debian branch, a fully patched Alpine. It fetches
   around 700 MB and is not in CI.
+- **A published tag is never re-cut.** A fix is a new release. The archive
+  carries the README and the changelog, so even a docs-only change makes a new
+  artifact, and different bytes under one version number is what this rule
+  exists to prevent.
 - **`CHANGELOG.md` updated** under `[Unreleased]`.
 - **Conventional Commits**: `feat:`, `fix:`, `test:`, `docs:`, `chore:`.
 

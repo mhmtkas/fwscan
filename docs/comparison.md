@@ -92,8 +92,11 @@ measurement above is what it reports once it does:
 What remains — 75 findings grype has and fwscan does not — is a property of the
 data source. OSV's Debian export for an oldstable release lists the CVEs that
 received an advisory; grype's database is the Debian Security Tracker, which
-carries every CVE's per-release status. No change to fwscan closes that gap: it
-needs a second source, which the roadmap carries and v0.1.0 does not.
+carries every CVE's per-release status. No change to the *matching* closes that
+gap; it needs a second source. That source shipped — for a Debian release past
+free support fwscan now reads the tracker's own lists — and the real-image
+section below measures it: 111 CVEs in both, none fwscan reports and trivy does
+not. The numbers in this fixture section predate it and are left as recorded.
 
 ### The six findings the two describe differently
 
