@@ -9,7 +9,7 @@ require (
 	github.com/package-url/packageurl-go v0.1.7
 	github.com/pierrec/lz4/v4 v4.1.29
 	github.com/spf13/cobra v1.10.2
-	github.com/ulikunitz/xz v0.5.16
+	github.com/ulikunitz/xz v0.5.17
 )
 
 require (
