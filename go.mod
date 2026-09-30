@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/CycloneDX/cyclonedx-go v0.12.0
-	github.com/klauspost/compress v1.19.2
+	github.com/klauspost/compress v1.20.1
 	github.com/knqyf263/go-deb-version v0.0.0-20241115132648-6f4aee6ccd23
 	github.com/package-url/packageurl-go v0.1.7
 	github.com/pierrec/lz4/v4 v4.1.29
